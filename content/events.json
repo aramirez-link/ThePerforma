@@ -1,23 +1,24 @@
-﻿[
+[
   {
     "date": "2026-03-20",
     "city": "Los Angeles, CA",
     "venue": "The Echo",
-    "ticketUrl": "https://example.com/tickets/la",
+    "ticketUrl": "/",
     "status": "On Sale"
   },
   {
     "date": "2026-04-04",
     "city": "Austin, TX",
     "venue": "Empire Control Room",
-    "ticketUrl": "https://example.com/tickets/austin",
+    "ticketUrl": "/",
     "status": "Announcing Soon"
   },
   {
     "date": "2026-05-16",
     "city": "New York, NY",
     "venue": "Brooklyn Steel",
-    "ticketUrl": "https://example.com/tickets/nyc",
+    "ticketUrl": "/",
     "status": "On Sale"
   }
 ]
+

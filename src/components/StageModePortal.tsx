@@ -125,17 +125,17 @@ export default function StageModePortal({ vaultItems }: Props) {
       <div className="relative z-20 grid gap-8 pt-16 md:grid-cols-[1.1fr_1fr] md:items-center">
         <div className="space-y-5">
           <p className="text-xs uppercase tracking-[0.38em] text-haze">Lobby Mode / Stage Mode</p>
-          <h1 className="font-display text-4xl leading-tight md:text-6xl">Stage Mode Portal</h1>
+          <h1 className="font-display text-4xl leading-tight md:text-6xl">Chip Lee. Mainstage Signal.</h1>
           <p className="max-w-xl text-sm text-white/72 md:text-base">
-            Quiet in the lobby. Engineered ignition on command. Enter cinematic control and shift the atmosphere from editorial restraint to festival-scale pulse.
+            Chip Lee — known as The Performa — delivers cinematic DJ performance with the control of a luxury experience. Built for rooms that demand impact, not background.
           </p>
 
           <div className="flex flex-wrap gap-3">
             <button type="button" onClick={onStartExperience} className="rounded-full bg-ember px-6 py-3 text-xs uppercase tracking-[0.35em] text-ink shadow-[0_0_30px_rgba(242,84,45,0.4)]">
-              Start Experience
+              Enter Stage Mode
             </button>
             <button type="button" onClick={() => writeStageMode({ active: false, immersive: false })} className="rounded-full border border-white/30 px-6 py-3 text-xs uppercase tracking-[0.30em] text-white/70">
-              Lobby Mode
+              Explore the Experience
             </button>
           </div>
         </div>
@@ -147,8 +147,8 @@ export default function StageModePortal({ vaultItems }: Props) {
               <div className="absolute inset-0 bg-[linear-gradient(155deg,rgba(255,255,255,0.07),rgba(0,0,0,0.88))]" />
               <p className="relative z-10 text-[10px] uppercase tracking-[0.30em] text-white/55">Control Surface</p>
               <div className="relative z-10">
-                <p className="text-sm uppercase tracking-[0.24em] text-gold">{mode.active ? "Stage Mode Active" : "Lobby Mode Active"}</p>
-                <p className="mt-3 text-xs text-white/60">Profile: {mode.profile} / Intensity: {mode.intensity}%</p>
+                <p className="text-sm uppercase tracking-[0.24em] text-gold">Chip Lee — Live Signal Active</p>
+                <p className="mt-3 text-xs text-white/60">Mode: Festival Mainstage / Output: 86%</p>
               </div>
             </div>
           </div>

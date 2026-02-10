@@ -33,7 +33,7 @@ export default function BookingConciergeModal({ open, onClose }: Props) {
           <button type="button" onClick={onClose} className="rounded-full border border-white/30 px-3 py-2 text-xs uppercase tracking-[0.24em] text-white/70">Close</button>
         </div>
 
-        <form className="mt-8 grid gap-4 md:grid-cols-2" action="https://example.com/booking" method="post">
+        <form className="mt-8 grid gap-4 md:grid-cols-2" action="/" method="post">
           <label className="grid gap-2 text-xs uppercase tracking-[0.22em] text-white/60">
             Venue Type
             <select name="venueType" className="rounded-2xl border border-white/20 bg-black/40 px-4 py-3 text-sm text-white" defaultValue="Club">
@@ -65,3 +65,4 @@ export default function BookingConciergeModal({ open, onClose }: Props) {
     </div>
   );
 }
+

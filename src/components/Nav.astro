@@ -1,27 +1,72 @@
-﻿---
-const links = [
+---
+import SocialLinks from "./SocialLinks.astro";
+
+const primaryLinks = [
   { label: "Stage", href: "/" },
-  { label: "Live", href: "/live" },
   { label: "Watch", href: "/watch" },
   { label: "Listen", href: "/listen" },
+  { label: "Live", href: "/live" }
+];
+
+const menuLinks = [
   { label: "Story", href: "/story" },
   { label: "Gallery", href: "/gallery" },
   { label: "Book", href: "/book" },
   { label: "Inner Circle", href: "/fan-club" }
 ];
 ---
-<nav class="w-full">
-  <div class="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-6">
-    <a href="/" class="text-lg font-semibold tracking-[0.4em] uppercase">The Performa</a>
-    <div class="hidden flex-wrap items-center gap-6 text-xs uppercase tracking-[0.3em] md:flex">
-      {links.map((link) => (
-        <a href={link.href} class="text-white/70 transition hover:text-white">
-          {link.label}
+<nav class="sticky top-0 z-50 w-full">
+  <div class="mx-auto w-full max-w-6xl px-4 pt-4">
+    <div class="flex items-center justify-between gap-3 rounded-full border border-white/15 bg-black/45 px-4 py-3 backdrop-blur-xl shadow-[0_10px_40px_rgba(0,0,0,0.35)] md:px-5">
+      <a href="/" class="inline-flex items-center gap-2">
+        <img src="/assets/img/CHIPLEE_LOGO_Clear.png" alt="The Performa logo" class="h-9 w-auto md:h-10" />
+        <span class="hidden text-sm font-semibold uppercase tracking-[0.2em] text-white/90 sm:inline">The Performa</span>
+      </a>
+
+      <div class="hidden items-center gap-6 text-xs uppercase tracking-[0.24em] lg:flex">
+        {primaryLinks.map((link) => (
+          <a href={link.href} class="text-white/70 transition hover:text-white">
+            {link.label}
+          </a>
+        ))}
+      </div>
+
+      <div class="flex items-center gap-2 md:gap-3">
+        <a
+          href="/book"
+          class="hidden rounded-full bg-ember px-4 py-2 text-[10px] uppercase tracking-[0.28em] text-ink shadow-[0_0_25px_rgba(242,84,45,0.35)] transition hover:shadow-[0_0_35px_rgba(242,84,45,0.5)] sm:inline-flex"
+        >
+          Reserve
         </a>
-      ))}
+
+        <details class="relative">
+          <summary class="list-none rounded-full border border-white/25 px-4 py-2 text-[10px] uppercase tracking-[0.28em] text-white/80 transition hover:border-white/50 hover:text-white [&::-webkit-details-marker]:hidden">
+            Menu
+          </summary>
+
+          <div class="absolute right-0 mt-3 w-[min(20rem,88vw)] rounded-2xl border border-white/15 bg-black/90 p-4 shadow-[0_16px_60px_rgba(0,0,0,0.55)] backdrop-blur-xl">
+            <div class="grid gap-2 text-xs uppercase tracking-[0.24em] text-white/75">
+              {primaryLinks.concat(menuLinks).map((link) => (
+                <a href={link.href} class="rounded-lg px-3 py-2 transition hover:bg-white/10 hover:text-white">
+                  {link.label}
+                </a>
+              ))}
+            </div>
+
+            <a
+              href="/book"
+              class="mt-4 inline-flex w-full items-center justify-center rounded-full bg-ember px-4 py-3 text-[10px] uppercase tracking-[0.28em] text-ink"
+            >
+              Request Availability
+            </a>
+
+            <div class="mt-4 border-t border-white/10 pt-4">
+              <p class="mb-3 text-[10px] uppercase tracking-[0.3em] text-white/50">Channels</p>
+              <SocialLinks size="sm" />
+            </div>
+          </div>
+        </details>
+      </div>
     </div>
-    <a href="/book" class="rounded-full border border-white/30 px-4 py-2 text-xs uppercase tracking-[0.3em] text-white/80 transition hover:border-white">
-      Reserve
-    </a>
   </div>
 </nav>

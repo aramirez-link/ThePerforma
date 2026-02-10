@@ -12,13 +12,13 @@ import listen from "../../content/listen.json";
       <div class="absolute inset-0 flex items-end p-8">
         <div>
           <p class="text-xs uppercase tracking-[0.34em] text-gold/90">Listening Room</p>
-          <h1 class="mt-3 font-display text-4xl md:text-5xl">Curated Audio Vault</h1>
-          <p class="mt-3 max-w-2xl text-sm text-white/75 md:text-base">A dark-room stream environment for playlist arcs, warm textures, and late-night rehearsal energy.</p>
+          <h1 class="mt-3 font-display text-4xl md:text-5xl">Chip Lee: Curated Audio Vault</h1>
+          <p class="mt-3 max-w-2xl text-sm text-white/75 md:text-base">Step into The Performa's listening room - curated playlist arcs, warm textures, and late-night rehearsal energy straight from Chip Lee's vault.</p>
         </div>
       </div>
     </div>
   </section>
-  <Section eyebrow="Listen" title="Streaming rooms" subtitle="Curated playlists and mixes." >
+  <Section eyebrow="Listen" title="Streaming Rooms" subtitle="Curated playlists, mixes, and rehearsal cuts - updated as the signal evolves." >
     <div class="grid gap-6 md:grid-cols-2">
       {listen.map((item) => (
         <div class="rounded-3xl border border-white/15 bg-black/50 p-4 shadow-[0_0_70px_rgba(243,211,139,0.1)]">
@@ -26,14 +26,14 @@ import listen from "../../content/listen.json";
           <h3 class="mt-2 text-lg font-semibold">{item.title}</h3>
           {item.platform === "IANDI Radio" ? (
             <div class="mt-4 rounded-2xl border border-white/10 bg-black/60 p-6">
-              <p class="text-sm text-white/70">Open the station player and press play from the top-left control.</p>
+              <p class="text-sm text-white/70">Open the station player, press play, and let Chip Lee set the room's temperature.</p>
               <a
                 href={item.embedUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 class="mt-4 inline-flex rounded-full border border-gold/40 bg-black/35 px-5 py-3 text-xs uppercase tracking-[0.3em] text-gold"
               >
-                Open Live Player
+                Open Live Stream
               </a>
             </div>
           ) : (

@@ -1,4 +1,4 @@
-﻿# The Performa
+# The Performa
 
 Premium, cinematic entertainer website built with Astro, React islands, and Tailwind CSS. Designed for GitHub Pages deployment.
 
@@ -50,5 +50,6 @@ SITE=https://org.github.io/repo/ BASE=/repo/ npm run build
 ## TODO placeholders
 
 - Update `public/media/press-kit.pdf` with real press kit.
-- Replace `https://example.com` links with real endpoints.
+- Replace `/` links with real endpoints.
 - Add real events, watch links, and story media.
+

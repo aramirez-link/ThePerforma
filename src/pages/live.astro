@@ -1,4 +1,4 @@
-﻿---
+---
 import BaseLayout from "../layouts/BaseLayout.astro";
 import Section from "../components/Section.astro";
 import Card from "../components/Card.astro";
@@ -28,13 +28,14 @@ const schema = {
   <Section eyebrow="Live" title="Upcoming events" subtitle="Worldwide availability. Confirmed dates below.">
     <div class="grid gap-6 md:grid-cols-3">
       {events.map((event) => (
-        <Card title={`${event.city}`} subtitle={`${event.venue} · ${event.date}`} highlight={event.status}>
+        <Card title={`${event.city}`} subtitle={`${event.venue} ? ${event.date}`} highlight={event.status}>
           <a href={event.ticketUrl} class="text-xs uppercase tracking-[0.3em] text-ember">Tickets</a>
         </Card>
       ))}
     </div>
     <div class="mt-10 rounded-3xl border border-white/15 bg-black/50 p-6 text-sm text-white/70 shadow-[0_0_70px_rgba(242,84,45,0.1)]">
-      Want updates? <a href="https://example.com/notify" class="text-ember">Notify me</a>
+      Want updates? <a href="/" class="text-ember">Notify me</a>
     </div>
   </Section>
 </BaseLayout>
+

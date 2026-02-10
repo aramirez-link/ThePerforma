@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 export type VaultItem = {
   title: string;
@@ -23,12 +23,21 @@ export default function PerformanceVaultCarousel({ items, stageActive }: Props) 
   const [open, setOpen] = useState(false);
   const current = featured[activeIndex];
 
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
   return (
     <div className="space-y-5" id="performance-vault">
       <div className="flex items-end justify-between gap-4">
         <div>
-          <p className="text-[11px] uppercase tracking-[0.35em] text-gold/80">Performance Vault</p>
-          <h3 className="mt-2 font-display text-3xl">Trailer-grade Reels</h3>
+          <p className="text-[11px] uppercase tracking-[0.35em] text-gold/80">Signature Reels</p>
+          <h3 className="mt-2 font-display text-3xl">Live Moments From the Mainstage</h3>
         </div>
         <p className="text-xs uppercase tracking-[0.24em] text-white/60">{featured.length} entries</p>
       </div>
@@ -64,10 +73,25 @@ export default function PerformanceVaultCarousel({ items, stageActive }: Props) 
       </div>
 
       {open && (
-        <div className="fixed inset-0 z-[70] bg-black/90 px-4 py-10">
-          <button type="button" onClick={() => setOpen(false)} className="mx-auto mb-4 block rounded-full border border-white/30 px-4 py-2 text-xs uppercase tracking-[0.24em] text-white/70">Close Reel</button>
-          <div className="mx-auto max-w-5xl">
-            <div className="overflow-hidden rounded-[2rem] border border-white/20 bg-black">
+        <div
+          className="fixed inset-0 z-[70] bg-black/90 px-4 py-10"
+          onClick={() => setOpen(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Performance reel"
+        >
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="fixed right-6 top-6 z-[71] rounded-full border border-white/30 bg-black/70 px-4 py-2 text-xs uppercase tracking-[0.24em] text-white/80"
+          >
+            Close Reel
+          </button>
+          <div className="mx-auto mt-12 max-w-5xl md:mt-16">
+            <div
+              className="overflow-hidden rounded-[2rem] border border-white/20 bg-black"
+              onClick={(event) => event.stopPropagation()}
+            >
               <div className="aspect-video">
                 <iframe
                   src={current.embedUrl}

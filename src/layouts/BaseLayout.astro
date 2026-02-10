@@ -30,7 +30,7 @@ const {
     <meta name="theme-color" content="#07070a" />
     {schema && <script type="application/ld+json" set:html={JSON.stringify(schema)} />}
   </head>
-  <body class="text-white" data-stage="false" data-stage-profile="club" data-stage-intensity="45">
+  <body class="text-white" data-stage="false" data-stage-profile="club" data-stage-intensity="45" data-stage-theme="ember">
     <Nav />
     <main>
       <slot />
@@ -45,7 +45,8 @@ const {
         active: false,
         immersive: false,
         profile: "club",
-        intensity: 45
+        intensity: 45,
+        theme: "ember"
       };
 
       const readStoredMode = () => {
@@ -63,6 +64,7 @@ const {
         document.body.dataset.stage = String(mode.active);
         document.body.dataset.stageProfile = mode.profile;
         document.body.dataset.stageIntensity = String(mode.intensity);
+        document.body.dataset.stageTheme = mode.theme;
       };
 
       let stageMode = readStoredMode();

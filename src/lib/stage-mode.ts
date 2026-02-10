@@ -3,6 +3,7 @@ export type StageMode = {
   immersive: boolean;
   profile: "club" | "festival";
   intensity: number;
+  theme: "ember" | "gold" | "cobalt" | "crimson";
 };
 
 declare global {
@@ -19,7 +20,8 @@ export const defaultStageMode: StageMode = {
   active: false,
   immersive: false,
   profile: "club",
-  intensity: 45
+  intensity: 45,
+  theme: "ember"
 };
 
 export function readStageMode(): StageMode {
