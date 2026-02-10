@@ -203,7 +203,7 @@ export default function LiveStreamHub() {
           </div>
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 p-3">
             <p className="text-xs text-white/65">Set this embed to the current live URL before going on air for pop-up stream sessions.</p>
-            <a href="/watch" className="rounded-full border border-white/25 px-3 py-2 text-[10px] uppercase tracking-[0.2em] text-white/80">
+            <a href="/watch" className="inline-flex min-h-11 items-center rounded-full border border-white/25 px-3 py-2 text-[10px] uppercase tracking-[0.2em] text-white/80">
               Open Watch
             </a>
           </div>
@@ -215,7 +215,7 @@ export default function LiveStreamHub() {
           {!loading && !isLoggedIn && (
             <div className="mt-3 space-y-3">
               <p className="text-sm text-white/70">Register or log in to Fan Vault for live-on-air notifications.</p>
-              <a href="/fan-club" className="inline-flex rounded-full bg-ember px-4 py-2 text-[10px] uppercase tracking-[0.24em] text-ink">
+              <a href="/fan-club" className="inline-flex min-h-11 items-center rounded-full bg-ember px-4 py-2 text-[10px] uppercase tracking-[0.24em] text-ink">
                 Open Fan Vault
               </a>
             </div>
@@ -228,6 +228,7 @@ export default function LiveStreamHub() {
                   type="checkbox"
                   checked={prefs.enabled}
                   onChange={(event) => void persist({ ...prefs, enabled: event.target.checked, updatedAt: new Date().toISOString() })}
+                  className="h-4 w-4 shrink-0 accent-ember"
                 />
                 Enable live alerts
               </label>
@@ -237,6 +238,7 @@ export default function LiveStreamHub() {
                   checked={prefs.emailAlerts}
                   onChange={(event) => void persist({ ...prefs, emailAlerts: event.target.checked, updatedAt: new Date().toISOString() })}
                   disabled={!prefs.enabled}
+                  className="h-4 w-4 shrink-0 accent-ember"
                 />
                 Email me when stream starts
               </label>
@@ -246,6 +248,7 @@ export default function LiveStreamHub() {
                   checked={prefs.smsAlerts}
                   onChange={(event) => void persist({ ...prefs, smsAlerts: event.target.checked, updatedAt: new Date().toISOString() })}
                   disabled={!prefs.enabled}
+                  className="h-4 w-4 shrink-0 accent-ember"
                 />
                 SMS priority ping
               </label>
@@ -258,13 +261,13 @@ export default function LiveStreamHub() {
                   onBlur={() => void persist({ ...prefs, smsPhone: prefs.smsPhone.trim(), updatedAt: new Date().toISOString() })}
                   placeholder="+1 404 555 0123"
                   disabled={!prefs.enabled || !prefs.smsAlerts}
-                  className="mt-1 w-full rounded-xl border border-white/20 bg-black/45 px-3 py-2 text-xs text-white/85 placeholder:text-white/35"
+                  className="mt-1 w-full rounded-xl border border-white/20 bg-black/45 px-3 py-2 text-sm text-white/85 placeholder:text-white/35 min-h-11"
                 />
               </label>
               <label className="block text-xs text-white/80">
                 Preferred platform
                 <select
-                  className="mt-1 w-full rounded-xl border border-white/20 bg-black/45 px-3 py-2 text-xs text-white/85"
+                  className="mt-1 w-full rounded-xl border border-white/20 bg-black/45 px-3 py-2 text-sm text-white/85 min-h-11"
                   style={{ color: "#f5f5f7", backgroundColor: "#111318" }}
                   value={prefs.preferredPlatform}
                   onChange={(event) => void persist({ ...prefs, preferredPlatform: event.target.value as Platform, updatedAt: new Date().toISOString() })}
@@ -296,7 +299,7 @@ export default function LiveStreamHub() {
               href={platform.href}
               target="_blank"
               rel="noreferrer"
-              className="rounded-full border border-white/20 px-3 py-2 text-[10px] uppercase tracking-[0.2em] text-white/75 hover:border-gold/45 hover:text-gold"
+              className="inline-flex min-h-11 items-center rounded-full border border-white/20 px-3 py-2 text-[10px] uppercase tracking-[0.2em] text-white/75 hover:border-gold/45 hover:text-gold"
             >
               {platform.label}
             </a>

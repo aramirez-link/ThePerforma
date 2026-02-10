@@ -113,7 +113,7 @@ export default function WatchPlaylist({ items }: Props) {
               <button
                 type="button"
                 onClick={() => void shareClip(current)}
-                className="rounded-full border border-white/25 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-white/75 hover:border-gold/45 hover:text-gold"
+                className="rounded-full border border-white/25 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-white/75 min-h-10 hover:border-gold/45 hover:text-gold"
               >
                 Share Clip
               </button>
@@ -139,7 +139,7 @@ export default function WatchPlaylist({ items }: Props) {
                 key={item.embedUrl}
                 type="button"
                 onClick={() => setActive(items.findIndex((entry) => entry.embedUrl === item.embedUrl))}
-                className="rounded-xl border border-white/15 bg-black/45 p-2 text-left hover:border-gold/35"
+                className="rounded-xl border border-white/15 bg-black/45 p-2 text-left hover:border-gold/35 min-h-11"
               >
                 <img src={item.thumbnail} alt={item.title} className="rounded-lg" />
                 <p className="mt-2 text-xs text-white/80">{item.title}</p>
@@ -169,7 +169,7 @@ export default function WatchPlaylist({ items }: Props) {
               <button
                 type="button"
                 onClick={() => void shareClip(item)}
-                className="mr-2 rounded-full border border-white/25 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-white/70 hover:border-gold/45 hover:text-gold"
+                className="mr-2 rounded-full border border-white/25 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-white/70 min-h-10 hover:border-gold/45 hover:text-gold"
               >
                 Share
               </button>

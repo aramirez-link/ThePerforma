@@ -22,7 +22,7 @@ export default function BookingConciergeModal({ open, onClose }: Props) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[80] bg-black/75 px-4 py-8 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Request availability">
+    <div className="fixed inset-0 z-[80] overflow-y-auto bg-black/75 px-4 py-8 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Request availability">
       <div className="mx-auto max-w-2xl rounded-[2rem] border border-white/20 bg-[#0a0a10]/90 p-6 shadow-[0_0_80px_rgba(242,84,45,0.15)] md:p-8">
         <div className="flex items-start justify-between gap-4">
           <div>
@@ -52,12 +52,12 @@ export default function BookingConciergeModal({ open, onClose }: Props) {
             </select>
           </label>
 
-          <input className="rounded-2xl border border-white/20 bg-black/40 px-4 py-3 text-sm" name="name" placeholder="Name" required />
-          <input className="rounded-2xl border border-white/20 bg-black/40 px-4 py-3 text-sm" name="email" placeholder="Email" required />
-          <input className="rounded-2xl border border-white/20 bg-black/40 px-4 py-3 text-sm" name="city" placeholder="City" />
-          <input className="rounded-2xl border border-white/20 bg-black/40 px-4 py-3 text-sm" name="date" placeholder="Event Date" />
+          <input className="rounded-2xl border border-white/20 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-white/40" name="name" placeholder="Name" aria-label="Name" required />
+          <input className="rounded-2xl border border-white/20 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-white/40" name="email" placeholder="Email" aria-label="Email" required />
+          <input className="rounded-2xl border border-white/20 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-white/40" name="city" placeholder="City" aria-label="City" />
+          <input className="rounded-2xl border border-white/20 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-white/40" name="date" placeholder="Event Date" aria-label="Event date" />
 
-          <textarea className="md:col-span-2 rounded-2xl border border-white/20 bg-black/40 px-4 py-3 text-sm" name="notes" rows={4} placeholder="Production and audience details" />
+          <textarea className="md:col-span-2 rounded-2xl border border-white/20 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-white/40" name="notes" rows={4} placeholder="Production and audience details" aria-label="Production and audience details" />
 
           <button type="submit" className="rounded-full bg-ember px-6 py-3 text-xs uppercase tracking-[0.32em] text-ink">Request Availability</button>
         </form>

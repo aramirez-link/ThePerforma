@@ -3,7 +3,7 @@ const { eyebrow = "", title = "", subtitle = "", align = "left" } = Astro.props;
 const alignClass = align === "center" ? "text-center items-center" : "text-left items-start";
 ---
 <section class="py-16 md:py-24">
-  <div class={`mx-auto flex w-full max-w-6xl flex-col gap-6 px-6 ${alignClass}`}>
+  <div class={`mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 sm:px-6 ${alignClass}`}>
     {eyebrow && <p class="text-xs uppercase tracking-[0.4em] text-haze">{eyebrow}</p>}
     {title && <h2 class="font-display text-4xl md:text-5xl">{title}</h2>}
     {subtitle && <p class="max-w-2xl text-base text-white/70">{subtitle}</p>}

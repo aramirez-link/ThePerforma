@@ -331,14 +331,14 @@ export default function FanVaultConsole() {
             <button
               type="button"
               onClick={() => setMode("register")}
-              className={`rounded-full border px-4 py-2 text-xs uppercase tracking-[0.25em] ${mode === "register" ? "border-gold/60 text-gold" : "border-white/20 text-white/70"}`}
+              className={`rounded-full border px-4 py-2 text-xs uppercase tracking-[0.25em] min-h-11 ${mode === "register" ? "border-gold/60 text-gold" : "border-white/20 text-white/70"}`}
             >
               Register
             </button>
             <button
               type="button"
               onClick={() => setMode("login")}
-              className={`rounded-full border px-4 py-2 text-xs uppercase tracking-[0.25em] ${mode === "login" ? "border-gold/60 text-gold" : "border-white/20 text-white/70"}`}
+              className={`rounded-full border px-4 py-2 text-xs uppercase tracking-[0.25em] min-h-11 ${mode === "login" ? "border-gold/60 text-gold" : "border-white/20 text-white/70"}`}
             >
               Log In
             </button>
@@ -350,7 +350,7 @@ export default function FanVaultConsole() {
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="rounded-2xl border border-white/20 bg-black/40 px-4 py-3"
+              className="rounded-2xl border border-white/20 bg-black/40 px-4 py-3 text-white placeholder:text-white/40 min-h-11"
               placeholder="Display Name"
               required
             />
@@ -358,19 +358,19 @@ export default function FanVaultConsole() {
           <input
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="rounded-2xl border border-white/20 bg-black/40 px-4 py-3"
+            className="rounded-2xl border border-white/20 bg-black/40 px-4 py-3 text-white placeholder:text-white/40 min-h-11"
             placeholder="Email"
             required
           />
           <input
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="rounded-2xl border border-white/20 bg-black/40 px-4 py-3"
+            className="rounded-2xl border border-white/20 bg-black/40 px-4 py-3 text-white placeholder:text-white/40 min-h-11"
             placeholder="Password"
             type="password"
             required
           />
-          <button type="submit" disabled={working} className="rounded-full bg-ember px-6 py-3 text-xs uppercase tracking-[0.3em] text-ink disabled:opacity-60">
+          <button type="submit" disabled={working} className="rounded-full bg-ember px-6 py-3 text-xs uppercase tracking-[0.3em] text-ink min-h-11 disabled:opacity-60">
             {working ? "Working..." : mode === "register" ? "Create Fan Vault" : "Enter Vault"}
           </button>
         </form>
@@ -384,7 +384,7 @@ export default function FanVaultConsole() {
                   type="button"
                   onClick={() => startOAuth(provider)}
                   disabled={Boolean(oauthWorking)}
-                  className="inline-flex items-center justify-center gap-2 rounded-full border border-white/25 bg-black/35 px-4 py-2 text-[11px] uppercase tracking-[0.22em] text-white/80 hover:border-gold/50 hover:text-gold disabled:opacity-60"
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-white/25 bg-black/35 px-4 py-2 text-[11px] uppercase tracking-[0.22em] text-white/80 hover:border-gold/50 hover:text-gold disabled:opacity-60"
                 >
                   <span className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-white/30 text-[9px] leading-none">
                     {providerMeta[provider].icon}
@@ -435,7 +435,7 @@ export default function FanVaultConsole() {
               type="button"
               onClick={quickSaveBadge}
               disabled={quickSaving}
-              className="rounded-full border border-gold/40 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-gold disabled:opacity-60"
+              className="rounded-full border border-gold/40 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-gold min-h-10 disabled:opacity-60"
             >
               {quickSaving ? "Saving" : "Apply"}
             </button>
@@ -446,7 +446,7 @@ export default function FanVaultConsole() {
           <button
             type="button"
             onClick={() => setEditOpen((value) => !value)}
-            className="rounded-full border border-gold/40 px-5 py-2 text-xs uppercase tracking-[0.25em] text-gold"
+            className="rounded-full border border-gold/40 px-5 py-2 text-xs uppercase tracking-[0.25em] text-gold min-h-11"
           >
             {editOpen ? "Close Edit" : "Edit Profile"}
           </button>
@@ -457,7 +457,7 @@ export default function FanVaultConsole() {
             setNotice("Signed out.");
             await sync();
           }}
-          className="rounded-full border border-white/30 px-5 py-2 text-xs uppercase tracking-[0.25em] text-white/75"
+          className="rounded-full border border-white/30 px-5 py-2 text-xs uppercase tracking-[0.25em] text-white/75 min-h-11"
         >
           Sign Out
         </button>
@@ -471,7 +471,7 @@ export default function FanVaultConsole() {
             value={bioDraft}
             onChange={(e) => setBioDraft(e.target.value)}
             rows={3}
-            className="mt-3 w-full rounded-2xl border border-white/20 bg-black/40 px-4 py-3"
+            className="mt-3 w-full rounded-2xl border border-white/20 bg-black/40 px-4 py-3 text-white placeholder:text-white/40"
             placeholder="Add a short fan bio..."
           />
           <p className="mt-4 text-xs uppercase tracking-[0.28em] text-white/55">Profile Badge</p>
