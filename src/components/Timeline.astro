@@ -1,0 +1,17 @@
+﻿---
+const { items = [] } = Astro.props;
+---
+<div class="grid gap-8 md:grid-cols-3">
+  {items.map((item) => (
+    <div class="rounded-3xl border border-white/10 bg-white/5 p-6">
+      <p class="text-xs uppercase tracking-[0.3em] text-gold">{item.eyebrow}</p>
+      <h3 class="mt-3 font-display text-2xl">{item.title}</h3>
+      <p class="mt-3 text-sm text-white/70">{item.copy}</p>
+      {item.href && (
+        <a href={item.href} class="mt-6 inline-flex text-xs uppercase tracking-[0.3em] text-ember">
+          Enter Chapter
+        </a>
+      )}
+    </div>
+  ))}
+</div>

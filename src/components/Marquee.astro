@@ -1,0 +1,26 @@
+﻿---
+const { items = [] } = Astro.props;
+const list = items.length ? items : ["Festival Ready", "Live Band", "Club Residencies", "Worldwide Booking", "Premium Experience"];
+---
+<div class="overflow-hidden border-y border-white/10 py-4">
+  <div class="animate-marquee flex w-[200%] gap-12 text-xs uppercase tracking-[0.4em] text-white/60">
+    {list.concat(list).map((item) => (
+      <span class="whitespace-nowrap">{item}</span>
+    ))}
+  </div>
+</div>
+
+<style>
+  @keyframes marquee {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+  }
+  .animate-marquee {
+    animation: marquee 22s linear infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .animate-marquee {
+      animation: none;
+    }
+  }
+</style>

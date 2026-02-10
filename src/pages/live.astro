@@ -1,0 +1,40 @@
+﻿---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Section from "../components/Section.astro";
+import Card from "../components/Card.astro";
+import events from "../../content/events.json";
+
+const schema = {
+  "@context": "https://schema.org",
+  "@type": "MusicEvent",
+  name: "The Performa Live",
+  performer: { "@type": "MusicGroup", name: "The Performa" }
+};
+---
+<BaseLayout title="Live Dates | The Performa" description="Upcoming shows and festival appearances." schema={schema}>
+  <section class="mx-auto max-w-6xl px-6 pt-8">
+    <div class="relative overflow-hidden rounded-[2rem] border border-white/15">
+      <img src="/assets/img/096NewChip_4K.jpg" alt="" aria-hidden="true" class="h-[40vh] w-full object-cover opacity-40" />
+      <div class="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,7,11,0.28),rgba(7,7,11,0.9))]"></div>
+      <div class="absolute inset-0 flex items-end p-8">
+        <div>
+          <p class="text-xs uppercase tracking-[0.34em] text-gold/90">Live Routing</p>
+          <h1 class="mt-3 font-display text-4xl md:text-5xl">Global Stage Calendar</h1>
+          <p class="mt-3 max-w-2xl text-sm text-white/75 md:text-base">Confirmed appearances, city activations, and next-booking windows in one performance timeline.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+  <Section eyebrow="Live" title="Upcoming events" subtitle="Worldwide availability. Confirmed dates below.">
+    <div class="grid gap-6 md:grid-cols-3">
+      {events.map((event) => (
+        <Card title={`${event.city}`} subtitle={`${event.venue} · ${event.date}`} highlight={event.status}>
+          <a href={event.ticketUrl} class="text-xs uppercase tracking-[0.3em] text-ember">Tickets</a>
+        </Card>
+      ))}
+    </div>
+    <div class="mt-10 rounded-3xl border border-white/15 bg-black/50 p-6 text-sm text-white/70 shadow-[0_0_70px_rgba(242,84,45,0.1)]">
+      Want updates? <a href="https://example.com/notify" class="text-ember">Notify me</a>
+    </div>
+  </Section>
+</BaseLayout>

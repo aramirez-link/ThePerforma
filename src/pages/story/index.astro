@@ -1,0 +1,74 @@
+﻿---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import Section from "../../components/Section.astro";
+import Timeline from "../../components/Timeline.astro";
+import MotionReveal from "../../components/MotionReveal";
+
+const timeline = [
+  {
+    eyebrow: "Chapter I",
+    title: "Exodus",
+    copy: "The moment the persona steps into the light.",
+    href: "/story/exodus"
+  },
+  {
+    eyebrow: "Chapter II",
+    title: "Journey",
+    copy: "A moving city of sound and tempo shifts.",
+    href: "/story/journey"
+  },
+  {
+    eyebrow: "Chapter III",
+    title: "Return",
+    copy: "Finale built for release and encore.",
+    href: "/story/return"
+  }
+];
+---
+<BaseLayout title="Story | The Performa" description="Explore the narrative chapters of the live show.">
+  <section class="mx-auto max-w-6xl px-6 pt-8">
+    <div class="relative overflow-hidden rounded-[2rem] border border-white/15">
+      <img src="/assets/img/0030ChipFiesta_4K.jpg" alt="" aria-hidden="true" class="h-[40vh] w-full object-cover opacity-40" />
+      <div class="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,7,11,0.28),rgba(7,7,11,0.9))]"></div>
+      <div class="absolute inset-0 flex items-end p-8">
+        <div>
+          <p class="text-xs uppercase tracking-[0.34em] text-gold/90">Story Vault</p>
+          <h1 class="mt-3 font-display text-4xl md:text-5xl">Act Structure Narrative</h1>
+          <p class="mt-3 max-w-2xl text-sm text-white/75 md:text-base">Three cinematic chapters shaping the emotional arc from ignition to release.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+  <Section
+    eyebrow="Story Hub"
+    title="The narrative behind the show"
+    subtitle="Three chapters built for cinematic pacing, audience participation, and signature transitions."
+  >
+    <Timeline items={timeline} />
+  </Section>
+  <Section
+    eyebrow="Scrollytelling"
+    title="Chapter visuals"
+    subtitle="Each act unfolds with a distinct visual language."
+  >
+    <MotionReveal client:visible>
+      <div class="grid gap-6 md:grid-cols-3">
+        <div class="rounded-3xl border border-white/15 bg-black/50 p-4 shadow-[0_0_60px_rgba(242,84,45,0.08)]">
+          <img src="/assets/img/0030ChipFiesta_4K.jpg" alt="Exodus visuals" class="rounded-2xl" loading="lazy" />
+          <h3 class="mt-4 text-lg font-semibold">Exodus</h3>
+          <p class="mt-2 text-sm text-white/70">Silhouettes, tension, and first pulse.</p>
+        </div>
+        <div class="rounded-3xl border border-white/15 bg-black/50 p-4 shadow-[0_0_60px_rgba(242,84,45,0.08)]">
+          <img src="/assets/img/096NewChip_4K.jpg" alt="Journey visuals" class="rounded-2xl" loading="lazy" />
+          <h3 class="mt-4 text-lg font-semibold">Journey</h3>
+          <p class="mt-2 text-sm text-white/70">Traveling light beams and kinetic motion.</p>
+        </div>
+        <div class="rounded-3xl border border-white/15 bg-black/50 p-4 shadow-[0_0_60px_rgba(242,84,45,0.08)]">
+          <img src="/assets/img/137NewChip_4K.jpg" alt="Return visuals" class="rounded-2xl" loading="lazy" />
+          <h3 class="mt-4 text-lg font-semibold">Return</h3>
+          <p class="mt-2 text-sm text-white/70">Gold halos and crowd release.</p>
+        </div>
+      </div>
+    </MotionReveal>
+  </Section>
+</BaseLayout>

@@ -1,0 +1,26 @@
+﻿---
+const { href = "#", variant = "primary", size = "md", as = "a", icon = "" } = Astro.props;
+const base = "inline-flex items-center justify-center gap-2 rounded-full font-semibold uppercase tracking-[0.2em] transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ember";
+const variants = {
+  primary: "bg-ember text-ink shadow-glow hover:shadow-halo",
+  ghost: "border border-white/20 text-white/90 hover:border-white/60",
+  gold: "bg-gold text-ink shadow-glow"
+};
+const sizes = {
+  sm: "px-4 py-2 text-xs",
+  md: "px-6 py-3 text-sm",
+  lg: "px-8 py-4 text-base"
+};
+const classes = `${base} ${variants[variant]} ${sizes[size]}`;
+---
+{as === "button" ? (
+  <button class={classes}>
+    {icon && <span class="text-lg">{icon}</span>}
+    <slot />
+  </button>
+) : (
+  <a href={href} class={classes}>
+    {icon && <span class="text-lg">{icon}</span>}
+    <slot />
+  </a>
+)}

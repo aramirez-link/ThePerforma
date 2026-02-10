@@ -1,0 +1,14 @@
+﻿[
+  {
+    "title": "Midnight Capsule",
+    "launchDate": "2026-03-01T00:00:00-05:00",
+    "description": "Limited merch + live track bundle.",
+    "ctaUrl": "https://example.com/drops/midnight"
+  },
+  {
+    "title": "Neon Ritual EP",
+    "launchDate": "2026-04-15T00:00:00-04:00",
+    "description": "Exclusive first listen for fan club members.",
+    "ctaUrl": "https://example.com/drops/neon"
+  }
+]

@@ -1,0 +1,27 @@
+﻿---
+const links = [
+  { label: "Stage", href: "/" },
+  { label: "Live", href: "/live" },
+  { label: "Watch", href: "/watch" },
+  { label: "Listen", href: "/listen" },
+  { label: "Story", href: "/story" },
+  { label: "Gallery", href: "/gallery" },
+  { label: "Book", href: "/book" },
+  { label: "Inner Circle", href: "/fan-club" }
+];
+---
+<nav class="w-full">
+  <div class="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-6">
+    <a href="/" class="text-lg font-semibold tracking-[0.4em] uppercase">The Performa</a>
+    <div class="hidden flex-wrap items-center gap-6 text-xs uppercase tracking-[0.3em] md:flex">
+      {links.map((link) => (
+        <a href={link.href} class="text-white/70 transition hover:text-white">
+          {link.label}
+        </a>
+      ))}
+    </div>
+    <a href="/book" class="rounded-full border border-white/30 px-4 py-2 text-xs uppercase tracking-[0.3em] text-white/80 transition hover:border-white">
+      Reserve
+    </a>
+  </div>
+</nav>

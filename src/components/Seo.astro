@@ -1,0 +1,19 @@
+﻿---
+const {
+  title = "The Performa",
+  description = "Cinematic entertainer experience.",
+  canonical = "",
+  image = "/media/og-default.svg",
+  type = "website"
+} = Astro.props;
+const url = canonical || new URL(Astro.request.url).href;
+---
+<title>{title}</title>
+<meta name="description" content={description} />
+<link rel="canonical" href={url} />
+<meta property="og:title" content={title} />
+<meta property="og:description" content={description} />
+<meta property="og:type" content={type} />
+<meta property="og:url" content={url} />
+<meta property="og:image" content={image} />
+<meta name="twitter:card" content="summary_large_image" />

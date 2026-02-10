@@ -1,0 +1,86 @@
+import { useMemo, useState } from "react";
+
+export type VaultItem = {
+  title: string;
+  platform: string;
+  embedUrl: string;
+  thumbnail: string;
+  featured?: boolean;
+};
+
+type Props = {
+  items: VaultItem[];
+  stageActive: boolean;
+};
+
+export default function PerformanceVaultCarousel({ items, stageActive }: Props) {
+  const featured = useMemo(() => {
+    const pool = items.filter((item) => item.featured);
+    return pool.length ? pool : items;
+  }, [items]);
+
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [open, setOpen] = useState(false);
+  const current = featured[activeIndex];
+
+  return (
+    <div className="space-y-5" id="performance-vault">
+      <div className="flex items-end justify-between gap-4">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.35em] text-gold/80">Performance Vault</p>
+          <h3 className="mt-2 font-display text-3xl">Trailer-grade Reels</h3>
+        </div>
+        <p className="text-xs uppercase tracking-[0.24em] text-white/60">{featured.length} entries</p>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className={`group relative w-full overflow-hidden rounded-[2rem] border border-white/20 bg-black/70 p-2 transition ${stageActive ? "shadow-[0_0_80px_rgba(242,84,45,0.25)]" : ""}`}
+      >
+        <div className="relative aspect-video overflow-hidden rounded-[1.6rem] bg-black">
+          <img src={current.thumbnail} alt={current.title} className="h-full w-full object-cover opacity-75 transition duration-500 group-hover:scale-[1.03] group-hover:opacity-95" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.03),rgba(0,0,0,0.72))]" />
+          <div className="absolute left-6 top-6 rounded-full border border-gold/40 bg-black/35 px-3 py-2 text-[10px] uppercase tracking-[0.28em] text-gold">Reel Mode</div>
+          <div className="absolute bottom-6 left-6 text-left">
+            <p className="text-[11px] uppercase tracking-[0.28em] text-white/70">{current.platform}</p>
+            <h4 className="mt-2 text-2xl font-semibold">{current.title}</h4>
+          </div>
+        </div>
+      </button>
+
+      <div className="grid gap-3 md:grid-cols-3">
+        {featured.map((item, index) => (
+          <button
+            type="button"
+            key={`${item.title}-${index}`}
+            onClick={() => setActiveIndex(index)}
+            className={`rounded-2xl border bg-black/40 p-3 text-left transition ${index === activeIndex ? "border-gold/50" : "border-white/15 hover:border-white/30"}`}
+          >
+            <p className="text-[10px] uppercase tracking-[0.24em] text-white/60">{item.platform}</p>
+            <p className="mt-2 text-sm">{item.title}</p>
+          </button>
+        ))}
+      </div>
+
+      {open && (
+        <div className="fixed inset-0 z-[70] bg-black/90 px-4 py-10">
+          <button type="button" onClick={() => setOpen(false)} className="mx-auto mb-4 block rounded-full border border-white/30 px-4 py-2 text-xs uppercase tracking-[0.24em] text-white/70">Close Reel</button>
+          <div className="mx-auto max-w-5xl">
+            <div className="overflow-hidden rounded-[2rem] border border-white/20 bg-black">
+              <div className="aspect-video">
+                <iframe
+                  src={current.embedUrl}
+                  title={current.title}
+                  className="h-full w-full"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

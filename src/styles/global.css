@@ -1,0 +1,300 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --page-bg: #07070a;
+  --page-fg: #f5f5f7;
+  --scroll-velocity: 0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  font-family: "Space Grotesk", sans-serif;
+  background:
+    radial-gradient(1200px 600px at 50% 10%, rgba(242, 84, 45, 0.12), transparent 60%),
+    linear-gradient(180deg, #06060a 0%, #0a0c12 60%, #09090d 100%);
+  color: var(--page-fg);
+  min-height: 100vh;
+  transition: background 700ms ease, color 400ms ease;
+}
+
+a,
+button {
+  transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 320ms cubic-bezier(0.22, 1, 0.36, 1), border-color 280ms ease, color 220ms ease;
+}
+
+button:active,
+a:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+section {
+  position: relative;
+}
+
+[data-reveal] {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 700ms ease, transform 700ms ease;
+}
+
+[data-reveal].is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+body[data-stage="true"] {
+  background:
+    radial-gradient(1000px 460px at 50% 2%, rgba(243, 211, 139, 0.14), transparent 55%),
+    radial-gradient(1100px 600px at 20% 30%, rgba(242, 84, 45, 0.15), transparent 60%),
+    linear-gradient(180deg, #050508 0%, #090a11 60%, #06060a 100%);
+}
+
+body[data-stage="true"] .act-shell::before {
+  opacity: calc(0.12 + (var(--scroll-velocity) * 0.42));
+}
+
+body[data-stage="true"] .act-backplate {
+  opacity: calc(0.2 + (var(--scroll-velocity) * 0.2));
+}
+
+.atmo-grain {
+  background-image:
+    radial-gradient(circle at 10% 15%, rgba(255, 255, 255, 0.08) 0.5px, transparent 0.7px),
+    radial-gradient(circle at 70% 20%, rgba(255, 255, 255, 0.06) 0.5px, transparent 0.8px),
+    radial-gradient(circle at 30% 70%, rgba(255, 255, 255, 0.07) 0.6px, transparent 0.9px);
+  background-size: 240px 240px, 280px 280px, 320px 320px;
+  mix-blend-mode: soft-light;
+}
+
+.stage-wave {
+  background:
+    radial-gradient(48% 50% at 50% 50%, rgba(243, 211, 139, 0.42), rgba(243, 211, 139, 0) 75%),
+    radial-gradient(58% 70% at 60% 30%, rgba(242, 84, 45, 0.45), rgba(242, 84, 45, 0) 78%);
+  filter: blur(20px);
+  animation: waveFloat 6s ease-in-out infinite;
+}
+
+.stage-pulse {
+  opacity: 0.22;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+.stage-pulse-club {
+  animation-name: stagePulseClub;
+  animation-duration: 5.6s;
+  background: radial-gradient(circle at 50% 20%, rgba(242, 84, 45, 0.22), transparent 60%);
+}
+
+.stage-pulse-festival {
+  animation-name: stagePulseFestival;
+  animation-duration: 3.2s;
+  background: radial-gradient(circle at 50% 10%, rgba(243, 211, 139, 0.28), transparent 62%);
+}
+
+.lobby-mode {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.stage-mode-club {
+  box-shadow: 0 0 100px rgba(242, 84, 45, 0.18), inset 0 0 0 1px rgba(243, 211, 139, 0.12);
+}
+
+.stage-mode-festival {
+  box-shadow: 0 0 140px rgba(243, 211, 139, 0.18), inset 0 0 0 1px rgba(243, 211, 139, 0.18);
+}
+
+.act-shell {
+  overflow: hidden;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.act-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  background: linear-gradient(120deg, rgba(243, 211, 139, 0.08), rgba(242, 84, 45, 0));
+  transition: opacity 500ms ease;
+}
+
+.act-backplate {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.2;
+  filter: saturate(0.8) contrast(1.08);
+}
+
+.act-overlay {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(7, 7, 11, 0.58) 0%, rgba(7, 7, 11, 0.9) 100%),
+    radial-gradient(70% 100% at 50% 0%, rgba(242, 84, 45, 0.12), rgba(7, 7, 11, 0));
+}
+
+.act-content {
+  position: relative;
+  z-index: 2;
+}
+
+.act-tag {
+  font-size: 0.68rem;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: rgba(243, 211, 139, 0.86);
+}
+
+.act-title {
+  margin-top: 1rem;
+  max-width: 46rem;
+  font-family: "Bodoni Moda", serif;
+  font-size: clamp(2rem, 4vw, 3.3rem);
+  line-height: 1.12;
+}
+
+.act-copy {
+  margin-top: 1rem;
+  max-width: 42rem;
+  font-size: 1rem;
+  color: rgba(255, 255, 255, 0.74);
+}
+
+.act-grid {
+  margin-top: 2rem;
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 768px) {
+  .act-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.act-card {
+  border-radius: 1.4rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(10, 10, 15, 0.6);
+  padding: 1.25rem;
+  backdrop-filter: blur(8px);
+}
+
+.act-card h3 {
+  margin-top: 0.55rem;
+  font-size: 1.15rem;
+}
+
+.act-card p {
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.act-card-tag {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.28em;
+  color: rgba(243, 211, 139, 0.8);
+}
+
+@keyframes atmoIdle {
+  0%,
+  100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(4%, -2%, 0); }
+}
+
+@keyframes atmoIdleRev {
+  0%,
+  100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(-4%, 2%, 0); }
+}
+
+@keyframes atmoDrift {
+  0%,
+  100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(8%, -6%, 0) scale(1.06); }
+}
+
+@keyframes atmoDriftRev {
+  0%,
+  100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(-8%, 5%, 0) scale(1.08); }
+}
+
+@keyframes waveFloat {
+  0%,
+  100% { transform: translateY(0); }
+  50% { transform: translateY(-16px); }
+}
+
+@keyframes stagePulseClub {
+  0%,
+  100% { opacity: 0.12; }
+  50% { opacity: 0.34; }
+}
+
+@keyframes stagePulseFestival {
+  0%,
+  100% { opacity: 0.14; }
+  30% { opacity: 0.48; }
+  65% { opacity: 0.24; }
+}
+
+.animate-atmo-idle {
+  animation: atmoIdle 18s ease-in-out infinite;
+}
+
+.animate-atmo-idle-rev {
+  animation: atmoIdleRev 16s ease-in-out infinite;
+}
+
+.animate-atmo-drift {
+  animation: atmoDrift 12s ease-in-out infinite;
+}
+
+.animate-atmo-drift-rev {
+  animation: atmoDriftRev 10s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-reveal] {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  .animate-atmo-idle,
+  .animate-atmo-idle-rev,
+  .animate-atmo-drift,
+  .animate-atmo-drift-rev,
+  .stage-wave,
+  .stage-pulse {
+    animation: none !important;
+  }
+}

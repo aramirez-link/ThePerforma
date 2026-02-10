@@ -1,0 +1,53 @@
+﻿---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Section from "../components/Section.astro";
+import Card from "../components/Card.astro";
+import Button from "../components/Button.astro";
+import BookingConciergeEntry from "../components/BookingConciergeEntry";
+---
+<BaseLayout title="VIP Reservation | The Performa" description="Concierge-level availability request for promoters and agents.">
+  <section class="mx-auto max-w-6xl px-6 pt-8">
+    <div class="relative overflow-hidden rounded-[2rem] border border-white/15">
+      <img src="/assets/img/137NewChip_4K.jpg" alt="" aria-hidden="true" class="h-[42vh] w-full object-cover opacity-40" />
+      <div class="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,7,11,0.3),rgba(7,7,11,0.92))]"></div>
+      <div class="absolute inset-0 flex items-end p-8">
+        <div>
+          <p class="text-xs uppercase tracking-[0.34em] text-gold/90">VIP Reservation</p>
+          <h1 class="mt-3 font-display text-4xl md:text-5xl">Concierge Booking Deck</h1>
+          <p class="mt-3 max-w-2xl text-sm text-white/75 md:text-base">Choose venue profile, lock production tier, and request availability through a premium promoter flow.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+  <Section
+    eyebrow="EPK"
+    title="Promoter cockpit"
+    subtitle="Fast facts, tech rider snapshot, and inquiry flow."
+  >
+    <div class="grid gap-6 md:grid-cols-3">
+      <Card title="Set Formats" subtitle="60, 75, 90 minute headline. Festival-ready show flow." />
+      <Card title="Tech Rider" subtitle="Stage plot and lighting specs available upon request." />
+      <Card title="Press Assets" subtitle="Download hi-res press kit + logos." />
+    </div>
+    <div class="mt-10 flex flex-wrap gap-4 items-center">
+      <Button href="/media/press-kit.pdf" variant="primary">Download Press Kit</Button>
+      <BookingConciergeEntry client:load />
+      <Button href="mailto:booking@theperforma.example" variant="ghost">Direct Email</Button>
+    </div>
+    <div class="mt-12 rounded-3xl border border-white/15 bg-black/50 p-6 shadow-[0_0_70px_rgba(243,211,139,0.12)]">
+      <h3 class="text-xl font-semibold">Inquiry Form</h3>
+      <p class="mt-2 text-sm text-white/70">Static form ready to connect to your preferred endpoint.</p>
+      <form class="mt-6 grid gap-4 md:grid-cols-2" action="https://example.com/booking" method="post">
+        <input class="rounded-2xl border border-white/20 bg-black/40 px-4 py-3" name="name" placeholder="Promoter name" required />
+        <input class="rounded-2xl border border-white/20 bg-black/40 px-4 py-3" name="email" placeholder="Email" required />
+        <input class="rounded-2xl border border-white/20 bg-black/40 px-4 py-3" name="date" placeholder="Date" />
+        <input class="rounded-2xl border border-white/20 bg-black/40 px-4 py-3" name="venue" placeholder="Venue" />
+        <textarea class="md:col-span-2 rounded-2xl border border-white/20 bg-black/40 px-4 py-3" name="details" rows="4" placeholder="Show details"></textarea>
+        <button type="submit" class="rounded-full bg-ember px-6 py-3 text-xs uppercase tracking-[0.4em] text-ink">
+          Send Request
+        </button>
+      </form>
+      <p class="mt-3 text-xs text-white/50">TODO: Replace action URL with preferred form endpoint.</p>
+    </div>
+  </Section>
+</BaseLayout>

@@ -1,0 +1,39 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Section from "../components/Section.astro";
+import DropCountdown from "../components/DropCountdown";
+import drops from "../../content/drops.json";
+---
+<BaseLayout title="Inner Circle Access | The Performa" description="Private drops, early booking priority, and unreleased cinematic reels.">
+  <Section
+    eyebrow="Inner Circle Access"
+    title="Vault unlock sequence"
+    subtitle="Private drops, early booking priority, and unreleased cinematic reels."
+  >
+    <div class="rounded-[2rem] border border-white/15 bg-black/55 p-6 backdrop-blur-md">
+      <p class="text-xs uppercase tracking-[0.34em] text-gold/85">Access Terminal</p>
+      <h3 class="mt-3 font-display text-3xl">Request Entry Credentials</h3>
+      <p class="mt-3 max-w-3xl text-sm text-white/70">Inner Circle members receive private drop windows, first booking notifications, and unreleased performance cuts.</p>
+      <div class="mt-6 flex flex-wrap gap-4">
+        <a href="https://example.com/fanclub" class="rounded-full bg-ember px-6 py-3 text-xs uppercase tracking-[0.34em] text-ink">Unlock Email Access</a>
+        <a href="https://example.com/sms" class="rounded-full border border-white/30 px-6 py-3 text-xs uppercase tracking-[0.34em] text-white/75">Enable SMS Priority</a>
+      </div>
+    </div>
+
+    <div class="mt-12 grid gap-6 md:grid-cols-2">
+      {drops.map((drop) => (
+        <article class="rounded-[1.7rem] border border-white/15 bg-black/40 p-6">
+          <p class="text-[10px] uppercase tracking-[0.3em] text-white/55">Private Drop</p>
+          <h3 class="mt-3 text-2xl font-semibold">{drop.title}</h3>
+          <p class="mt-2 text-sm text-white/72">{drop.description}</p>
+          <div class="mt-4">
+            <DropCountdown client:load launchDate={drop.launchDate} />
+          </div>
+          <a href={drop.ctaUrl} class="mt-6 inline-flex text-xs uppercase tracking-[0.3em] text-gold">
+            Reserve Drop Slot
+          </a>
+        </article>
+      ))}
+    </div>
+  </Section>
+</BaseLayout>

@@ -1,0 +1,7 @@
+﻿---
+import StoryLayout from "../../layouts/StoryLayout.astro";
+const { Content, frontmatter } = await import("../../../content/story/return.mdx");
+---
+<StoryLayout frontmatter={frontmatter}>
+  <Content />
+</StoryLayout>

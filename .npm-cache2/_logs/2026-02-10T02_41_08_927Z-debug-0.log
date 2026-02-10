@@ -1,0 +1,123 @@
+0 verbose cli C:\Program Files\nodejs\node.exe C:\Program Files\nodejs\node_modules\npm\bin\npm-cli.js
+1 info using npm@11.6.2
+2 info using node@v24.13.0
+3 silly config load:file:C:\Program Files\nodejs\node_modules\npm\npmrc
+4 silly config load:file:C:\Projects\The-Performa\.npmrc
+5 silly config load:file:C:\Users\arami\.npmrc
+6 silly config load:file:C:\Users\arami\AppData\Roaming\npm\etc\npmrc
+7 verbose title npm install
+8 verbose argv "install" "--legacy-peer-deps" "--omit" "optional" "--cache" ".npm-cache2"
+9 verbose logfile logs-max:10 dir:C:\Projects\The-Performa\.npm-cache2\_logs\2026-02-10T02_41_08_927Z-
+10 verbose logfile C:\Projects\The-Performa\.npm-cache2\_logs\2026-02-10T02_41_08_927Z-debug-0.log
+11 silly logfile done cleaning log files
+12 silly packumentCache heap:4496293888 maxSize:1124073472 maxEntrySize:562036736
+13 silly idealTree buildDeps
+14 silly fetch manifest astro@^4.16.0
+15 silly packumentCache full:https://registry.npmjs.org/astro cache-miss
+16 http fetch GET 200 https://registry.npmjs.org/npm 136ms
+17 http fetch GET 200 https://registry.npmjs.org/astro 180ms (cache miss)
+18 silly fetch manifest @astrojs/react@^3.5.0
+19 silly packumentCache full:https://registry.npmjs.org/@astrojs%2freact cache-miss
+20 http fetch GET 200 https://registry.npmjs.org/@astrojs%2freact 62ms (cache miss)
+21 silly fetch manifest @astrojs/tailwind@^5.1.0
+22 silly packumentCache full:https://registry.npmjs.org/@astrojs%2ftailwind cache-miss
+23 http fetch GET 200 https://registry.npmjs.org/@astrojs%2ftailwind 64ms (cache miss)
+24 silly fetch manifest @astrojs/mdx@^3.1.0
+25 silly packumentCache full:https://registry.npmjs.org/@astrojs%2fmdx cache-miss
+26 http fetch GET 200 https://registry.npmjs.org/@astrojs%2fmdx 73ms (cache miss)
+27 silly fetch manifest framer-motion@^11.0.0
+28 silly packumentCache full:https://registry.npmjs.org/framer-motion cache-miss
+29 http fetch GET 200 https://registry.npmjs.org/framer-motion 133ms (cache miss)
+30 silly fetch manifest react@^18.2.0
+31 silly packumentCache full:https://registry.npmjs.org/react cache-miss
+32 http fetch GET 200 https://registry.npmjs.org/react 137ms (cache miss)
+33 silly fetch manifest react-dom@^18.2.0
+34 silly packumentCache full:https://registry.npmjs.org/react-dom cache-miss
+35 http fetch GET 200 https://registry.npmjs.org/react-dom 129ms (cache miss)
+36 silly fetch manifest three@^0.160.0
+37 silly packumentCache full:https://registry.npmjs.org/three cache-miss
+38 http fetch GET 200 https://registry.npmjs.org/three 52ms (cache miss)
+39 silly fetch manifest @react-three/fiber@8.13.8
+40 silly packumentCache full:https://registry.npmjs.org/@react-three%2ffiber cache-miss
+41 http fetch GET 200 https://registry.npmjs.org/@react-three%2ffiber 95ms (cache miss)
+42 silly fetch manifest autoprefixer@^10.4.16
+43 silly packumentCache full:https://registry.npmjs.org/autoprefixer cache-miss
+44 http fetch GET 200 https://registry.npmjs.org/autoprefixer 69ms (cache miss)
+45 silly fetch manifest postcss@^8.4.33
+46 silly packumentCache full:https://registry.npmjs.org/postcss cache-miss
+47 http fetch GET 200 https://registry.npmjs.org/postcss 47ms (cache miss)
+48 silly fetch manifest tailwindcss@^3.4.1
+49 silly packumentCache full:https://registry.npmjs.org/tailwindcss cache-miss
+50 http fetch GET 200 https://registry.npmjs.org/tailwindcss 188ms (cache miss)
+51 silly fetch manifest typescript@^5.3.3
+52 silly packumentCache full:https://registry.npmjs.org/typescript cache-miss
+53 http fetch GET 200 https://registry.npmjs.org/typescript 202ms (cache miss)
+54 silly placeDep ROOT @astrojs/mdx@ OK for: the-performa@0.1.0 want: ^3.1.0
+55 silly placeDep ROOT @astrojs/react@ OK for: the-performa@0.1.0 want: ^3.5.0
+56 silly placeDep ROOT @astrojs/tailwind@ OK for: the-performa@0.1.0 want: ^5.1.0
+57 silly placeDep ROOT @react-three/fiber@ OK for: the-performa@0.1.0 want: 8.13.8
+58 silly placeDep ROOT astro@ OK for: the-performa@0.1.0 want: ^4.16.0
+59 silly placeDep ROOT autoprefixer@ OK for: the-performa@0.1.0 want: ^10.4.16
+60 silly placeDep ROOT framer-motion@ OK for: the-performa@0.1.0 want: ^11.0.0
+61 silly placeDep ROOT postcss@ OK for: the-performa@0.1.0 want: ^8.4.33
+62 silly placeDep ROOT react@ OK for: the-performa@0.1.0 want: ^18.2.0
+63 silly placeDep ROOT react-dom@ OK for: the-performa@0.1.0 want: ^18.2.0
+64 silly placeDep ROOT tailwindcss@ OK for: the-performa@0.1.0 want: ^3.4.1
+65 silly placeDep ROOT three@ OK for: the-performa@0.1.0 want: ^0.160.0
+66 silly placeDep ROOT typescript@ OK for: the-performa@0.1.0 want: ^5.3.3
+67 verbose type system
+68 verbose stack FetchError: Invalid response body while trying to fetch https://registry.npmjs.org/@astrojs%2fmdx: EPERM: operation not permitted, unlink 'C:\Projects\The-Performa\.npm-cache2\_cacache\tmp\9031b044'
+68 verbose stack     at C:\Program Files\nodejs\node_modules\npm\node_modules\minipass-fetch\lib\body.js:170:15
+68 verbose stack     at async Response.json (C:\Program Files\nodejs\node_modules\npm\node_modules\minipass-fetch\lib\body.js:75:17)
+68 verbose stack     at async RegistryFetcher.packument (C:\Program Files\nodejs\node_modules\npm\node_modules\pacote\lib\registry.js:98:25)
+68 verbose stack     at async RegistryFetcher.manifest (C:\Program Files\nodejs\node_modules\npm\node_modules\pacote\lib\registry.js:128:23)
+68 verbose stack     at async #fetchManifest (C:\Program Files\nodejs\node_modules\npm\node_modules\@npmcli\arborist\lib\arborist\build-ideal-tree.js:1227:20)
+68 verbose stack     at async #nodeFromEdge (C:\Program Files\nodejs\node_modules\npm\node_modules\@npmcli\arborist\lib\arborist\build-ideal-tree.js:1065:19)
+68 verbose stack     at async #buildDepStep (C:\Program Files\nodejs\node_modules\npm\node_modules\@npmcli\arborist\lib\arborist\build-ideal-tree.js:929:11)
+68 verbose stack     at async Arborist.buildIdealTree (C:\Program Files\nodejs\node_modules\npm\node_modules\@npmcli\arborist\lib\arborist\build-ideal-tree.js:182:7)
+68 verbose stack     at async Promise.all (index 1)
+68 verbose stack     at async Arborist.reify (C:\Program Files\nodejs\node_modules\npm\node_modules\@npmcli\arborist\lib\arborist\reify.js:114:5)
+69 error code EPERM
+70 error syscall unlink
+71 error path C:\Projects\The-Performa\.npm-cache2\_cacache\tmp\9031b044
+72 error errno EPERM
+73 error FetchError: Invalid response body while trying to fetch https://registry.npmjs.org/@astrojs%2fmdx: EPERM: operation not permitted, unlink 'C:\Projects\The-Performa\.npm-cache2\_cacache\tmp\9031b044'
+73 error     at C:\Program Files\nodejs\node_modules\npm\node_modules\minipass-fetch\lib\body.js:170:15
+73 error     at async Response.json (C:\Program Files\nodejs\node_modules\npm\node_modules\minipass-fetch\lib\body.js:75:17)
+73 error     at async RegistryFetcher.packument (C:\Program Files\nodejs\node_modules\npm\node_modules\pacote\lib\registry.js:98:25)
+73 error     at async RegistryFetcher.manifest (C:\Program Files\nodejs\node_modules\npm\node_modules\pacote\lib\registry.js:128:23)
+73 error     at async #fetchManifest (C:\Program Files\nodejs\node_modules\npm\node_modules\@npmcli\arborist\lib\arborist\build-ideal-tree.js:1227:20)
+73 error     at async #nodeFromEdge (C:\Program Files\nodejs\node_modules\npm\node_modules\@npmcli\arborist\lib\arborist\build-ideal-tree.js:1065:19)
+73 error     at async #buildDepStep (C:\Program Files\nodejs\node_modules\npm\node_modules\@npmcli\arborist\lib\arborist\build-ideal-tree.js:929:11)
+73 error     at async Arborist.buildIdealTree (C:\Program Files\nodejs\node_modules\npm\node_modules\@npmcli\arborist\lib\arborist\build-ideal-tree.js:182:7)
+73 error     at async Promise.all (index 1)
+73 error     at async Arborist.reify (C:\Program Files\nodejs\node_modules\npm\node_modules\@npmcli\arborist\lib\arborist\reify.js:114:5) {
+73 error   code: 'EPERM',
+73 error   errno: 'EPERM',
+73 error   syscall: 'unlink',
+73 error   path: 'C:\\Projects\\The-Performa\\.npm-cache2\\_cacache\\tmp\\9031b044',
+73 error   type: 'system',
+73 error   requiredBy: '.'
+73 error }
+74 error
+74 error The operation was rejected by your operating system.
+74 error It's possible that the file was already in use (by a text editor or antivirus),
+74 error or that you lack permissions to access it.
+74 error
+74 error If you believe this might be a permissions issue, please double-check the
+74 error permissions of the file and its containing directories, or try running
+74 error the command again as root/Administrator.
+75 silly unfinished npm timer reify 1770691269172
+76 silly unfinished npm timer reify:loadTrees 1770691269173
+77 verbose cwd C:\Projects\The-Performa
+78 verbose os Windows_NT 10.0.26200
+79 verbose node v24.13.0
+80 verbose npm  v11.6.2
+81 notice
+81 notice New minor version of npm available! 11.6.2 -> 11.9.0
+81 notice Changelog: https://github.com/npm/cli/releases/tag/v11.9.0
+81 notice To update run: npm install -g npm@11.9.0
+81 notice  { force: true, Symbol(proc-log.meta): true }
+82 verbose exit 1
+83 verbose code 1
+84 error A complete log of this run can be found in: C:\Projects\The-Performa\.npm-cache2\_logs\2026-02-10T02_41_08_927Z-debug-0.log

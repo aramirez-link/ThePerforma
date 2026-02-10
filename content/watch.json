@@ -1,0 +1,23 @@
+[
+  {
+    "title": "Festival Mainstage 2025",
+    "platform": "YouTube",
+    "embedUrl": "https://www.youtube.com/embed/BzRA4f-cwWQ",
+    "thumbnail": "/assets/img/012ChipLee_CF2024_4K.jpg",
+    "featured": true
+  },
+  {
+    "title": "Warehouse Session",
+    "platform": "Vimeo",
+    "embedUrl": "https://player.vimeo.com/video/1084537",
+    "thumbnail": "/assets/img/084NewChip_4K.jpg",
+    "featured": true
+  },
+  {
+    "title": "Afterhours Live",
+    "platform": "YouTube",
+    "embedUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ",
+    "thumbnail": "/assets/img/134NewChip_4K.jpg",
+    "featured": false
+  }
+]

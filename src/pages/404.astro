@@ -1,0 +1,14 @@
+﻿---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Button from "../components/Button.astro";
+---
+<BaseLayout title="404 | The Performa" description="Page not found.">
+  <section class="mx-auto max-w-4xl px-6 py-24 text-center">
+    <p class="text-xs uppercase tracking-[0.4em] text-haze">Lost in the dark</p>
+    <h1 class="mt-4 font-display text-5xl">404</h1>
+    <p class="mt-4 text-white/70">The page you are looking for is not on this stage.</p>
+    <div class="mt-8 flex justify-center">
+      <Button href="/" variant="primary">Return to Stage</Button>
+    </div>
+  </section>
+</BaseLayout>

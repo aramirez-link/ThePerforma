@@ -1,0 +1,12 @@
+﻿[
+  {
+    "platform": "IANDI Radio",
+    "embedUrl": "https://iandiradio.com/events/",
+    "title": "Live Player"
+  },
+  {
+    "platform": "SoundCloud",
+    "embedUrl": "https://w.soundcloud.com/player/?url=https%3A//soundcloud.com/chipleetheperforma",
+    "title": "The Performa SoundCloud"
+  }
+]

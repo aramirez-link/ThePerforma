@@ -1,0 +1,31 @@
+﻿---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Section from "../components/Section.astro";
+import PerformanceMode from "../components/PerformanceMode";
+import WatchPlaylist from "../components/WatchPlaylist";
+import watch from "../../content/watch.json";
+const youtubeChannelUrl = "https://www.youtube.com/@chipleetheperforma";
+---
+<BaseLayout title="Watch | The Performa" description="Featured performance reels and full sets.">
+  <section class="mx-auto max-w-6xl px-6 pt-8">
+    <div class="relative overflow-hidden rounded-[2rem] border border-white/15">
+      <img src="/assets/img/134NewChip_4K.jpg" alt="" aria-hidden="true" class="h-[40vh] w-full object-cover opacity-40" />
+      <div class="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,7,11,0.35),rgba(7,7,11,0.92))]"></div>
+      <div class="absolute inset-0 flex items-end p-8">
+        <div>
+          <p class="text-xs uppercase tracking-[0.34em] text-gold/90">Performance Vault</p>
+          <h1 class="mt-3 font-display text-4xl md:text-5xl">Trailer-grade Reels</h1>
+          <p class="mt-3 max-w-2xl text-sm text-white/75 md:text-base">A cinematic watchroom for flagship cuts, festival edits, and control-room playback.</p>
+          <a href={youtubeChannelUrl} target="_blank" rel="noopener noreferrer" class="mt-5 inline-flex rounded-full border border-gold/40 bg-black/35 px-5 py-3 text-xs uppercase tracking-[0.3em] text-gold">
+            Open YouTube Channel
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+  <Section eyebrow="Watch" title="Featured reels" subtitle="Curated sets with cinematic lighting and live energy.">
+    <PerformanceMode client:load>
+      <WatchPlaylist items={watch} />
+    </PerformanceMode>
+  </Section>
+</BaseLayout>
