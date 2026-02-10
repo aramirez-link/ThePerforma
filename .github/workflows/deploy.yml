@@ -29,9 +29,19 @@ jobs:
         run: npm ci
       - name: Build
         env:
-          SITE: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
-          BASE: /${{ github.event.repository.name }}/
+          SITE: https://theperforma.com
+          BASE: /
         run: npm run build
+      - name: Validate root asset paths
+        run: |
+          if grep -R '/ThePerforma/_astro' dist; then
+            echo "Invalid asset path detected: /ThePerforma/_astro"
+            exit 1
+          fi
+          if grep -R 'href="/ThePerforma/' dist; then
+            echo "Invalid href path detected: /ThePerforma/"
+            exit 1
+          fi
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
