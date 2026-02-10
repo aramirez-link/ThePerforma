@@ -3,6 +3,7 @@ export type StageMode = {
   immersive: boolean;
   profile: "club" | "festival";
   intensity: number;
+  hue: number;
   theme: "ember" | "gold" | "cobalt" | "crimson";
 };
 
@@ -21,6 +22,7 @@ export const defaultStageMode: StageMode = {
   immersive: false,
   profile: "club",
   intensity: 45,
+  hue: 18,
   theme: "ember"
 };
 

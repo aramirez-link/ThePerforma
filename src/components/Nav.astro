@@ -5,7 +5,8 @@ const primaryLinks = [
   { label: "Stage", href: "/" },
   { label: "Watch", href: "/watch" },
   { label: "Listen", href: "/listen" },
-  { label: "Story", href: "/story" }
+  { label: "Story", href: "/story" },
+  { label: "Fan Vault", href: "/fan-club" }
 ];
 
 const toolkitLinks = [
@@ -19,17 +20,23 @@ const menuLinks = [
   { label: "Inner Circle", href: "/fan-club" }
 ];
 ---
-<nav class="sticky top-0 z-50 w-full">
-  <div class="mx-auto w-full max-w-6xl px-4 pt-4">
-    <div class="flex items-center justify-between gap-3 rounded-full border border-white/15 bg-black/45 px-4 py-3 backdrop-blur-xl shadow-[0_10px_40px_rgba(0,0,0,0.35)] md:px-5">
-      <a href="/" class="inline-flex items-center gap-2">
+<nav class="sticky top-0 z-50 w-full" aria-label="Primary">
+  <div class="mx-auto w-full max-w-6xl px-3 pt-3 sm:px-4 sm:pt-4">
+    <div class="flex items-center justify-between gap-2 rounded-full border border-white/15 bg-black/45 px-3 py-3 backdrop-blur-xl shadow-[0_10px_40px_rgba(0,0,0,0.35)] md:gap-3 md:px-5">
+      <a href="/" data-internal-nav class="inline-flex items-center gap-2">
         <img src="/assets/img/CHIPLEE_LOGO_Clear.png" alt="The Performa logo" class="h-9 w-auto md:h-10" />
         <span class="hidden text-sm font-semibold uppercase tracking-[0.2em] text-white/90 sm:inline">The Performa</span>
+        <span
+          id="nav-live-ribbon"
+          class="hidden rounded-full border border-ember/70 bg-ember/20 px-2 py-1 text-[9px] uppercase tracking-[0.2em] text-gold"
+        >
+          Live Now
+        </span>
       </a>
 
       <div class="hidden items-center gap-6 text-xs uppercase tracking-[0.24em] lg:flex">
         {primaryLinks.map((link) => (
-          <a href={link.href} class="text-white/70 transition hover:text-white">
+          <a href={link.href} data-internal-nav class="text-white/70 transition hover:text-white">
             {link.label}
           </a>
         ))}
@@ -38,13 +45,15 @@ const menuLinks = [
           <button
             type="button"
             aria-controls="toolkit-panel"
+            aria-expanded="false"
+            data-toolkit-toggle
             class="text-white/70 transition hover:text-white group-hover:text-white"
           >
             TOOLKIT
           </button>
-          <div id="toolkit-panel" class="invisible absolute left-1/2 top-8 z-10 w-44 -translate-x-1/2 rounded-xl border border-white/15 bg-black/90 p-2 opacity-0 backdrop-blur-xl transition duration-150 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
+          <div id="toolkit-panel" class="toolkit-panel invisible absolute left-1/2 top-8 z-10 w-44 -translate-x-1/2 rounded-xl border border-white/15 bg-black/90 p-2 opacity-0 backdrop-blur-xl transition duration-150 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
             {toolkitLinks.map((link) => (
-              <a href={link.href} class="block rounded-lg px-3 py-2 text-[10px] uppercase tracking-[0.24em] text-white/75 transition hover:bg-white/10 hover:text-white">
+              <a href={link.href} data-internal-nav class="block rounded-lg px-3 py-2 text-[10px] uppercase tracking-[0.24em] text-white/75 transition hover:bg-white/10 hover:text-white">
                 {link.label}
               </a>
             ))}
@@ -53,22 +62,37 @@ const menuLinks = [
       </div>
 
       <div class="flex items-center gap-2 md:gap-3">
-        <a
-          href="/book"
-          class="hidden rounded-full bg-ember px-4 py-2 text-[10px] uppercase tracking-[0.28em] text-ink shadow-[0_0_25px_rgba(242,84,45,0.35)] transition hover:shadow-[0_0_35px_rgba(242,84,45,0.5)] sm:inline-flex"
-        >
+          <a
+            href="/book"
+            data-internal-nav
+            class="hidden rounded-full bg-ember px-4 py-2 text-[10px] uppercase tracking-[0.28em] text-ink shadow-[0_0_25px_rgba(242,84,45,0.35)] transition hover:shadow-[0_0_35px_rgba(242,84,45,0.5)] sm:inline-flex"
+          >
           Reserve
         </a>
 
         <details class="relative">
-          <summary class="list-none rounded-full border border-white/25 px-4 py-2 text-[10px] uppercase tracking-[0.28em] text-white/80 transition hover:border-white/50 hover:text-white [&::-webkit-details-marker]:hidden">
+          <summary class="list-none rounded-full border border-white/25 px-4 py-2 text-[10px] uppercase tracking-[0.28em] text-white/80 transition hover:border-white/50 hover:text-white min-h-11 flex items-center [&::-webkit-details-marker]:hidden">
             Menu
           </summary>
 
-          <div class="absolute right-0 mt-3 w-[min(20rem,88vw)] rounded-2xl border border-white/15 bg-black/90 p-4 shadow-[0_16px_60px_rgba(0,0,0,0.55)] backdrop-blur-xl">
+          <div class="absolute right-0 mt-3 w-[min(20rem,92vw)] max-h-[75vh] overflow-auto rounded-2xl border border-white/15 bg-black/90 p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] shadow-[0_16px_60px_rgba(0,0,0,0.55)] backdrop-blur-xl">
+            <div class="mb-3 flex items-center justify-between">
+              <a href="/" data-internal-nav class="inline-flex items-center gap-2">
+                <img src="/assets/img/CHIPLEE_LOGO_Clear.png" alt="The Performa logo" class="h-7 w-auto" />
+                <span class="text-[10px] uppercase tracking-[0.22em] text-white/75">The Performa</span>
+              </a>
+              <button
+                type="button"
+                data-menu-close
+                class="inline-flex min-h-11 items-center justify-center rounded-full border border-white/25 px-4 py-2 text-[10px] uppercase tracking-[0.24em] text-white/80 transition hover:border-white/50 hover:text-white"
+              >
+                Close Menu
+              </button>
+            </div>
+            <div class="mb-3" data-badge-dock="nav"></div>
             <div class="grid gap-2 text-xs uppercase tracking-[0.24em] text-white/75">
               {primaryLinks.concat(toolkitLinks).concat(menuLinks).map((link) => (
-                <a href={link.href} class="rounded-lg px-3 py-2 transition hover:bg-white/10 hover:text-white">
+                <a href={link.href} data-internal-nav class="rounded-lg px-3 py-2 transition hover:bg-white/10 hover:text-white min-h-11 flex items-center">
                   {link.label}
                 </a>
               ))}
@@ -76,7 +100,8 @@ const menuLinks = [
 
             <a
               href="/book"
-              class="mt-4 inline-flex w-full items-center justify-center rounded-full bg-ember px-4 py-3 text-[10px] uppercase tracking-[0.28em] text-ink"
+              data-internal-nav
+              class="mt-4 inline-flex w-full items-center justify-center rounded-full bg-ember px-4 py-3 text-[10px] uppercase tracking-[0.28em] text-ink min-h-11"
             >
               Request Availability
             </a>
@@ -91,3 +116,130 @@ const menuLinks = [
     </div>
   </div>
 </nav>
+<script is:inline>
+  (() => {
+    if (window.__performaNavBound) return;
+    window.__performaNavBound = true;
+
+    const isInternal = (href) => {
+      if (!href) return false;
+      if (href.startsWith("#")) return false;
+      if (href.startsWith("mailto:") || href.startsWith("tel:")) return false;
+      if (href.startsWith("http://") || href.startsWith("https://")) {
+        try {
+          return new URL(href, window.location.origin).origin === window.location.origin;
+        } catch {
+          return false;
+        }
+      }
+      return href.startsWith("/");
+    };
+
+    document.addEventListener("click", async (event) => {
+      const link = event.target.closest("a[data-internal-nav]");
+      if (!link) return;
+      const details = link.closest("details");
+      if (details && details.hasAttribute("open")) {
+        details.removeAttribute("open");
+      }
+
+      const href = link.getAttribute("href");
+      if (!isInternal(href)) return;
+      if (event.defaultPrevented) return;
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      if (link.target && link.target !== "_self") return;
+
+      event.preventDefault();
+      try {
+        const { navigate } = await import("astro:transitions/client");
+        navigate(href);
+      } catch {
+        window.location.assign(href);
+      }
+    });
+
+    const menus = Array.from(document.querySelectorAll("nav details"));
+    const toolkitToggle = document.querySelector("[data-toolkit-toggle]");
+    const toolkitPanel = document.getElementById("toolkit-panel");
+    const closeToolkit = () => {
+      if (!toolkitToggle || !toolkitPanel) return;
+      toolkitToggle.setAttribute("aria-expanded", "false");
+      toolkitPanel.classList.remove("is-open");
+    };
+
+    const toggleToolkit = (forceOpen) => {
+      if (!toolkitToggle || !toolkitPanel) return;
+      const open = typeof forceOpen === "boolean" ? forceOpen : !toolkitPanel.classList.contains("is-open");
+      toolkitPanel.classList.toggle("is-open", open);
+      toolkitToggle.setAttribute("aria-expanded", open ? "true" : "false");
+    };
+
+    if (toolkitToggle && toolkitPanel) {
+      toolkitToggle.addEventListener("click", (event) => {
+        event.preventDefault();
+        toggleToolkit();
+      });
+    }
+
+    const syncMenuScrollLock = () => {
+      const anyOpen = menus.some((menu) => menu.hasAttribute("open"));
+      document.body.style.overflow = anyOpen ? "hidden" : "";
+    };
+
+    menus.forEach((menu) => {
+      menu.addEventListener("toggle", syncMenuScrollLock);
+    });
+
+    document.addEventListener("click", (event) => {
+      const closeBtn = event.target.closest("[data-menu-close]");
+      if (!closeBtn) return;
+      const menu = closeBtn.closest("details");
+      if (!menu) return;
+      menu.removeAttribute("open");
+      syncMenuScrollLock();
+    });
+
+    document.addEventListener("click", (event) => {
+      if (toolkitToggle && toolkitPanel) {
+        const clickedToggle = toolkitToggle.contains(event.target);
+        const clickedPanel = toolkitPanel.contains(event.target);
+        if (!clickedToggle && !clickedPanel) closeToolkit();
+      }
+
+      menus.forEach((menu) => {
+        if (!menu.hasAttribute("open")) return;
+        if (menu.contains(event.target)) return;
+        menu.removeAttribute("open");
+      });
+      syncMenuScrollLock();
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      closeToolkit();
+      menus.forEach((menu) => menu.removeAttribute("open"));
+      syncMenuScrollLock();
+    });
+
+    const LIVE_STATUS_KEY = "the-performa-live-status-v1";
+    const ribbon = document.getElementById("nav-live-ribbon");
+    const syncLiveRibbon = () => {
+      if (!ribbon) return;
+      try {
+        const raw = localStorage.getItem(LIVE_STATUS_KEY);
+        const data = raw ? JSON.parse(raw) : null;
+        const isLive = Boolean(data && data.status === "live");
+        ribbon.classList.toggle("hidden", !isLive);
+      } catch {
+        ribbon.classList.add("hidden");
+      }
+    };
+
+    window.addEventListener("storage", (event) => {
+      if (event.key === LIVE_STATUS_KEY) syncLiveRibbon();
+    });
+    window.addEventListener("performa:live-status", syncLiveRibbon);
+    document.addEventListener("astro:after-swap", syncLiveRibbon);
+    syncLiveRibbon();
+  })();
+</script>

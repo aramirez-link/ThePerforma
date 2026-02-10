@@ -2,6 +2,7 @@
 import BaseLayout from "../layouts/BaseLayout.astro";
 import Section from "../components/Section.astro";
 import DropCountdown from "../components/DropCountdown";
+import FanVaultConsole from "../components/FanVaultConsole";
 import drops from "../../content/drops.json";
 ---
 <BaseLayout title="Inner Circle Access | The Performa" description="Private drops, early booking priority, and unreleased performance cuts from Chip Lee - The Performa.">
@@ -10,6 +11,8 @@ import drops from "../../content/drops.json";
     title="Inner Circle: Priority Access"
     subtitle="Private drops, early booking priority, and unreleased performance cuts from Chip Lee - The Performa."
   >
+    <FanVaultConsole client:load />
+
     <div class="rounded-[2rem] border border-white/15 bg-black/55 p-6 backdrop-blur-md">
       <p class="text-xs uppercase tracking-[0.34em] text-gold/85">Access Terminal</p>
       <h3 class="mt-3 font-display text-3xl">Request Inner Circle Access</h3>

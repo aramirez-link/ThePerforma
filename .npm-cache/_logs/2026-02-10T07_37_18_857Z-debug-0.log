@@ -1,0 +1,31 @@
+0 verbose cli C:\Program Files\nodejs\node.exe C:\Users\arami\AppData\Roaming\npm\node_modules\npm\bin\npm-cli.js
+1 info using npm@11.9.0
+2 info using node@v24.13.0
+3 silly config load:file:C:\Users\arami\AppData\Roaming\npm\node_modules\npm\npmrc
+4 silly config load:file:C:\Projects\The-Performa\.npmrc
+5 silly config load:file:C:\Users\arami\.npmrc
+6 silly config load:file:C:\Users\arami\AppData\Roaming\npm\etc\npmrc
+7 verbose title npm run build
+8 verbose argv "run" "build"
+9 verbose logfile logs-max:10 dir:C:\Projects\The-Performa\.npm-cache\_logs\2026-02-10T07_37_18_857Z-
+10 verbose logfile C:\Projects\The-Performa\.npm-cache\_logs\2026-02-10T07_37_18_857Z-debug-0.log
+11 silly logfile start cleaning logs, removing 2 files
+12 silly logfile error removing log file C:\Projects\The-Performa\.npm-cache\_logs\2026-02-10T03_30_54_655Z-debug-0.log [Error: EPERM: operation not permitted, unlink 'C:\Projects\The-Performa\.npm-cache\_logs\2026-02-10T03_30_54_655Z-debug-0.log'] {
+12 silly logfile   errno: -4048,
+12 silly logfile   code: 'EPERM',
+12 silly logfile   syscall: 'unlink',
+12 silly logfile   path: 'C:\\Projects\\The-Performa\\.npm-cache\\_logs\\2026-02-10T03_30_54_655Z-debug-0.log'
+12 silly logfile }
+13 silly logfile error removing log file C:\Projects\The-Performa\.npm-cache\_logs\2026-02-10T03_40_56_658Z-debug-0.log [Error: EPERM: operation not permitted, unlink 'C:\Projects\The-Performa\.npm-cache\_logs\2026-02-10T03_40_56_658Z-debug-0.log'] {
+13 silly logfile   errno: -4048,
+13 silly logfile   code: 'EPERM',
+13 silly logfile   syscall: 'unlink',
+13 silly logfile   path: 'C:\\Projects\\The-Performa\\.npm-cache\\_logs\\2026-02-10T03_40_56_658Z-debug-0.log'
+13 silly logfile }
+14 silly logfile done cleaning log files
+15 verbose cwd C:\Projects\The-Performa
+16 verbose os Windows_NT 10.0.26200
+17 verbose node v24.13.0
+18 verbose npm  v11.9.0
+19 verbose exit -1073740791
+20 verbose code -1073740791

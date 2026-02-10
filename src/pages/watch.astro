@@ -3,15 +3,16 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 import Section from "../components/Section.astro";
 import PerformanceMode from "../components/PerformanceMode";
 import WatchPlaylist from "../components/WatchPlaylist";
+import LiveStreamHub from "../components/LiveStreamHub";
 import watch from "../../content/watch.json";
 const youtubeChannelUrl = "https://www.youtube.com/@chipleetheperforma";
 ---
 <BaseLayout title="Watch | The Performa" description="Featured performance reels and full sets.">
-  <section class="mx-auto max-w-6xl px-6 pt-8">
+  <section class="mx-auto max-w-6xl px-4 pt-8 sm:px-6">
     <div class="relative overflow-hidden rounded-[2rem] border border-white/15">
       <img src="/assets/img/134NewChip_4K.jpg" alt="" aria-hidden="true" class="h-[40vh] w-full object-cover opacity-40" />
       <div class="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,7,11,0.35),rgba(7,7,11,0.92))]"></div>
-      <div class="absolute inset-0 flex items-end p-8">
+      <div class="absolute inset-0 flex items-end p-5 md:p-8">
         <div>
           <p class="text-xs uppercase tracking-[0.34em] text-gold/90">Performance Vault</p>
           <h1 class="mt-3 font-display text-4xl md:text-5xl">Chip Lee - Signature Reels</h1>
@@ -21,6 +22,26 @@ const youtubeChannelUrl = "https://www.youtube.com/@chipleetheperforma";
           </a>
         </div>
       </div>
+    </div>
+  </section>
+  <section class="mx-auto max-w-6xl px-6 pt-8">
+    <LiveStreamHub client:load />
+  </section>
+  <section class="mx-auto mt-8 max-w-6xl px-6">
+    <div class="rounded-[1.8rem] border border-white/15 bg-black/45 p-6 shadow-[0_0_60px_rgba(242,84,45,0.08)]">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p class="text-[10px] uppercase tracking-[0.3em] text-gold/85">Tonight's Setlist</p>
+          <h2 class="mt-2 font-display text-2xl">Setlist Teaser</h2>
+          <p class="mt-2 text-sm text-white/70">Preview the first three tracks. Unlock the full setlist in Fan Vault.</p>
+        </div>
+        <a href="/fan-club" class="rounded-full border border-gold/40 px-4 py-2 text-[10px] uppercase tracking-[0.24em] text-gold">Unlock Full</a>
+      </div>
+      <ol class="mt-4 grid gap-2 text-sm text-white/80 md:grid-cols-3">
+        <li class="rounded-xl border border-white/15 bg-black/40 px-3 py-2">1. Signal Intro (Live Edit)</li>
+        <li class="rounded-xl border border-white/15 bg-black/40 px-3 py-2">2. Nah War With You (Mainstage Mix)</li>
+        <li class="rounded-xl border border-white/15 bg-black/40 px-3 py-2">3. Throwback Concert 2001 (Rebuild)</li>
+      </ol>
     </div>
   </section>
   <Section eyebrow="Watch" title="Featured Reels" subtitle="Curated moments from the mainstage - builds, drops, and room-shift transitions.">

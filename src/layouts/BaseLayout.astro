@@ -3,6 +3,8 @@ import "../styles/global.css";
 import Nav from "../components/Nav.astro";
 import Footer from "../components/Footer.astro";
 import Seo from "../components/Seo.astro";
+import GlobalMiniPlayer from "../components/GlobalMiniPlayer.astro";
+import EngagementHub from "../components/EngagementHub";
 import { ViewTransitions } from "astro:transitions";
 
 const {
@@ -31,13 +33,19 @@ const {
     {schema && <script type="application/ld+json" set:html={JSON.stringify(schema)} />}
   </head>
   <body class="text-white" data-stage="false" data-stage-profile="club" data-stage-intensity="45" data-stage-theme="ember">
+    <a href="#main-content" class="skip-link">Skip to content</a>
     <Nav />
-    <main>
+    <main id="main-content" tabindex="-1">
       <slot />
     </main>
+    <GlobalMiniPlayer />
+    <div transition:name="engagement-hub" transition:persist>
+      <EngagementHub client:load />
+    </div>
     <Footer />
     <script>
       const STAGE_KEY = "the-performa-stage-mode";
+      const BADGES_KEY = "the-performa-badges-v1";
       const listeners = new Set();
       const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)");
 
@@ -46,7 +54,33 @@ const {
         immersive: false,
         profile: "club",
         intensity: 45,
+        hue: 18,
         theme: "ember"
+      };
+
+      const hslToRgb = (h, s, l) => {
+        const sat = s / 100;
+        const light = l / 100;
+        const c = (1 - Math.abs(2 * light - 1)) * sat;
+        const hh = h / 60;
+        const x = c * (1 - Math.abs((hh % 2) - 1));
+        let r = 0;
+        let g = 0;
+        let b = 0;
+
+        if (hh >= 0 && hh < 1) [r, g, b] = [c, x, 0];
+        else if (hh >= 1 && hh < 2) [r, g, b] = [x, c, 0];
+        else if (hh >= 2 && hh < 3) [r, g, b] = [0, c, x];
+        else if (hh >= 3 && hh < 4) [r, g, b] = [0, x, c];
+        else if (hh >= 4 && hh < 5) [r, g, b] = [x, 0, c];
+        else if (hh >= 5 && hh <= 6) [r, g, b] = [c, 0, x];
+
+        const m = light - c / 2;
+        return [
+          Math.round((r + m) * 255),
+          Math.round((g + m) * 255),
+          Math.round((b + m) * 255)
+        ];
       };
 
       const readStoredMode = () => {
@@ -65,6 +99,22 @@ const {
         document.body.dataset.stageProfile = mode.profile;
         document.body.dataset.stageIntensity = String(mode.intensity);
         document.body.dataset.stageTheme = mode.theme;
+        const hue = Math.min(360, Math.max(0, Number(mode.hue) || 18));
+        const accent = hslToRgb(hue, 88, 56);
+        const stageGlow = hslToRgb(hue, 82, 70);
+        const accentStr = `${accent[0]}, ${accent[1]}, ${accent[2]}`;
+        const stageGlowStr = `${stageGlow[0]}, ${stageGlow[1]}, ${stageGlow[2]}`;
+        document.body.style.setProperty("--accent-rgb", accentStr);
+        document.body.style.setProperty("--bg-glow-rgb", accentStr);
+        document.body.style.setProperty("--stage-side-rgb", accentStr);
+        document.body.style.setProperty("--mood-wash-rgb", accentStr);
+        document.body.style.setProperty("--stage-glow-rgb", stageGlowStr);
+        const intensity = Math.min(100, Math.max(10, Number(mode.intensity) || 45)) / 100;
+        document.body.style.setProperty("--stage-intensity-level", intensity.toFixed(2));
+        document.body.style.setProperty("--button-glow-alpha", (0.18 + intensity * 0.62).toFixed(3));
+        document.body.style.setProperty("--button-glow-soft-alpha", (0.10 + intensity * 0.45).toFixed(3));
+        document.body.style.setProperty("--stage-glow-alpha", (0.08 + intensity * 0.28).toFixed(3));
+        document.body.style.setProperty("--stage-glow-strong-alpha", (0.14 + intensity * 0.36).toFixed(3));
       };
 
       let stageMode = readStoredMode();
@@ -88,6 +138,48 @@ const {
           return () => listeners.delete(cb);
         }
       };
+
+      const renderBadgeDocks = () => {
+        let badges = [];
+        try {
+          badges = JSON.parse(localStorage.getItem(BADGES_KEY) || "[]");
+        } catch {
+          badges = [];
+        }
+
+        const docks = document.querySelectorAll("[data-badge-dock]");
+        docks.forEach((dock) => {
+          if (!badges.length) {
+            dock.innerHTML = "";
+            return;
+          }
+
+          const pills = badges
+            .slice(0, 2)
+            .map(
+              (badge) => {
+                const tier = badge.tier || "core";
+                const tierStyles =
+                  tier === "legend"
+                    ? "badge-tier-legend border-[rgba(253,224,71,0.7)] text-amber-200 bg-amber-500/10"
+                    : tier === "elite"
+                      ? "badge-tier-elite border-[rgba(103,232,249,0.65)] text-cyan-200 bg-cyan-500/10"
+                      : "badge-tier-core border-[rgba(243,211,139,0.45)] text-gold/90 bg-black/35";
+                const tip = `${badge.label} (${String(tier).toUpperCase()})${badge.tip ? `: ${badge.tip}` : ""}`;
+                return `<span title="${tip.replace(/"/g, "&quot;")}" class="mr-1 inline-flex rounded-full border px-2 py-1 text-[9px] uppercase tracking-[0.18em] ${tierStyles}">${badge.label}</span>`;
+              }
+            )
+            .join("");
+          dock.innerHTML = `<div class="mb-2">${pills}</div>`;
+        });
+      };
+
+      if (!window.__performaBadgesBound) {
+        window.__performaBadgesBound = true;
+        window.addEventListener("performa:badges-updated", renderBadgeDocks);
+        document.addEventListener("astro:after-swap", renderBadgeDocks);
+      }
+      renderBadgeDocks();
 
       if (!prefersReduced.matches) {
         const revealItems = document.querySelectorAll("[data-reveal]");

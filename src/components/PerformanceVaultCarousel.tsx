@@ -13,6 +13,8 @@ type Props = {
   stageActive: boolean;
 };
 
+const reelModeGraphic = "/assets/img/Keep-on-playin-red.png";
+
 export default function PerformanceVaultCarousel({ items, stageActive }: Props) {
   const featured = useMemo(() => {
     const pool = items.filter((item) => item.featured);
@@ -28,8 +30,13 @@ export default function PerformanceVaultCarousel({ items, stageActive }: Props) 
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") setOpen(false);
     };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKey);
+    };
   }, [open]);
 
   return (
@@ -50,7 +57,17 @@ export default function PerformanceVaultCarousel({ items, stageActive }: Props) 
         <div className="relative aspect-video overflow-hidden rounded-[1.6rem] bg-black">
           <img src={current.thumbnail} alt={current.title} className="h-full w-full object-cover opacity-75 transition duration-500 group-hover:scale-[1.03] group-hover:opacity-95" />
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.03),rgba(0,0,0,0.72))]" />
-          <div className="absolute left-6 top-6 rounded-full border border-gold/40 bg-black/35 px-3 py-2 text-[10px] uppercase tracking-[0.28em] text-gold">Reel Mode</div>
+          <div className="absolute left-4 top-4 overflow-hidden rounded-full border border-gold/40 bg-black/35 p-1.5 md:left-6 md:top-6">
+            <img
+              src={reelModeGraphic}
+              alt="Reel Mode"
+              loading="lazy"
+              onError={(event) => {
+                event.currentTarget.src = "/assets/img/012ChipLee_CF2024_4K.jpg";
+              }}
+              className="record-spin h-20 w-20 rounded-full object-cover md:h-24 md:w-24"
+            />
+          </div>
           <div className="absolute bottom-6 left-6 text-left">
             <p className="text-[11px] uppercase tracking-[0.28em] text-white/70">{current.platform}</p>
             <h4 className="mt-2 text-2xl font-semibold">{current.title}</h4>
@@ -74,8 +91,9 @@ export default function PerformanceVaultCarousel({ items, stageActive }: Props) 
 
       {open && (
         <div
-          className="fixed inset-0 z-[70] bg-black/90 px-4 py-10"
+          className="fixed inset-0 z-[70] overflow-y-auto bg-black/90 px-4 py-10"
           onClick={() => setOpen(false)}
+          onMouseDown={() => setOpen(false)}
           role="dialog"
           aria-modal="true"
           aria-label="Performance reel"
@@ -83,14 +101,16 @@ export default function PerformanceVaultCarousel({ items, stageActive }: Props) 
           <button
             type="button"
             onClick={() => setOpen(false)}
-            className="fixed right-6 top-6 z-[71] rounded-full border border-white/30 bg-black/70 px-4 py-2 text-xs uppercase tracking-[0.24em] text-white/80"
+            onMouseDown={(event) => event.stopPropagation()}
+            className="fixed right-4 top-[max(0.9rem,env(safe-area-inset-top))] z-[71] rounded-full border border-white/30 bg-black/70 px-4 py-2 text-xs uppercase tracking-[0.24em] text-white/80 md:right-6"
           >
             Close Reel
           </button>
-          <div className="mx-auto mt-12 max-w-5xl md:mt-16">
+          <div className="mx-auto mt-16 max-w-5xl md:mt-20">
             <div
               className="overflow-hidden rounded-[2rem] border border-white/20 bg-black"
               onClick={(event) => event.stopPropagation()}
+              onMouseDown={(event) => event.stopPropagation()}
             >
               <div className="aspect-video">
                 <iframe

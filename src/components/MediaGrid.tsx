@@ -1,5 +1,6 @@
-﻿import { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Lightbox from "./Lightbox";
+import FavoriteButton from "./FavoriteButton";
 
 export type MediaItem = {
   image: string;
@@ -47,19 +48,29 @@ export default function MediaGrid({ items }: Props) {
       </div>
       <div className="columns-1 gap-4 md:columns-2 lg:columns-3">
         {filtered.map((item, index) => (
-          <button
+          <article
             key={`${item.image}-${index}`}
-            type="button"
-            onClick={() => setLightboxIndex(index)}
             className="group relative mb-4 w-full break-inside-avoid overflow-hidden rounded-2xl border border-white/15 bg-black/40 text-left shadow-[0_0_60px_rgba(242,84,45,0.08)]"
           >
-            <img src={item.image} alt={item.alt} loading="lazy" className="w-full object-cover transition duration-500 group-hover:scale-[1.02]" />
-            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0)_45%,rgba(0,0,0,0.78)_100%)]" />
-            <div className="relative p-4">
-              <p className="text-xs uppercase tracking-[0.3em] text-white/60">{item.tags.join(" · ")}</p>
-              {item.credit && <p className="mt-2 text-xs text-white/50">{item.credit}</p>}
+            <div className="absolute right-3 top-3 z-20">
+              <FavoriteButton
+                type="gallery"
+                itemId={item.image}
+                title={item.alt || "Gallery moment"}
+                href="/gallery"
+                image={item.image}
+                compact
+              />
             </div>
-          </button>
+            <button type="button" onClick={() => setLightboxIndex(index)} className="w-full text-left">
+              <img src={item.image} alt={item.alt} loading="lazy" className="w-full object-cover transition duration-500 group-hover:scale-[1.02]" />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0)_45%,rgba(0,0,0,0.78)_100%)]" />
+              <div className="relative p-4">
+                <p className="text-xs uppercase tracking-[0.3em] text-white/60">{item.tags.join(" � ")}</p>
+                {item.credit && <p className="mt-2 text-xs text-white/50">{item.credit}</p>}
+              </div>
+            </button>
+          </article>
         ))}
       </div>
       {lightboxIndex !== null && (
