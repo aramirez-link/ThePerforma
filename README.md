@@ -88,6 +88,57 @@ Dispatch metrics:
 - `go-live-blast` supports `GET` (token protected) for dispatch rows.
 - `track-live-engagement` logs email opens/clicks and powers health panel counts.
 
+## Online fan store (Stripe + Supabase)
+
+This repo now includes a store storefront and admin interface:
+- Customer storefront: `/store`
+- Admin console: `/admin/store`
+
+Store capabilities in MVP:
+- Product catalog with variants
+- Cart + Stripe checkout
+- Fan Vault login required at checkout
+- Promo code pass-through
+- Wishlist
+- Review submission + moderation
+- Order dashboard with refund/cancel/mark shipped/resend digital link actions
+- Low-stock and out-of-stock inventory alerts in admin/storefront
+
+1. Re-run `supabase/fan_vault_schema.sql` (it now includes store tables/RLS).
+2. Deploy store functions:
+
+```bash
+supabase functions deploy create-store-checkout
+supabase functions deploy store-stripe-webhook
+supabase functions deploy store-admin-action
+```
+
+3. Set secrets:
+
+```bash
+supabase secrets set STRIPE_SECRET_KEY=sk_live_xxx
+supabase secrets set STRIPE_WEBHOOK_SECRET=whsec_xxx
+supabase secrets set RESEND_API_KEY=re_xxx
+supabase secrets set RESEND_FROM_EMAIL=sales@theperforma.com
+```
+
+4. Configure Stripe webhook endpoint:
+
+```text
+https://YOUR_PROJECT_REF.functions.supabase.co/store-stripe-webhook
+```
+
+Subscribe events:
+- `checkout.session.completed`
+- `checkout.session.expired`
+- `charge.refunded`
+
+5. Add your first store admin user:
+- Sign in once via `/admin/store` (magic link or federated).
+- Insert that user id into `store_admins` with role `owner`.
+
+6. Create products/variants in `/admin/store`, set products to `active`, and test checkout from `/store`.
+
 ## Editing content
 
 - `content/events.json` Upcoming events

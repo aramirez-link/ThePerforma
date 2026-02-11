@@ -4,6 +4,7 @@ import Section from "../components/Section.astro";
 import Card from "../components/Card.astro";
 import Button from "../components/Button.astro";
 import BookingConciergeEntry from "../components/BookingConciergeEntry";
+import PerformaConciergeWizardV2 from "../components/PerformaConciergeWizardV2";
 ---
 <BaseLayout title="VIP Reservation | The Performa" description="Concierge-level availability request for promoters and agents.">
   <section class="mx-auto max-w-6xl px-4 pt-8 sm:px-6">
@@ -34,6 +35,9 @@ import BookingConciergeEntry from "../components/BookingConciergeEntry";
       <BookingConciergeEntry client:load />
       <Button href="mailto:booking@theperforma.example" variant="ghost">Email Bookings</Button>
     </div>
+  </Section>
+  <PerformaConciergeWizardV2 client:load />
+  <section class="mx-auto max-w-6xl px-4 pb-16 sm:px-6">
     <div class="mt-12 rounded-3xl border border-white/15 bg-black/50 p-6 shadow-[0_0_70px_rgba(243,211,139,0.12)]">
       <h3 class="text-xl font-semibold">Booking Inquiry</h3>
       <p class="mt-2 text-sm text-white/70">Submit a request and our team will respond with availability, routing, and production requirements.</p>
@@ -49,6 +53,6 @@ import BookingConciergeEntry from "../components/BookingConciergeEntry";
       </form>
       <p class="mt-3 text-xs text-white/50">TODO: Replace action URL with preferred form endpoint.</p>
     </div>
-  </Section>
+  </section>
 </BaseLayout>
 

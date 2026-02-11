@@ -29,6 +29,38 @@ export type VaultUser = {
   favorites: FavoriteRecord[];
 };
 
+export type EngagementMissionState = {
+  stageMode: boolean;
+  watchAndListen: boolean;
+  innerCircle: boolean;
+};
+
+export type EngagementState = {
+  points: number;
+  streak: number;
+  lastSeenDate: string;
+  dailyClaimDate: string;
+  weekKey: string;
+  weeklySignal: number;
+  visitedPaths: string[];
+  reactions: {
+    fire: number;
+    bolt: number;
+    hands: number;
+  };
+  missions: EngagementMissionState;
+};
+
+export type EngagementLeaderboardEntry = {
+  userId: string;
+  displayName: string;
+  points: number;
+  streak: number;
+  weeklySignal: number;
+  score: number;
+  updatedAt: string;
+};
+
 type LocalVaultUser = VaultUser & { password: string };
 
 type Result<T> =
@@ -58,6 +90,52 @@ const getSupabase = () => {
     }
   });
   return supabaseClient;
+};
+
+const normalizeEngagementState = (state: EngagementState): EngagementState => ({
+  points: Math.max(0, Number(state.points || 0)),
+  streak: Math.max(0, Number(state.streak || 0)),
+  lastSeenDate: String(state.lastSeenDate || "").slice(0, 10),
+  dailyClaimDate: String(state.dailyClaimDate || "").slice(0, 10),
+  weekKey: String(state.weekKey || ""),
+  weeklySignal: Math.max(0, Number(state.weeklySignal || 0)),
+  visitedPaths: Array.isArray(state.visitedPaths)
+    ? state.visitedPaths.filter((value) => typeof value === "string").slice(0, 128)
+    : [],
+  reactions: {
+    fire: Math.max(0, Number(state.reactions?.fire || 0)),
+    bolt: Math.max(0, Number(state.reactions?.bolt || 0)),
+    hands: Math.max(0, Number(state.reactions?.hands || 0))
+  },
+  missions: {
+    stageMode: Boolean(state.missions?.stageMode),
+    watchAndListen: Boolean(state.missions?.watchAndListen),
+    innerCircle: Boolean(state.missions?.innerCircle)
+  }
+});
+
+const mapEngagementRow = (row: any): EngagementState => {
+  const reactions = row?.reactions || {};
+  const missions = row?.missions || {};
+  return normalizeEngagementState({
+    points: Number(row?.points || 0),
+    streak: Number(row?.streak || 0),
+    lastSeenDate: row?.last_seen_date || "",
+    dailyClaimDate: row?.daily_claim_date || "",
+    weekKey: row?.week_key || "",
+    weeklySignal: Number(row?.weekly_signal || 0),
+    visitedPaths: Array.isArray(row?.visited_paths) ? row.visited_paths : [],
+    reactions: {
+      fire: Number(reactions.fire || 0),
+      bolt: Number(reactions.bolt || 0),
+      hands: Number(reactions.hands || 0)
+    },
+    missions: {
+      stageMode: Boolean(missions.stageMode),
+      watchAndListen: Boolean(missions.watchAndListen),
+      innerCircle: Boolean(missions.innerCircle)
+    }
+  });
 };
 
 const nowIso = () => new Date().toISOString();
@@ -551,4 +629,119 @@ export const getVaultBadges = async () => {
     tier: badge.tier || undefined,
     tip: badge.tip || undefined
   }));
+};
+
+const defaultEngagementState = (): EngagementState => ({
+  points: 120,
+  streak: 1,
+  lastSeenDate: new Date().toISOString().slice(0, 10),
+  dailyClaimDate: "",
+  weekKey: "",
+  weeklySignal: 0,
+  visitedPaths: [],
+  reactions: { fire: 0, bolt: 0, hands: 0 },
+  missions: {
+    stageMode: false,
+    watchAndListen: false,
+    innerCircle: false
+  }
+});
+
+export const getEngagementProfile = async (): Promise<EngagementState | null> => {
+  if (!isCloudVaultEnabled) return null;
+  const supabase = getSupabase();
+  if (!supabase) return null;
+  const current = await getCloudUserAndProfile();
+  if (!current) return null;
+
+  const { data } = await supabase
+    .from("fan_engagement_profiles")
+    .select("points,streak,last_seen_date,daily_claim_date,week_key,weekly_signal,visited_paths,reactions,missions")
+    .eq("user_id", current.id)
+    .maybeSingle();
+
+  if (!data) return null;
+  return mapEngagementRow(data);
+};
+
+export const upsertEngagementProfile = async (state: EngagementState): Promise<boolean> => {
+  if (!isCloudVaultEnabled) return false;
+  const supabase = getSupabase();
+  if (!supabase) return false;
+  const current = await getCloudUserAndProfile();
+  if (!current) return false;
+
+  const normalized = normalizeEngagementState(state);
+  const { error } = await supabase.from("fan_engagement_profiles").upsert(
+    {
+      user_id: current.id,
+      display_name: current.name || "Fan",
+      points: normalized.points,
+      streak: normalized.streak,
+      last_seen_date: normalized.lastSeenDate || null,
+      daily_claim_date: normalized.dailyClaimDate || null,
+      week_key: normalized.weekKey,
+      weekly_signal: normalized.weeklySignal,
+      visited_paths: normalized.visitedPaths,
+      reactions: normalized.reactions,
+      missions: normalized.missions,
+      updated_at: nowIso()
+    },
+    { onConflict: "user_id" }
+  );
+
+  return !error;
+};
+
+export const ensureEngagementProfile = async (): Promise<EngagementState | null> => {
+  const existing = await getEngagementProfile();
+  if (existing) return existing;
+
+  const base = defaultEngagementState();
+  const saved = await upsertEngagementProfile(base);
+  if (!saved) return null;
+  return base;
+};
+
+export const getEngagementLeaderboard = async (limit = 10): Promise<EngagementLeaderboardEntry[]> => {
+  if (!isCloudVaultEnabled) return [];
+  const supabase = getSupabase();
+  if (!supabase) return [];
+
+  const { data } = await supabase
+    .from("fan_engagement_profiles")
+    .select("user_id,display_name,points,streak,weekly_signal,updated_at")
+    .limit(Math.max(1, Math.min(50, limit)));
+
+  return (data || [])
+    .map((row: any) => ({
+    userId: row.user_id,
+    displayName: row.display_name || "Fan",
+    points: Number(row.points || 0),
+    streak: Number(row.streak || 0),
+    weeklySignal: Number(row.weekly_signal || 0),
+    score: Number(row.points || 0) + Number(row.weekly_signal || 0) + Number(row.streak || 0) * 17,
+    updatedAt: row.updated_at || nowIso()
+    }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, Math.max(1, Math.min(50, limit)));
+};
+
+export const subscribeToEngagementLeaderboard = (onChange: () => void): (() => void) | null => {
+  if (!isCloudVaultEnabled) return null;
+  const supabase = getSupabase();
+  if (!supabase) return null;
+
+  const channel = supabase
+    .channel("fan-engagement-leaderboard")
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "fan_engagement_profiles" },
+      () => onChange()
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
 };

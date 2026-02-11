@@ -2,7 +2,9 @@
 import BaseLayout from "../layouts/BaseLayout.astro";
 import Section from "../components/Section.astro";
 import MediaGrid from "../components/MediaGrid";
+import InstagramCarousel from "../components/InstagramCarousel";
 import gallery from "../../content/gallery.json";
+import instagram from "../../content/instagram.json";
 ---
 <BaseLayout title="Gallery | The Performa" description="Press-ready imagery and stage moments.">
   <section class="mx-auto max-w-6xl px-4 pt-8 sm:px-6">
@@ -20,5 +22,8 @@ import gallery from "../../content/gallery.json";
   </section>
   <Section eyebrow="Gallery" title="Stage Imagery" subtitle="High-resolution moments from Chip Lee's live shows, rehearsals, and backstage worlds.">
     <MediaGrid client:load items={gallery} />
+  </Section>
+  <Section eyebrow="Instagram" title="Live Social Carousel" subtitle="Browse Instagram content directly on-site without leaving The Performa.">
+    <InstagramCarousel client:load items={instagram} />
   </Section>
 </BaseLayout>

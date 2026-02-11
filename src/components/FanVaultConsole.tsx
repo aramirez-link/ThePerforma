@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
+  getEngagementLeaderboard,
+  getEngagementProfile,
   getAllFavorites,
   getCurrentUser,
   getVaultBadges,
@@ -9,7 +11,9 @@ import {
   logoutUser,
   registerUser,
   syncCloudBadgesFromLocal,
+  subscribeToEngagementLeaderboard,
   updateCurrentUserProfile,
+  type EngagementLeaderboardEntry,
   type FavoriteRecord,
   type VaultBadge,
   type VaultUser
@@ -65,6 +69,7 @@ export default function FanVaultConsole() {
   const [badges, setBadges] = useState<VaultBadge[]>([]);
   const [quickBadgeId, setQuickBadgeId] = useState(defaultProfileBadgeId);
   const [engagement, setEngagement] = useState<EngagementSnapshot>({ points: 0, streak: 0, weeklySignal: 0 });
+  const [sharedLeaderboard, setSharedLeaderboard] = useState<EngagementLeaderboardEntry[]>([]);
   const [dispatchLogs, setDispatchLogs] = useState<DispatchLog[]>([]);
   const [opsNotice, setOpsNotice] = useState("");
   const operatorAllowlist = useMemo(
@@ -129,15 +134,25 @@ export default function FanVaultConsole() {
 
   useEffect(() => {
     const syncExternal = async () => {
-      try {
-        const engagementRaw = JSON.parse(localStorage.getItem(ENGAGEMENT_KEY) || "{}");
+      if (isCloudVaultEnabled) {
+        const [profile, board] = await Promise.all([getEngagementProfile(), getEngagementLeaderboard(10)]);
         setEngagement({
-          points: Number(engagementRaw.points || 0),
-          streak: Number(engagementRaw.streak || 0),
-          weeklySignal: Number(engagementRaw.weeklySignal || 0)
+          points: Number(profile?.points || 0),
+          streak: Number(profile?.streak || 0),
+          weeklySignal: Number(profile?.weeklySignal || 0)
         });
-      } catch {
-        setEngagement({ points: 0, streak: 0, weeklySignal: 0 });
+        setSharedLeaderboard(board);
+      } else {
+        try {
+          const engagementRaw = JSON.parse(localStorage.getItem(ENGAGEMENT_KEY) || "{}");
+          setEngagement({
+            points: Number(engagementRaw.points || 0),
+            streak: Number(engagementRaw.streak || 0),
+            weeklySignal: Number(engagementRaw.weeklySignal || 0)
+          });
+        } catch {
+          setEngagement({ points: 0, streak: 0, weeklySignal: 0 });
+        }
       }
 
       try {
@@ -186,10 +201,14 @@ export default function FanVaultConsole() {
     window.addEventListener("performa:dispatch-log", syncExternal);
     window.addEventListener("storage", syncExternal);
     window.addEventListener("astro:after-swap", syncExternal);
+    const unsubscribeLeaderboard = subscribeToEngagementLeaderboard(() => {
+      void syncExternal();
+    });
     return () => {
       window.removeEventListener("performa:dispatch-log", syncExternal);
       window.removeEventListener("storage", syncExternal);
       window.removeEventListener("astro:after-swap", syncExternal);
+      if (unsubscribeLeaderboard) unsubscribeLeaderboard();
     };
   }, [isOperator]);
 
@@ -229,6 +248,12 @@ export default function FanVaultConsole() {
   }, [favorites.length, user?.bio, user?.profileBadgeId]);
 
   const leaderboard = useMemo(() => {
+    if (sharedLeaderboard.length) {
+      return sharedLeaderboard.slice(0, 5).map((entry) => ({
+        name: entry.displayName || "Fan",
+        score: entry.score
+      }));
+    }
     const seeded = [
       { name: "Signal Runner", score: 1140 },
       { name: "Night Architect", score: 980 },
@@ -236,7 +261,7 @@ export default function FanVaultConsole() {
     ];
     const youScore = engagement.points + engagement.weeklySignal + engagement.streak * 14;
     return [...seeded, { name: user?.name || "You", score: youScore }].sort((a, b) => b.score - a.score).slice(0, 5);
-  }, [engagement.points, engagement.streak, engagement.weeklySignal, user?.name]);
+  }, [engagement.points, engagement.streak, engagement.weeklySignal, sharedLeaderboard, user?.name]);
 
   const blastTotals = useMemo(() => {
     const email = dispatchLogs.reduce((sum, item) => sum + Number(item.emailSent || 0), 0);

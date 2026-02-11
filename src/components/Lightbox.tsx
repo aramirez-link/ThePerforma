@@ -1,5 +1,6 @@
 ﻿import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { MediaItem } from "./MediaGrid";
+import { getCurrentUser, type VaultUser } from "../lib/fanVault";
 
 type Props = {
   items: MediaItem[];
@@ -9,6 +10,14 @@ type Props = {
 
 type ReactionType = "like" | "celebrate" | "support";
 
+type CommentRecord = {
+  text: string;
+  createdAt: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+};
+
 type SocialState = {
   reactions: {
     like: number;
@@ -16,10 +25,7 @@ type SocialState = {
     support: number;
   };
   userReaction: ReactionType | null;
-  comments: Array<{
-    text: string;
-    createdAt: string;
-  }>;
+  comments: CommentRecord[];
 };
 
 const STORAGE_KEY = "the-performa-gallery-lightbox-social-v1";
@@ -40,6 +46,19 @@ const defaultSocialState = (): SocialState => ({
   reactions: { like: 0, celebrate: 0, support: 0 },
   userReaction: null,
   comments: []
+});
+
+const normalizeSocialState = (state: SocialState): SocialState => ({
+  ...state,
+  comments: (state.comments || [])
+    .map((comment) => ({
+      text: comment?.text || "",
+      createdAt: comment?.createdAt || new Date().toISOString(),
+      userId: comment?.userId || "legacy",
+      userName: comment?.userName || "Fan",
+      userEmail: comment?.userEmail || ""
+    }))
+    .filter((comment) => comment.text.trim().length > 0)
 });
 
 function IconLike() {
@@ -117,6 +136,7 @@ function ActionButton({ label, icon, burst, burstClass, className = "", active =
 export default function Lightbox({ items, index, onClose }: Props) {
   const [active, setActive] = useState(index);
   const [social, setSocial] = useState<SocialState>(defaultSocialState());
+  const [currentUser, setCurrentUser] = useState<VaultUser | null>(null);
   const [commentText, setCommentText] = useState("");
   const [notice, setNotice] = useState("");
   const [actionTick, setActionTick] = useState({
@@ -143,12 +163,21 @@ export default function Lightbox({ items, index, onClose }: Props) {
     };
   }, [items.length, onClose]);
 
+  useEffect(() => {
+    const syncUser = () => {
+      void getCurrentUser().then(setCurrentUser);
+    };
+    void syncUser();
+    window.addEventListener("fanvault:changed", syncUser);
+    return () => window.removeEventListener("fanvault:changed", syncUser);
+  }, []);
+
   const current = items[active];
   const currentKey = current.image;
 
   useEffect(() => {
     const store = readStore();
-    setSocial(store[currentKey] || defaultSocialState());
+    setSocial(normalizeSocialState(store[currentKey] || defaultSocialState()));
     setCommentText("");
   }, [currentKey]);
 
@@ -209,7 +238,22 @@ export default function Lightbox({ items, index, onClose }: Props) {
   const submitComment = () => {
     const text = commentText.trim();
     if (!text) return;
-    const nextComments = [{ text, createdAt: new Date().toISOString() }, ...social.comments].slice(0, 20);
+    if (!currentUser) {
+      setNotice("Log in to Fan Vault to comment");
+      return;
+    }
+
+    const nextComments = [
+      {
+        text,
+        createdAt: new Date().toISOString(),
+        userId: currentUser.id,
+        userName: currentUser.name || "Fan",
+        userEmail: currentUser.email || ""
+      },
+      ...social.comments
+    ].slice(0, 20);
+
     updateSocial({ ...social, comments: nextComments });
     setCommentText("");
     setActionTick((prev) => ({ ...prev, comment: prev.comment + 1 }));
@@ -218,7 +262,7 @@ export default function Lightbox({ items, index, onClose }: Props) {
 
   return (
     <div
-      className="fixed inset-0 z-[120] flex items-center justify-center bg-black/90 p-3 md:p-6"
+      className="fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto bg-black/90 p-3 md:items-center md:p-6"
       onClick={onClose}
       onMouseDown={onClose}
       role="dialog"
@@ -242,7 +286,7 @@ export default function Lightbox({ items, index, onClose }: Props) {
       >
         {"<"}
       </button>
-      <div className="w-full max-w-4xl" onClick={(event) => event.stopPropagation()} onMouseDown={(event) => event.stopPropagation()}>
+      <div className="my-8 w-full max-w-4xl" onClick={(event) => event.stopPropagation()} onMouseDown={(event) => event.stopPropagation()}>
         <img src={current.image} alt={current.alt} className="max-h-[46vh] w-full object-contain md:max-h-[62vh]" />
         <div className="mt-4 rounded-2xl border border-white/15 bg-black/50 p-4 text-center">
           <p className="text-xs uppercase tracking-[0.3em] text-white/60">{current.tags.join(" · ")}</p>
@@ -254,13 +298,13 @@ export default function Lightbox({ items, index, onClose }: Props) {
               <span>{social.comments.length} comments</span>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-5">
-              <ActionButton label="Like" icon={<IconLike />} burst="👍 👍" burstClass="fb-burst-like" tick={actionTick.like} active={social.userReaction === "like"} className="border-r border-white/10" onClick={() => react("like")} />
-              <ActionButton label="Celebrate" icon={<IconCelebrate />} burst="✨ 🎉" burstClass="fb-burst-celebrate" tick={actionTick.celebrate} active={social.userReaction === "celebrate"} className="border-r border-white/10" onClick={() => react("celebrate")} />
-              <ActionButton label="Support" icon={<IconSupport />} burst="🙌 🙌" burstClass="fb-burst-support" tick={actionTick.support} active={social.userReaction === "support"} className="border-r border-white/10" onClick={() => react("support")} />
+              <ActionButton label="Like" icon={<IconLike />} burst="+1" burstClass="fb-burst-like" tick={actionTick.like} active={social.userReaction === "like"} className="border-r border-white/10" onClick={() => react("like")} />
+              <ActionButton label="Celebrate" icon={<IconCelebrate />} burst="***" burstClass="fb-burst-celebrate" tick={actionTick.celebrate} active={social.userReaction === "celebrate"} className="border-r border-white/10" onClick={() => react("celebrate")} />
+              <ActionButton label="Support" icon={<IconSupport />} burst="OK" burstClass="fb-burst-support" tick={actionTick.support} active={social.userReaction === "support"} className="border-r border-white/10" onClick={() => react("support")} />
               <ActionButton
                 label="Comment"
                 icon={<IconComment />}
-                burst="💬"
+                burst="C"
                 burstClass="fb-burst-comment"
                 tick={actionTick.comment}
                 className="border-r border-white/10"
@@ -269,7 +313,7 @@ export default function Lightbox({ items, index, onClose }: Props) {
                   commentInputRef.current?.focus();
                 }}
               />
-              <ActionButton label="Share" icon={<IconShare />} burst="↗" burstClass="fb-burst-share" tick={actionTick.share} className="text-[#1877f2]" onClick={() => void share()} />
+              <ActionButton label="Share" icon={<IconShare />} burst=">" burstClass="fb-burst-share" tick={actionTick.share} className="text-[#1877f2]" onClick={() => void share()} />
             </div>
           </div>
 
@@ -289,15 +333,21 @@ export default function Lightbox({ items, index, onClose }: Props) {
               <button
                 type="button"
                 onClick={submitComment}
+                disabled={!currentUser}
                 className="rounded-full border border-white/30 px-3 py-2 text-[10px] uppercase tracking-[0.2em] text-white/75"
               >
                 Post
               </button>
             </div>
-            <ul className="mt-3 space-y-2">
-              {social.comments.slice(0, 5).map((comment, idx) => (
+            {!currentUser && <p className="mt-2 text-[11px] text-white/55">Log in to Fan Vault to post comments.</p>}
+            <ul className="mt-3 max-h-56 space-y-2 overflow-y-auto pr-1">
+              {social.comments.map((comment, idx) => (
                 <li key={`${comment.createdAt}-${idx}`} className="rounded-xl border border-white/10 bg-black/35 px-3 py-2 text-xs text-white/75">
-                  {comment.text}
+                  <p className="text-[10px] uppercase tracking-[0.14em] text-white/55">
+                    {comment.userName}
+                    {comment.userEmail ? ` · ${comment.userEmail}` : ""}
+                  </p>
+                  <p className="mt-1">{comment.text}</p>
                 </li>
               ))}
               {!social.comments.length && <li className="text-xs text-white/45">No comments yet.</li>}

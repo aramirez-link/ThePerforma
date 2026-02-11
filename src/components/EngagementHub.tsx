@@ -1,26 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  ensureEngagementProfile,
+  getCurrentUser,
+  getEngagementLeaderboard,
+  isCloudVaultEnabled,
+  subscribeToEngagementLeaderboard,
+  upsertEngagementProfile,
+  type EngagementLeaderboardEntry,
+  type EngagementState
+} from "../lib/fanVault";
 
-type MissionState = {
-  stageMode: boolean;
-  watchAndListen: boolean;
-  innerCircle: boolean;
-};
-
-type EngagementState = {
-  points: number;
-  streak: number;
-  lastSeenDate: string;
-  dailyClaimDate: string;
-  weekKey: string;
-  weeklySignal: number;
-  visitedPaths: string[];
-  reactions: {
-    fire: number;
-    bolt: number;
-    hands: number;
-  };
-  missions: MissionState;
-};
+type MissionState = EngagementState["missions"];
 
 const STORAGE_KEY = "the-performa-engagement-v1";
 const BADGES_KEY = "the-performa-badges-v1";
@@ -86,7 +76,7 @@ const missionChecklist = [
   { key: "innerCircle" as const, label: "Open Inner Circle Access", reward: missionReward }
 ];
 
-const communityBoard = [
+const fallbackCommunityBoard = [
   { name: "Signal Runner", base: 980 },
   { name: "Night Architect", base: 860 },
   { name: "Vault Operator", base: 740 }
@@ -131,6 +121,10 @@ export default function EngagementHub() {
   const [toast, setToast] = useState("");
   const [theme, setTheme] = useState("ember");
   const [burstTick, setBurstTick] = useState({ fire: 0, bolt: 0, hands: 0 });
+  const [leaderboard, setLeaderboard] = useState<EngagementLeaderboardEntry[]>([]);
+  const [currentUserId, setCurrentUserId] = useState("");
+  const persistTimerRef = useRef<number | null>(null);
+  const latestStateRef = useRef<EngagementState>(state);
 
   const missionsCompleted = useMemo(
     () => Object.values(state.missions).filter(Boolean).length,
@@ -151,21 +145,48 @@ export default function EngagementHub() {
   };
 
   const board = useMemo(
-    () =>
-      [
-        ...communityBoard.map((entry) => ({
-          ...entry,
-          score: entry.base + ((state.points * 3 + state.streak * 11) % 140)
-        })),
-        { name: "You", score: state.points + state.streak * 17 + 420 }
-      ].sort((a, b) => b.score - a.score),
-    [state.points, state.streak]
+    () => {
+      if (!leaderboard.length) {
+        return [
+          ...fallbackCommunityBoard.map((entry) => ({
+            name: entry.name,
+            score: entry.base + ((state.points * 3 + state.streak * 11) % 140),
+            isYou: false
+          })),
+          { name: "You", score: state.points + state.weeklySignal + state.streak * 17, isYou: true }
+        ].sort((a, b) => b.score - a.score);
+      }
+
+      return leaderboard.map((entry) => ({
+        name: entry.displayName || "Fan",
+        score: entry.score,
+        isYou: Boolean(currentUserId) && entry.userId === currentUserId
+      }));
+    },
+    [leaderboard, state.points, state.streak, state.weeklySignal, currentUserId]
   );
+
+  const loadLeaderboard = async () => {
+    if (!isCloudVaultEnabled) return;
+    const next = await getEngagementLeaderboard(8);
+    setLeaderboard(next);
+  };
+
+  const persistCloudState = (next: EngagementState) => {
+    latestStateRef.current = next;
+    if (!isCloudVaultEnabled) return;
+    if (persistTimerRef.current) window.clearTimeout(persistTimerRef.current);
+    persistTimerRef.current = window.setTimeout(async () => {
+      await upsertEngagementProfile(latestStateRef.current);
+      await loadLeaderboard();
+    }, 320);
+  };
 
   const updateState = (updater: (current: EngagementState) => EngagementState) => {
     setState((current) => {
       const next = updater(current);
       saveState(next);
+      persistCloudState(next);
       return next;
     });
   };
@@ -209,7 +230,47 @@ export default function EngagementHub() {
   };
 
   useEffect(() => {
-    registerVisit(window.location.pathname);
+    let cancelled = false;
+
+    const bootstrap = async () => {
+      if (isCloudVaultEnabled) {
+        const [user, cloudState] = await Promise.all([getCurrentUser(), ensureEngagementProfile()]);
+        if (!cancelled) {
+          setCurrentUserId(user?.id || "");
+        }
+        if (cloudState && !cancelled) {
+          setState((current) => {
+            const merged: EngagementState = {
+              ...cloudState,
+              points: Math.max(current.points, cloudState.points),
+              streak: Math.max(current.streak, cloudState.streak),
+              weeklySignal: Math.max(current.weeklySignal, cloudState.weeklySignal),
+              visitedPaths: Array.from(new Set([...(cloudState.visitedPaths || []), ...(current.visitedPaths || [])])),
+              reactions: {
+                fire: Math.max(current.reactions.fire, cloudState.reactions.fire),
+                bolt: Math.max(current.reactions.bolt, cloudState.reactions.bolt),
+                hands: Math.max(current.reactions.hands, cloudState.reactions.hands)
+              },
+              missions: {
+                stageMode: current.missions.stageMode || cloudState.missions.stageMode,
+                watchAndListen: current.missions.watchAndListen || cloudState.missions.watchAndListen,
+                innerCircle: current.missions.innerCircle || cloudState.missions.innerCircle
+              }
+            };
+            saveState(merged);
+            persistCloudState(merged);
+            return merged;
+          });
+          await loadLeaderboard();
+        }
+      }
+
+      if (!cancelled) {
+        registerVisit(window.location.pathname);
+      }
+    };
+
+    void bootstrap();
 
     const handleAfterSwap = () => registerVisit(window.location.pathname);
     document.addEventListener("astro:after-swap", handleAfterSwap);
@@ -223,9 +284,16 @@ export default function EngagementHub() {
     ).__stageMode?.subscribe?.(handleStageMode);
     handleStageMode();
 
+    const unsubscribeLeaderboard = subscribeToEngagementLeaderboard(() => {
+      void loadLeaderboard();
+    });
+
     return () => {
+      cancelled = true;
       document.removeEventListener("astro:after-swap", handleAfterSwap);
       if (stageSubscription) stageSubscription();
+      if (unsubscribeLeaderboard) unsubscribeLeaderboard();
+      if (persistTimerRef.current) window.clearTimeout(persistTimerRef.current);
     };
   }, []);
 
@@ -449,7 +517,7 @@ export default function EngagementHub() {
                   <span>
                     #{index + 1} {entry.name}
                   </span>
-                  <span className={entry.name === "You" ? "text-gold" : "text-white/60"}>
+                  <span className={entry.isYou ? "text-gold" : "text-white/60"}>
                     {entry.score}
                   </span>
                 </li>
