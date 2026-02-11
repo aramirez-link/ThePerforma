@@ -39,6 +39,7 @@ const blankProduct = {
   currency: "usd",
   cover_image: ""
 };
+const ADMIN_NAV_KEY = "the-performa-admin-nav";
 
 export default function AdminStoreConsole() {
   const [email, setEmail] = useState("");
@@ -82,6 +83,10 @@ export default function AdminStoreConsole() {
       setUserEmail(user?.email || "");
       const admin = await isStoreAdmin();
       setIsAdmin(admin);
+      if (typeof window !== "undefined") {
+        if (admin) localStorage.setItem(ADMIN_NAV_KEY, "true");
+        else localStorage.removeItem(ADMIN_NAV_KEY);
+      }
       if (admin) await refresh();
       setLoading(false);
     };
@@ -270,6 +275,7 @@ export default function AdminStoreConsole() {
           <button
             type="button"
             onClick={async () => {
+              localStorage.removeItem(ADMIN_NAV_KEY);
               await signOutStore();
               window.location.reload();
             }}
@@ -295,6 +301,7 @@ export default function AdminStoreConsole() {
           <button
             type="button"
             onClick={async () => {
+              localStorage.removeItem(ADMIN_NAV_KEY);
               await signOutStore();
               window.location.reload();
             }}

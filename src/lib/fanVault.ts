@@ -62,6 +62,22 @@ export type EngagementLeaderboardEntry = {
 };
 
 export type FanFeedMediaType = "image" | "video" | "link";
+export type FeedModerationStatus = "pending" | "approved" | "rejected" | "flagged";
+export type FeedReportTargetType = "post" | "comment";
+export type FeedReportStatus = "open" | "reviewed" | "resolved" | "dismissed";
+
+export type FeedModerationReport = {
+  id: number;
+  reporterUserId: string;
+  targetType: FeedReportTargetType;
+  targetId: string;
+  reasonCode: string;
+  details: string | null;
+  status: FeedReportStatus;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  createdAt: string;
+};
 
 export type FanFeedComment = {
   id: string;
@@ -69,6 +85,8 @@ export type FanFeedComment = {
   userId: string;
   authorName: string;
   body: string;
+  moderationStatus: FeedModerationStatus;
+  moderationReason: string | null;
   createdAt: string;
 };
 
@@ -79,6 +97,9 @@ export type FanFeedPost = {
   body: string;
   mediaUrl: string | null;
   mediaType: FanFeedMediaType | null;
+  moderationStatus: FeedModerationStatus;
+  moderationReason: string | null;
+  isNsfw: boolean;
   shareCount: number;
   likeCount: number;
   viewerHasLiked: boolean;
@@ -88,6 +109,30 @@ export type FanFeedPost = {
 };
 
 const FAN_FEED_MEDIA_BUCKET = "fan-feed-media";
+const FEED_MAX_POST_BODY_LEN = 4000;
+const FEED_MAX_COMMENT_BODY_LEN = 600;
+const FEED_MAX_MEDIA_URL_LEN = 2048;
+const FEED_MAX_IMAGE_BYTES = 15 * 1024 * 1024;
+const FEED_ALLOWED_IMAGE_MIME = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "image/avif"
+]);
+const FEED_BLOCKED_TERMS = [
+  "nigger",
+  "faggot",
+  "kike",
+  "spic",
+  "chink",
+  "wetback",
+  "tranny",
+  "rape",
+  "child porn",
+  "bestiality",
+  "incest"
+];
 
 type LocalVaultUser = VaultUser & { password: string };
 
@@ -780,6 +825,8 @@ const mapFeedComment = (row: any, names: Map<string, string>): FanFeedComment =>
   userId: row.user_id,
   authorName: names.get(row.user_id) || "Fan",
   body: row.body || "",
+  moderationStatus: (row.moderation_status as FeedModerationStatus) || "pending",
+  moderationReason: row.moderation_reason || null,
   createdAt: row.created_at || nowIso()
 });
 
@@ -790,6 +837,9 @@ const mapFeedPost = (row: any, names: Map<string, string>, comments: FanFeedComm
   body: row.body || "",
   mediaUrl: row.media_url || null,
   mediaType: (row.media_type as FanFeedMediaType | null) || null,
+  moderationStatus: (row.moderation_status as FeedModerationStatus) || "pending",
+  moderationReason: row.moderation_reason || null,
+  isNsfw: Boolean(row.is_nsfw),
   shareCount: Number(row.share_count || 0),
   likeCount,
   viewerHasLiked,
@@ -797,6 +847,101 @@ const mapFeedPost = (row: any, names: Map<string, string>, comments: FanFeedComm
   createdAt: row.created_at || nowIso(),
   updatedAt: row.updated_at || row.created_at || nowIso()
 });
+
+const sanitizeExternalUrl = (value: string): string | null => {
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return null;
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+};
+
+const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const findBlockedTerm = (value: string): string | null => {
+  const lowered = value.toLowerCase();
+  for (const term of FEED_BLOCKED_TERMS) {
+    const pattern = new RegExp(`\\b${escapeRegex(term.toLowerCase())}\\b`, "i");
+    if (pattern.test(lowered)) return term;
+  }
+  return null;
+};
+
+const getModerationEndpoint = () => {
+  const endpoint = import.meta.env.PUBLIC_FEED_MODERATION_ENDPOINT;
+  if (!endpoint || typeof endpoint !== "string") return "";
+  const trimmed = endpoint.trim();
+  const safe = sanitizeExternalUrl(trimmed);
+  return safe || "";
+};
+
+const runRemoteModerationHook = async (payload: {
+  type: FeedReportTargetType;
+  body: string;
+  mediaUrl?: string | null;
+  userId: string;
+}): Promise<{ status: FeedModerationStatus; reason: string | null } | null> => {
+  const endpoint = getModerationEndpoint();
+  if (!endpoint) return null;
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    if (!response.ok) return null;
+    const json = await response.json();
+    const status = (json?.status as FeedModerationStatus) || "pending";
+    const reason = typeof json?.reason === "string" ? json.reason : null;
+    if (!["pending", "approved", "rejected", "flagged"].includes(status)) return null;
+    return { status, reason };
+  } catch {
+    return null;
+  }
+};
+
+const detectImageMimeByHeader = (bytes: Uint8Array): string | null => {
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "image/jpeg";
+  if (bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return "image/png";
+  if (bytes.length >= 6 && bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46) return "image/gif";
+  if (
+    bytes.length >= 12 &&
+    bytes[0] === 0x52 &&
+    bytes[1] === 0x49 &&
+    bytes[2] === 0x46 &&
+    bytes[3] === 0x46 &&
+    bytes[8] === 0x57 &&
+    bytes[9] === 0x45 &&
+    bytes[10] === 0x42 &&
+    bytes[11] === 0x50
+  ) {
+    return "image/webp";
+  }
+  if (
+    bytes.length >= 12 &&
+    bytes[4] === 0x66 &&
+    bytes[5] === 0x74 &&
+    bytes[6] === 0x79 &&
+    bytes[7] === 0x70 &&
+    bytes[8] === 0x61 &&
+    bytes[9] === 0x76 &&
+    bytes[10] === 0x69 &&
+    (bytes[11] === 0x66 || bytes[11] === 0x73)
+  ) {
+    return "image/avif";
+  }
+  return null;
+};
+
+const extByMime: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/gif": "gif",
+  "image/avif": "avif"
+};
 
 export const getFanFeed = async (limit = 30): Promise<Result<{ posts: FanFeedPost[] }>> => {
   if (!isCloudVaultEnabled) return { ok: false, error: "Fan Feed requires Supabase cloud mode." };
@@ -807,7 +952,7 @@ export const getFanFeed = async (limit = 30): Promise<Result<{ posts: FanFeedPos
 
   const { data: postRows, error: postsError } = await supabase
     .from("fan_feed_posts")
-    .select("id,user_id,body,media_url,media_type,share_count,created_at,updated_at")
+    .select("id,user_id,body,media_url,media_type,moderation_status,moderation_reason,is_nsfw,share_count,created_at,updated_at")
     .order("created_at", { ascending: false })
     .limit(Math.max(1, Math.min(100, limit)));
 
@@ -822,7 +967,7 @@ export const getFanFeed = async (limit = 30): Promise<Result<{ posts: FanFeedPos
     supabase.from("fan_profiles").select("id,name").in("id", userIds),
     supabase
       .from("fan_feed_comments")
-      .select("id,post_id,user_id,body,created_at")
+      .select("id,post_id,user_id,body,moderation_status,moderation_reason,created_at")
       .in("post_id", postIds)
       .order("created_at", { ascending: true }),
     supabase.from("fan_feed_likes").select("post_id,user_id").in("post_id", postIds)
@@ -882,14 +1027,52 @@ export const createFeedPost = async (input: {
   if (!viewer) return { ok: false, error: "Log in to Fan Vault to publish posts." };
 
   const body = (input.body || "").trim();
-  const mediaUrl = (input.mediaUrl || "").trim();
-  if (!body && !mediaUrl) return { ok: false, error: "Add text or a media link to publish." };
+  const rawMediaUrl = (input.mediaUrl || "").trim();
+  if (!body && !rawMediaUrl) return { ok: false, error: "Add text or a media link to publish." };
+  if (body.length > FEED_MAX_POST_BODY_LEN) {
+    return { ok: false, error: `Post is too long. Max ${FEED_MAX_POST_BODY_LEN} characters.` };
+  }
+  if (rawMediaUrl.length > FEED_MAX_MEDIA_URL_LEN) {
+    return { ok: false, error: `Media URL is too long. Max ${FEED_MAX_MEDIA_URL_LEN} characters.` };
+  }
+
+  const mediaUrl = rawMediaUrl ? sanitizeExternalUrl(rawMediaUrl) : null;
+  if (rawMediaUrl && !mediaUrl) {
+    return { ok: false, error: "Media URL must start with http:// or https://." };
+  }
+  if (input.mediaType && !["image", "video", "link"].includes(input.mediaType)) {
+    return { ok: false, error: "Invalid media type." };
+  }
+
+  const blocked = findBlockedTerm(body);
+  if (blocked) {
+    return { ok: false, error: "Post blocked by community safety filter." };
+  }
+
+  let moderationStatus: FeedModerationStatus = "pending";
+  let moderationReason: string | null = null;
+  const remoteModeration = await runRemoteModerationHook({
+    type: "post",
+    body,
+    mediaUrl,
+    userId: viewer.id
+  });
+  if (remoteModeration) {
+    moderationStatus = remoteModeration.status;
+    moderationReason = remoteModeration.reason;
+  }
+  if (moderationStatus === "rejected") {
+    return { ok: false, error: moderationReason || "Post rejected by moderation policy." };
+  }
 
   const { error } = await supabase.from("fan_feed_posts").insert({
     user_id: viewer.id,
     body,
     media_url: mediaUrl || null,
     media_type: input.mediaType || (mediaUrl ? "link" : null),
+    moderation_status: moderationStatus,
+    moderation_reason: moderationReason,
+    is_nsfw: false,
     share_count: 0
   });
 
@@ -906,11 +1089,33 @@ export const createFeedComment = async (postId: string, body: string): Promise<R
 
   const cleanBody = body.trim();
   if (!cleanBody) return { ok: false, error: "Comment cannot be empty." };
+  if (cleanBody.length > FEED_MAX_COMMENT_BODY_LEN) {
+    return { ok: false, error: `Comment is too long. Max ${FEED_MAX_COMMENT_BODY_LEN} characters.` };
+  }
+  const blocked = findBlockedTerm(cleanBody);
+  if (blocked) return { ok: false, error: "Comment blocked by community safety filter." };
+
+  let moderationStatus: FeedModerationStatus = "pending";
+  let moderationReason: string | null = null;
+  const remoteModeration = await runRemoteModerationHook({
+    type: "comment",
+    body: cleanBody,
+    userId: viewer.id
+  });
+  if (remoteModeration) {
+    moderationStatus = remoteModeration.status;
+    moderationReason = remoteModeration.reason;
+  }
+  if (moderationStatus === "rejected") {
+    return { ok: false, error: moderationReason || "Comment rejected by moderation policy." };
+  }
 
   const { error } = await supabase.from("fan_feed_comments").insert({
     post_id: Number(postId),
     user_id: viewer.id,
-    body: cleanBody
+    body: cleanBody,
+    moderation_status: moderationStatus,
+    moderation_reason: moderationReason
   });
 
   if (error) return { ok: false, error: error.message };
@@ -975,6 +1180,136 @@ export const incrementFeedShare = async (postId: string): Promise<Result<{ share
   return { ok: true, shared: true };
 };
 
+export const reportFeedContent = async (input: {
+  targetType: FeedReportTargetType;
+  targetId: string;
+  reasonCode: string;
+  details?: string;
+}): Promise<Result<{ created: true }>> => {
+  if (!isCloudVaultEnabled) return { ok: false, error: "Reporting requires Supabase cloud mode." };
+  const supabase = getSupabase();
+  if (!supabase) return { ok: false, error: "Vault is not configured." };
+  const viewer = await getCloudUserAndProfile();
+  if (!viewer) return { ok: false, error: "Log in to Fan Vault to report content." };
+
+  const details = (input.details || "").trim();
+  const reasonCode = (input.reasonCode || "").trim().toLowerCase();
+  if (!reasonCode) return { ok: false, error: "Select a report reason." };
+  if (!["hate", "sexual", "harassment", "violence", "spam", "other"].includes(reasonCode)) {
+    return { ok: false, error: "Invalid report reason." };
+  }
+
+  const targetType = input.targetType;
+  const numericTargetId = Number(input.targetId);
+  if (!Number.isFinite(numericTargetId)) return { ok: false, error: "Invalid report target." };
+
+  const { error } = await supabase.from("fan_feed_reports").insert({
+    reporter_user_id: viewer.id,
+    target_type: targetType,
+    target_id: numericTargetId,
+    reason_code: reasonCode,
+    details: details || null,
+    status: "open"
+  });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, created: true };
+};
+
+export const getFeedModerationQueue = async (limit = 100): Promise<Result<{ rows: any[] }>> => {
+  if (!isCloudVaultEnabled) return { ok: false, error: "Moderation queue requires Supabase cloud mode." };
+  const supabase = getSupabase();
+  if (!supabase) return { ok: false, error: "Vault is not configured." };
+  const viewer = await getCloudUserAndProfile();
+  if (!viewer) return { ok: false, error: "Log in required." };
+
+  const { data, error } = await supabase
+    .from("fan_feed_reports")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(Math.max(1, Math.min(250, limit)));
+
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, rows: data || [] };
+};
+
+export const getFeedModerationReports = async (limit = 100): Promise<Result<{ reports: FeedModerationReport[] }>> => {
+  const result = await getFeedModerationQueue(limit);
+  if (!result.ok) return result;
+  return {
+    ok: true,
+    reports: (result.rows || []).map((row: any) => ({
+      id: Number(row.id),
+      reporterUserId: row.reporter_user_id,
+      targetType: row.target_type as FeedReportTargetType,
+      targetId: String(row.target_id),
+      reasonCode: row.reason_code,
+      details: row.details || null,
+      status: (row.status as FeedReportStatus) || "open",
+      reviewedBy: row.reviewed_by || null,
+      reviewedAt: row.reviewed_at || null,
+      createdAt: row.created_at || nowIso()
+    }))
+  };
+};
+
+export const moderateFeedItem = async (input: {
+  targetType: FeedReportTargetType;
+  targetId: string;
+  status: FeedModerationStatus;
+  reason?: string | null;
+}): Promise<Result<{ updated: true }>> => {
+  if (!isCloudVaultEnabled) return { ok: false, error: "Moderation update requires Supabase cloud mode." };
+  const supabase = getSupabase();
+  if (!supabase) return { ok: false, error: "Vault is not configured." };
+  const viewer = await getCloudUserAndProfile();
+  if (!viewer) return { ok: false, error: "Log in required." };
+
+  const numericTargetId = Number(input.targetId);
+  if (!Number.isFinite(numericTargetId)) return { ok: false, error: "Invalid target id." };
+  if (!["pending", "approved", "rejected", "flagged"].includes(input.status)) {
+    return { ok: false, error: "Invalid moderation status." };
+  }
+
+  const table = input.targetType === "post" ? "fan_feed_posts" : "fan_feed_comments";
+  const { error } = await supabase
+    .from(table)
+    .update({
+      moderation_status: input.status,
+      moderation_reason: input.reason || null,
+      moderated_by: viewer.id,
+      moderated_at: nowIso()
+    })
+    .eq("id", numericTargetId);
+
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, updated: true };
+};
+
+export const updateFeedReportStatus = async (input: {
+  reportId: number;
+  status: FeedReportStatus;
+}): Promise<Result<{ updated: true }>> => {
+  if (!isCloudVaultEnabled) return { ok: false, error: "Moderation update requires Supabase cloud mode." };
+  const supabase = getSupabase();
+  if (!supabase) return { ok: false, error: "Vault is not configured." };
+  const viewer = await getCloudUserAndProfile();
+  if (!viewer) return { ok: false, error: "Log in required." };
+  if (!["open", "reviewed", "resolved", "dismissed"].includes(input.status)) {
+    return { ok: false, error: "Invalid report status." };
+  }
+
+  const { error } = await supabase
+    .from("fan_feed_reports")
+    .update({
+      status: input.status,
+      reviewed_by: viewer.id,
+      reviewed_at: nowIso()
+    })
+    .eq("id", input.reportId);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, updated: true };
+};
+
 export const subscribeToFanFeed = (onChange: () => void): (() => void) | null => {
   if (!isCloudVaultEnabled) return null;
   const supabase = getSupabase();
@@ -1002,17 +1337,33 @@ export const uploadFeedPhoto = async (file: File): Promise<Result<{ url: string 
   if (!file || !file.type.startsWith("image/")) {
     return { ok: false, error: "Please choose an image file." };
   }
-  if (file.size > 15 * 1024 * 1024) {
+  if (!FEED_ALLOWED_IMAGE_MIME.has(file.type)) {
+    return { ok: false, error: "Unsupported image format. Use JPG, PNG, WEBP, GIF, or AVIF." };
+  }
+  if (file.size > FEED_MAX_IMAGE_BYTES) {
     return { ok: false, error: "Image is too large. Max 15MB." };
   }
 
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-  const ext = safeName.includes(".") ? safeName.split(".").pop() : "jpg";
-  const path = `${viewer.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const header = new Uint8Array(await file.slice(0, 32).arrayBuffer());
+  const detectedMime = detectImageMimeByHeader(header);
+  if (!detectedMime || !FEED_ALLOWED_IMAGE_MIME.has(detectedMime)) {
+    return { ok: false, error: "Image content did not pass validation." };
+  }
+  if (file.type !== detectedMime) {
+    return { ok: false, error: "File type mismatch detected. Re-export and upload again." };
+  }
+
+  const ext = extByMime[detectedMime] || "jpg";
+  const objectId =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  const path = `${viewer.id}/${objectId}.${ext}`;
 
   const { error } = await supabase.storage.from(FAN_FEED_MEDIA_BUCKET).upload(path, file, {
     cacheControl: "3600",
-    upsert: false
+    upsert: false,
+    contentType: detectedMime
   });
 
   if (error) return { ok: false, error: error.message };

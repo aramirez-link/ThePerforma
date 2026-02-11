@@ -137,6 +137,7 @@ on storage.objects for insert
 with check (
   bucket_id = 'fan-feed-media'
   and auth.role() = 'authenticated'
+  and (storage.foldername(name))[1] = auth.uid()::text
 );
 
 create policy "fan_feed_media_update_own"
@@ -144,10 +145,12 @@ on storage.objects for update
 using (
   bucket_id = 'fan-feed-media'
   and owner = auth.uid()
+  and (storage.foldername(name))[1] = auth.uid()::text
 )
 with check (
   bucket_id = 'fan-feed-media'
   and owner = auth.uid()
+  and (storage.foldername(name))[1] = auth.uid()::text
 );
 
 create policy "fan_feed_media_delete_own"
@@ -155,6 +158,7 @@ on storage.objects for delete
 using (
   bucket_id = 'fan-feed-media'
   and owner = auth.uid()
+  and (storage.foldername(name))[1] = auth.uid()::text
 );
 
 alter table public.fan_profiles enable row level security;
@@ -642,9 +646,92 @@ create table if not exists public.fan_feed_likes (
   primary key (post_id, user_id)
 );
 
+alter table public.fan_feed_posts
+  add column if not exists moderation_status text not null default 'pending'
+  check (moderation_status in ('pending', 'approved', 'rejected', 'flagged'));
+alter table public.fan_feed_posts
+  add column if not exists moderation_reason text;
+alter table public.fan_feed_posts
+  add column if not exists is_nsfw boolean not null default false;
+alter table public.fan_feed_posts
+  add column if not exists moderated_by uuid references auth.users(id) on delete set null;
+alter table public.fan_feed_posts
+  add column if not exists moderated_at timestamptz;
+
+alter table public.fan_feed_comments
+  add column if not exists moderation_status text not null default 'pending'
+  check (moderation_status in ('pending', 'approved', 'rejected', 'flagged'));
+alter table public.fan_feed_comments
+  add column if not exists moderation_reason text;
+alter table public.fan_feed_comments
+  add column if not exists moderated_by uuid references auth.users(id) on delete set null;
+alter table public.fan_feed_comments
+  add column if not exists moderated_at timestamptz;
+
+create table if not exists public.fan_feed_reports (
+  id bigserial primary key,
+  reporter_user_id uuid not null references auth.users(id) on delete cascade,
+  target_type text not null check (target_type in ('post', 'comment')),
+  target_id bigint not null,
+  reason_code text not null check (reason_code in ('hate', 'sexual', 'harassment', 'violence', 'spam', 'other')),
+  details text,
+  status text not null default 'open' check (status in ('open', 'reviewed', 'resolved', 'dismissed')),
+  reviewed_by uuid references auth.users(id) on delete set null,
+  reviewed_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'fan_feed_posts_body_len_check'
+  ) then
+    alter table public.fan_feed_posts
+      add constraint fan_feed_posts_body_len_check
+      check (length(body) <= 4000);
+  end if;
+
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'fan_feed_posts_media_url_len_check'
+  ) then
+    alter table public.fan_feed_posts
+      add constraint fan_feed_posts_media_url_len_check
+      check (media_url is null or length(media_url) <= 2048);
+  end if;
+
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'fan_feed_posts_media_url_protocol_check'
+  ) then
+    alter table public.fan_feed_posts
+      add constraint fan_feed_posts_media_url_protocol_check
+      check (media_url is null or media_url ~* '^https?://');
+  end if;
+
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'fan_feed_comments_body_len_check'
+  ) then
+    alter table public.fan_feed_comments
+      add constraint fan_feed_comments_body_len_check
+      check (length(trim(body)) between 1 and 600);
+  end if;
+end
+$$;
+
 create index if not exists idx_fan_feed_posts_created on public.fan_feed_posts(created_at desc);
 create index if not exists idx_fan_feed_comments_post on public.fan_feed_comments(post_id, created_at);
 create index if not exists idx_fan_feed_likes_post on public.fan_feed_likes(post_id);
+create index if not exists idx_fan_feed_posts_moderation_status on public.fan_feed_posts(moderation_status, created_at desc);
+create index if not exists idx_fan_feed_comments_moderation_status on public.fan_feed_comments(moderation_status, created_at desc);
+create index if not exists idx_fan_feed_reports_status on public.fan_feed_reports(status, created_at desc);
+create index if not exists idx_fan_feed_reports_target on public.fan_feed_reports(target_type, target_id);
 
 drop trigger if exists trg_fan_feed_posts_updated_at on public.fan_feed_posts;
 create trigger trg_fan_feed_posts_updated_at
@@ -655,50 +742,85 @@ execute function public.touch_updated_at();
 alter table public.fan_feed_posts enable row level security;
 alter table public.fan_feed_comments enable row level security;
 alter table public.fan_feed_likes enable row level security;
+alter table public.fan_feed_reports enable row level security;
 
 drop policy if exists "fan_feed_posts_select_authenticated" on public.fan_feed_posts;
 drop policy if exists "fan_feed_posts_insert_own" on public.fan_feed_posts;
 drop policy if exists "fan_feed_posts_update_own" on public.fan_feed_posts;
 drop policy if exists "fan_feed_posts_delete_own" on public.fan_feed_posts;
+drop policy if exists "fan_feed_posts_moderate_admin" on public.fan_feed_posts;
 
 create policy "fan_feed_posts_select_authenticated"
 on public.fan_feed_posts for select
-using (auth.role() = 'authenticated');
+using (
+  auth.role() = 'authenticated'
+  and (
+    moderation_status = 'approved'
+    or user_id = auth.uid()
+    or public.is_store_admin()
+  )
+);
 
 create policy "fan_feed_posts_insert_own"
 on public.fan_feed_posts for insert
-with check (auth.uid() = user_id);
-
-create policy "fan_feed_posts_update_own"
-on public.fan_feed_posts for update
-using (auth.uid() = user_id)
-with check (auth.uid() = user_id);
+with check (
+  auth.uid() = user_id
+  and moderation_status = 'pending'
+  and moderated_by is null
+);
 
 create policy "fan_feed_posts_delete_own"
 on public.fan_feed_posts for delete
 using (auth.uid() = user_id);
 
+create policy "fan_feed_posts_moderate_admin"
+on public.fan_feed_posts for update
+using (public.is_store_admin())
+with check (public.is_store_admin());
+
 drop policy if exists "fan_feed_comments_select_authenticated" on public.fan_feed_comments;
 drop policy if exists "fan_feed_comments_insert_own" on public.fan_feed_comments;
 drop policy if exists "fan_feed_comments_update_own" on public.fan_feed_comments;
 drop policy if exists "fan_feed_comments_delete_own" on public.fan_feed_comments;
+drop policy if exists "fan_feed_comments_moderate_admin" on public.fan_feed_comments;
 
 create policy "fan_feed_comments_select_authenticated"
 on public.fan_feed_comments for select
-using (auth.role() = 'authenticated');
+using (
+  auth.role() = 'authenticated'
+  and (
+    moderation_status = 'approved'
+    or user_id = auth.uid()
+    or public.is_store_admin()
+  )
+  and exists (
+    select 1
+    from public.fan_feed_posts p
+    where p.id = post_id
+      and (
+        p.moderation_status = 'approved'
+        or p.user_id = auth.uid()
+        or public.is_store_admin()
+      )
+  )
+);
 
 create policy "fan_feed_comments_insert_own"
 on public.fan_feed_comments for insert
-with check (auth.uid() = user_id);
-
-create policy "fan_feed_comments_update_own"
-on public.fan_feed_comments for update
-using (auth.uid() = user_id)
-with check (auth.uid() = user_id);
+with check (
+  auth.uid() = user_id
+  and moderation_status = 'pending'
+  and moderated_by is null
+);
 
 create policy "fan_feed_comments_delete_own"
 on public.fan_feed_comments for delete
 using (auth.uid() = user_id);
+
+create policy "fan_feed_comments_moderate_admin"
+on public.fan_feed_comments for update
+using (public.is_store_admin())
+with check (public.is_store_admin());
 
 drop policy if exists "fan_feed_likes_select_authenticated" on public.fan_feed_likes;
 drop policy if exists "fan_feed_likes_insert_own" on public.fan_feed_likes;
@@ -706,15 +828,56 @@ drop policy if exists "fan_feed_likes_delete_own" on public.fan_feed_likes;
 
 create policy "fan_feed_likes_select_authenticated"
 on public.fan_feed_likes for select
-using (auth.role() = 'authenticated');
+using (
+  auth.role() = 'authenticated'
+  and exists (
+    select 1
+    from public.fan_feed_posts p
+    where p.id = post_id
+      and (
+        p.moderation_status = 'approved'
+        or p.user_id = auth.uid()
+        or public.is_store_admin()
+      )
+  )
+);
 
 create policy "fan_feed_likes_insert_own"
 on public.fan_feed_likes for insert
-with check (auth.uid() = user_id);
+with check (
+  auth.uid() = user_id
+  and exists (
+    select 1
+    from public.fan_feed_posts p
+    where p.id = post_id
+      and (
+        p.moderation_status = 'approved'
+        or p.user_id = auth.uid()
+        or public.is_store_admin()
+      )
+  )
+);
 
 create policy "fan_feed_likes_delete_own"
 on public.fan_feed_likes for delete
 using (auth.uid() = user_id);
+
+drop policy if exists "fan_feed_reports_select_own_or_admin" on public.fan_feed_reports;
+drop policy if exists "fan_feed_reports_insert_own" on public.fan_feed_reports;
+drop policy if exists "fan_feed_reports_update_admin" on public.fan_feed_reports;
+
+create policy "fan_feed_reports_select_own_or_admin"
+on public.fan_feed_reports for select
+using (auth.uid() = reporter_user_id or public.is_store_admin());
+
+create policy "fan_feed_reports_insert_own"
+on public.fan_feed_reports for insert
+with check (auth.uid() = reporter_user_id);
+
+create policy "fan_feed_reports_update_admin"
+on public.fan_feed_reports for update
+using (public.is_store_admin())
+with check (public.is_store_admin());
 
 do $$
 begin
@@ -749,6 +912,15 @@ begin
         and tablename = 'fan_feed_likes'
     ) then
       alter publication supabase_realtime add table public.fan_feed_likes;
+    end if;
+    if not exists (
+      select 1
+      from pg_publication_tables
+      where pubname = 'supabase_realtime'
+        and schemaname = 'public'
+        and tablename = 'fan_feed_reports'
+    ) then
+      alter publication supabase_realtime add table public.fan_feed_reports;
     end if;
   end if;
 exception

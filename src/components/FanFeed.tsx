@@ -6,6 +6,7 @@ import {
   getCurrentUser,
   getFanFeed,
   incrementFeedShare,
+  reportFeedContent,
   subscribeToFanFeed,
   toggleFeedLike,
   uploadFeedPhoto,
@@ -134,6 +135,16 @@ const resolveMediaType = (url: string): FanFeedMediaType => {
   return "link";
 };
 
+const sanitizeExternalUrl = (value: string) => {
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return null;
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+};
+
 const getEmbedUrl = (url: string) => {
   try {
     const parsed = new URL(url);
@@ -169,6 +180,14 @@ const parseBlueprint = (body: string): { cleanBody: string; blueprint: Blueprint
   }
 };
 
+const moderationPill = (status: string) => {
+  if (status === "approved") return null;
+  if (status === "pending") return "Under review";
+  if (status === "flagged") return "Flagged";
+  if (status === "rejected") return "Restricted";
+  return null;
+};
+
 const rankFromXp = (xp: number) => {
   const current = [...ranks].reverse().find((rank) => xp >= rank.minXp) || ranks[0];
   const idx = ranks.findIndex((rank) => rank.label === current.label);
@@ -190,6 +209,8 @@ export default function FanFeed() {
   const [postMediaUrl, setPostMediaUrl] = useState("");
   const [postPhotoFile, setPostPhotoFile] = useState<File | null>(null);
   const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
+  const [expandedComments, setExpandedComments] = useState<Record<string, boolean>>({});
+  const [activeCommentPostId, setActiveCommentPostId] = useState<string | null>(null);
   const [profile, setProfile] = useState<ProfileState>(defaultProfile("anon"));
   const [activityLog, setActivityLog] = useState<ActivityEvent[]>([]);
   const [citySignals, setCitySignals] = useState<CitySignal[]>(baseCitySignals);
@@ -209,6 +230,8 @@ export default function FanFeed() {
     shareLink: "/book"
   });
   const prevLikeMapRef = useRef<Record<string, number>>({});
+  const composerRef = useRef<HTMLTextAreaElement | null>(null);
+  const commentInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const weeklyPrompt = useMemo(() => prompts[dayOfYear() % prompts.length], []);
 
@@ -433,6 +456,16 @@ export default function FanFeed() {
     let mediaUrl = postMediaUrl.trim();
     let mediaType: FanFeedMediaType | null = mediaUrl ? resolveMediaType(mediaUrl) : null;
 
+    if (mediaUrl) {
+      const safe = sanitizeExternalUrl(mediaUrl);
+      if (!safe) {
+        setBusy(false);
+        setNotice("Media URL must start with http:// or https://.");
+        return;
+      }
+      mediaUrl = safe;
+    }
+
     if (postPhotoFile) {
       const upload = await uploadFeedPhoto(postPhotoFile);
       if (!upload.ok) {
@@ -506,6 +539,7 @@ export default function FanFeed() {
       return;
     }
     setCommentDrafts((current) => ({ ...current, [postId]: "" }));
+    if (activeCommentPostId === postId) setActiveCommentPostId(null);
     logActivity("comment");
     addXp(10, "Comment");
     await loadFeed();
@@ -530,9 +564,53 @@ export default function FanFeed() {
     }
   };
 
+  const onReportPost = async (postId: string) => {
+    const reason = window.prompt("Report reason (hate, sexual, harassment, violence, spam, other):", "other");
+    if (!reason) return;
+    const result = await reportFeedContent({
+      targetType: "post",
+      targetId: postId,
+      reasonCode: reason
+    });
+    if (!result.ok) {
+      setNotice(result.error);
+      return;
+    }
+    setNotice("Report submitted. Thank you.");
+  };
+
+  const onReportComment = async (commentId: string) => {
+    const reason = window.prompt("Report reason (hate, sexual, harassment, violence, spam, other):", "other");
+    if (!reason) return;
+    const result = await reportFeedContent({
+      targetType: "comment",
+      targetId: commentId,
+      reasonCode: reason
+    });
+    if (!result.ok) {
+      setNotice(result.error);
+      return;
+    }
+    setNotice("Report submitted. Thank you.");
+  };
+
+  const focusComposer = () => {
+    const section = document.getElementById("link-up-composer");
+    section?.scrollIntoView({ behavior: "smooth", block: "start" });
+    window.setTimeout(() => composerRef.current?.focus(), 140);
+  };
+
   const onPromptPrefill = () => {
     setPostBody(weeklyPrompt);
     setIsBlueprintMode(false);
+    focusComposer();
+  };
+
+  const openCommentComposer = (postId: string) => {
+    setActiveCommentPostId(postId);
+    const node = document.getElementById(`post-${postId}`);
+    node?.scrollIntoView({ behavior: "smooth", block: "end" });
+    window.setTimeout(() => commentInputRefs.current[postId]?.focus(), 140);
   };
 
   const onDropAttend = () => {
@@ -548,11 +626,14 @@ export default function FanFeed() {
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
-      <div className="space-y-6">
-        <article className="rounded-[2rem] border border-white/15 bg-black/55 p-5 backdrop-blur-md md:p-6">
+      <div className="order-2 space-y-6 pb-28 lg:order-1 lg:pb-0">
+        <article id="link-up-composer" className="rounded-[2rem] border border-white/15 bg-black/55 p-5 backdrop-blur-md md:p-6">
           <p className="text-xs uppercase tracking-[0.34em] text-gold/85">Link Up</p>
           <h3 className="mt-2 font-display text-3xl">Community Signal Wall</h3>
           <p className="mt-3 text-sm text-white/70">Drop moments, media links, and comments in a shared feed with other fans.</p>
+          <p className="mt-2 text-xs text-white/50">
+            Community safety: hate speech, harassment, and sexual exploitation content are blocked and can be reported.
+          </p>
 
           {!viewer && (
             <p className="mt-3 rounded-xl border border-white/15 bg-black/35 px-4 py-3 text-sm text-white/75">
@@ -560,10 +641,12 @@ export default function FanFeed() {
             </p>
           )}
 
-          <div className="mt-4 flex flex-wrap items-center gap-3">
+          <div className="mt-4">
             <label className="text-xs text-white/70">Post type:</label>
-            <button type="button" onClick={() => setIsBlueprintMode(false)} className={`rounded-full border px-4 py-2 text-[10px] uppercase tracking-[0.2em] ${!isBlueprintMode ? "border-gold/55 text-gold" : "border-white/20 text-white/70"}`}>Standard</button>
-            <button type="button" onClick={() => setIsBlueprintMode(true)} className={`rounded-full border px-4 py-2 text-[10px] uppercase tracking-[0.2em] ${isBlueprintMode ? "border-gold/55 text-gold" : "border-white/20 text-white/70"}`}>Post a Blueprint</button>
+            <div className="mt-2 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
+              <button type="button" onClick={() => setIsBlueprintMode(false)} className={`min-h-11 rounded-full border px-4 py-2 text-[10px] uppercase tracking-[0.2em] ${!isBlueprintMode ? "border-gold/55 text-gold" : "border-white/20 text-white/70"}`}>Standard</button>
+              <button type="button" onClick={() => setIsBlueprintMode(true)} className={`min-h-11 rounded-full border px-4 py-2 text-[10px] uppercase tracking-[0.2em] ${isBlueprintMode ? "border-gold/55 text-gold" : "border-white/20 text-white/70"}`}>Post a Blueprint</button>
+            </div>
           </div>
 
           {isBlueprintMode && (
@@ -577,17 +660,18 @@ export default function FanFeed() {
           )}
 
           <div className="mt-4 grid gap-3">
-            <textarea value={postBody} onChange={(event) => setPostBody(event.target.value)} rows={3} placeholder="What is the energy tonight?" className="w-full rounded-2xl border border-white/20 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-white/40" />
+            <textarea ref={composerRef} value={postBody} onChange={(event) => setPostBody(event.target.value)} rows={3} placeholder="What is the energy tonight?" className="w-full rounded-2xl border border-white/20 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-white/40" />
             <input value={postMediaUrl} onChange={(event) => setPostMediaUrl(event.target.value)} placeholder="Optional video/link URL (YouTube, Vimeo, etc.)" className="min-h-11 rounded-2xl border border-white/20 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-white/40" />
             <div className="rounded-2xl border border-white/20 bg-black/35 px-4 py-3">
               <p className="text-[11px] uppercase tracking-[0.2em] text-white/55">Photo Upload</p>
-              <input type="file" accept="image/*" onChange={(event) => setPostPhotoFile(event.target.files?.[0] || null)} className="mt-2 block w-full text-xs text-white/75 file:mr-4 file:min-h-10 file:rounded-full file:border file:border-white/25 file:bg-black/40 file:px-4 file:py-2 file:text-[10px] file:uppercase file:tracking-[0.22em] file:text-white/85" />
+              <input type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" onChange={(event) => setPostPhotoFile(event.target.files?.[0] || null)} className="mt-2 block w-full text-xs text-white/75 file:mr-4 file:min-h-10 file:rounded-full file:border file:border-white/25 file:bg-black/40 file:px-4 file:py-2 file:text-[10px] file:uppercase file:tracking-[0.22em] file:text-white/85" />
               {postPhotoFile && <p className="mt-2 text-[11px] text-white/55">Selected: {postPhotoFile.name} ({(postPhotoFile.size / (1024 * 1024)).toFixed(2)} MB)</p>}
             </div>
-            <div className="flex items-center justify-between gap-3">
+            <div className="hidden items-center justify-between gap-3 sm:flex">
               <p className="text-xs text-white/45">Upload photos directly. Videos are URL link based.</p>
               <button type="button" onClick={submitPost} disabled={!canPublish || busy || !viewer} className="min-h-11 rounded-full bg-ember px-5 py-2 text-xs uppercase tracking-[0.28em] text-ink disabled:opacity-50">{busy ? "Posting..." : "Publish"}</button>
             </div>
+            <p className="text-xs text-white/45 sm:hidden">Upload photos directly. Videos are URL link based.</p>
           </div>
         </article>
 
@@ -602,7 +686,22 @@ export default function FanFeed() {
                   <p className="text-xs uppercase tracking-[0.24em] text-gold/85">{post.authorName || "Fan"}</p>
                   {viewer && post.userId === viewer.id && <p className="mt-1 inline-flex rounded-full border border-gold/35 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-gold/90">{rank.current}</p>}
                   <p className="mt-1 text-[11px] text-white/50">{prettyDate(post.createdAt)}</p>
+                  {moderationPill(post.moderationStatus) && (
+                    <p className="mt-1 inline-flex rounded-full border border-amber-300/35 bg-amber-300/10 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-amber-100/90">
+                      {moderationPill(post.moderationStatus)}
+                    </p>
+                  )}
+                  {post.moderationReason && post.moderationStatus !== "approved" && (
+                    <p className="mt-1 text-[11px] text-white/45">{post.moderationReason}</p>
+                  )}
                 </div>
+                <button
+                  type="button"
+                  onClick={() => onReportPost(post.id)}
+                  className="min-h-10 rounded-full border border-white/20 px-3 py-2 text-[10px] uppercase tracking-[0.18em] text-white/65"
+                >
+                  Report
+                </button>
               </div>
 
               {post.postType === "blueprint" && post.blueprint && (
@@ -624,38 +723,94 @@ export default function FanFeed() {
 
               {post.mediaUrl && (
                 <div className="mt-4 overflow-hidden rounded-2xl border border-white/15 bg-black/40">
-                  {post.mediaType === "image" && <img src={post.mediaUrl} alt="" loading="lazy" className="max-h-[34rem] w-full object-cover" />}
+                  {post.mediaType === "image" && (
+                    (() => {
+                      const safe = sanitizeExternalUrl(post.mediaUrl || "");
+                      if (!safe) return <p className="px-4 py-3 text-sm text-white/55">Blocked unsafe image URL.</p>;
+                      return <img src={safe} alt="" loading="lazy" className="max-h-[34rem] w-full object-cover" />;
+                    })()
+                  )}
                   {post.mediaType === "video" && (
                     (() => {
-                      const embed = getEmbedUrl(post.mediaUrl || "");
+                      const safe = sanitizeExternalUrl(post.mediaUrl || "");
+                      if (!safe) return <p className="px-4 py-3 text-sm text-white/55">Blocked unsafe video URL.</p>;
+                      const embed = getEmbedUrl(safe);
                       if (embed) {
                         return <iframe src={embed} title="Shared fan video" className="aspect-video w-full" allow="autoplay; encrypted-media; picture-in-picture; web-share" loading="lazy" />;
                       }
-                      return <a href={post.mediaUrl || "#"} target="_blank" rel="noreferrer noopener" className="block px-4 py-3 text-sm text-gold hover:text-gold/80">Open video link</a>;
+                      return <a href={safe} target="_blank" rel="noreferrer noopener" className="block px-4 py-3 text-sm text-gold hover:text-gold/80">Open video link</a>;
                     })()
                   )}
-                  {post.mediaType === "link" && <a href={post.mediaUrl} target="_blank" rel="noreferrer noopener" className="block px-4 py-3 text-sm text-gold hover:text-gold/80">Open shared link</a>}
+                  {post.mediaType === "link" && (
+                    (() => {
+                      const safe = sanitizeExternalUrl(post.mediaUrl || "");
+                      if (!safe) return <p className="px-4 py-3 text-sm text-white/55">Blocked unsafe link URL.</p>;
+                      return <a href={safe} target="_blank" rel="noreferrer noopener" className="block px-4 py-3 text-sm text-gold hover:text-gold/80">Open shared link</a>;
+                    })()
+                  )}
                 </div>
               )}
 
-              <div className="mt-4 flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.22em]">
-                <button type="button" onClick={() => onLike(post.id)} className={`min-h-10 rounded-full border px-4 py-2 transition ${post.viewerHasLiked ? "border-gold/60 text-gold" : "border-white/20 text-white/70 hover:border-white/45 hover:text-white"}`}>Like {post.likeCount}</button>
-                <button type="button" onClick={() => onShare(post)} className="min-h-10 rounded-full border border-white/20 px-4 py-2 text-white/70 transition hover:border-white/45 hover:text-white">Share {post.shareCount}</button>
-                <p className="text-[11px] text-white/45">Comments {post.comments.length}</p>
+              <div className="mt-4 grid grid-cols-3 gap-2 text-xs uppercase tracking-[0.22em] sm:flex sm:flex-wrap sm:items-center">
+                <button type="button" onClick={() => onLike(post.id)} className={`min-h-11 rounded-full border px-4 py-2 transition ${post.viewerHasLiked ? "border-gold/60 text-gold" : "border-white/20 text-white/70 hover:border-white/45 hover:text-white"}`}>Like {post.likeCount}</button>
+                <button type="button" onClick={() => onShare(post)} className="min-h-11 rounded-full border border-white/20 px-4 py-2 text-white/70 transition hover:border-white/45 hover:text-white">Share {post.shareCount}</button>
+                <button
+                  type="button"
+                  onClick={() => openCommentComposer(post.id)}
+                  className="min-h-11 rounded-full border border-white/20 px-4 py-2 text-white/70 transition hover:border-white/45 hover:text-white"
+                >
+                  Comments {post.comments.length}
+                </button>
               </div>
 
               <div className="mt-4 space-y-3">
-                {post.comments.map((comment) => (
+                {(expandedComments[post.id] ? post.comments : post.comments.slice(0, 2)).map((comment) => (
                   <div key={comment.id} className="rounded-2xl border border-white/12 bg-black/35 px-4 py-3">
-                    <p className="text-[11px] uppercase tracking-[0.2em] text-white/50">{comment.authorName || "Fan"}</p>
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="text-[11px] uppercase tracking-[0.2em] text-white/50">{comment.authorName || "Fan"}</p>
+                        {moderationPill(comment.moderationStatus) && (
+                          <p className="mt-1 inline-flex rounded-full border border-amber-300/35 bg-amber-300/10 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-amber-100/90">
+                            {moderationPill(comment.moderationStatus)}
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => onReportComment(comment.id)}
+                        className="min-h-9 rounded-full border border-white/20 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white/65"
+                      >
+                        Report
+                      </button>
+                    </div>
                     <p className="mt-1 text-sm text-white/80">{comment.body}</p>
+                    {comment.moderationReason && comment.moderationStatus !== "approved" && (
+                      <p className="mt-1 text-[11px] text-white/45">{comment.moderationReason}</p>
+                    )}
                     <p className="mt-1 text-[11px] text-white/40">{prettyDate(comment.createdAt)}</p>
                   </div>
                 ))}
+                {post.comments.length > 2 && (
+                  <button
+                    type="button"
+                    onClick={() => setExpandedComments((current) => ({ ...current, [post.id]: !current[post.id] }))}
+                    className="min-h-10 rounded-full border border-white/20 px-4 py-2 text-[10px] uppercase tracking-[0.2em] text-white/70"
+                  >
+                    {expandedComments[post.id] ? "Show fewer comments" : `View all ${post.comments.length} comments`}
+                  </button>
+                )}
               </div>
 
-              <div className="mt-4 flex items-center gap-2">
-                <input value={commentDrafts[post.id] || ""} onChange={(event) => setCommentDrafts((current) => ({ ...current, [post.id]: event.target.value }))} placeholder="Write a comment..." className="min-h-11 flex-1 rounded-full border border-white/20 bg-black/35 px-4 py-2 text-sm text-white placeholder:text-white/40" />
+              <div className="mt-4 hidden items-center gap-2 sm:flex">
+                <input
+                  ref={(node) => {
+                    commentInputRefs.current[post.id] = node;
+                  }}
+                  value={commentDrafts[post.id] || ""}
+                  onChange={(event) => setCommentDrafts((current) => ({ ...current, [post.id]: event.target.value }))}
+                  placeholder="Write a comment..."
+                  className="min-h-11 flex-1 rounded-full border border-white/20 bg-black/35 px-4 py-2 text-sm text-white placeholder:text-white/40"
+                />
                 <button type="button" onClick={() => onComment(post.id)} className="min-h-11 rounded-full border border-gold/40 px-4 py-2 text-xs uppercase tracking-[0.22em] text-gold hover:bg-gold/10">Send</button>
               </div>
             </article>
@@ -664,7 +819,8 @@ export default function FanFeed() {
         {notice && <p className="text-xs text-gold">{notice}</p>}
       </div>
 
-      <SignalCommandCenter
+      <div className="order-1 lg:order-2">
+        <SignalCommandCenter
         energy={energyMetrics.pct}
         trend={energyMetrics.trend}
         activeFans={activeFans}
@@ -675,7 +831,72 @@ export default function FanFeed() {
         progressPct={rank.progress}
         onUsePrompt={onPromptPrefill}
         onDropAttend={onDropAttend}
-      />
+        />
+      </div>
+
+      {!activeCommentPostId && (
+        <button
+          type="button"
+          onClick={focusComposer}
+          className="fixed bottom-[6.15rem] right-4 z-40 min-h-11 rounded-full border border-white/20 bg-black/80 px-4 py-2 text-[10px] uppercase tracking-[0.22em] text-white/80 backdrop-blur-xl sm:hidden"
+        >
+          Jump to Composer
+        </button>
+      )}
+
+      <div className="fixed inset-x-0 bottom-0 z-40 px-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:hidden">
+        <div className="rounded-2xl border border-white/20 bg-black/80 px-4 py-3 backdrop-blur-xl">
+          {activeCommentPostId ? (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[10px] uppercase tracking-[0.24em] text-white/60">Comment Mode</p>
+                <button
+                  type="button"
+                  onClick={() => setActiveCommentPostId(null)}
+                  className="min-h-9 rounded-full border border-white/25 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-white/70"
+                >
+                  Close
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  ref={(node) => {
+                    if (activeCommentPostId) commentInputRefs.current[activeCommentPostId] = node;
+                  }}
+                  value={commentDrafts[activeCommentPostId] || ""}
+                  onChange={(event) =>
+                    setCommentDrafts((current) => ({ ...current, [activeCommentPostId]: event.target.value }))
+                  }
+                  placeholder="Write a comment..."
+                  className="min-h-11 flex-1 rounded-full border border-white/20 bg-black/35 px-4 py-2 text-sm text-white placeholder:text-white/40"
+                />
+                <button
+                  type="button"
+                  onClick={() => onComment(activeCommentPostId)}
+                  className="min-h-11 rounded-full border border-gold/40 px-4 py-2 text-xs uppercase tracking-[0.22em] text-gold"
+                >
+                  Send
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.24em] text-white/60">{isBlueprintMode ? "Blueprint" : "Standard Post"}</p>
+                <p className="text-xs text-white/75">{canPublish ? "Ready to publish" : "Add text, photo, or link"}</p>
+              </div>
+              <button
+                type="button"
+                onClick={submitPost}
+                disabled={!canPublish || busy || !viewer}
+                className="min-h-11 rounded-full bg-ember px-5 py-2 text-xs uppercase tracking-[0.26em] text-ink disabled:opacity-50"
+              >
+                {busy ? "Posting..." : "Publish"}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
