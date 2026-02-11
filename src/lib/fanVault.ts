@@ -61,6 +61,34 @@ export type EngagementLeaderboardEntry = {
   updatedAt: string;
 };
 
+export type FanFeedMediaType = "image" | "video" | "link";
+
+export type FanFeedComment = {
+  id: string;
+  postId: string;
+  userId: string;
+  authorName: string;
+  body: string;
+  createdAt: string;
+};
+
+export type FanFeedPost = {
+  id: string;
+  userId: string;
+  authorName: string;
+  body: string;
+  mediaUrl: string | null;
+  mediaType: FanFeedMediaType | null;
+  shareCount: number;
+  likeCount: number;
+  viewerHasLiked: boolean;
+  comments: FanFeedComment[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+const FAN_FEED_MEDIA_BUCKET = "fan-feed-media";
+
 type LocalVaultUser = VaultUser & { password: string };
 
 type Result<T> =
@@ -744,4 +772,251 @@ export const subscribeToEngagementLeaderboard = (onChange: () => void): (() => v
   return () => {
     supabase.removeChannel(channel);
   };
+};
+
+const mapFeedComment = (row: any, names: Map<string, string>): FanFeedComment => ({
+  id: String(row.id),
+  postId: String(row.post_id),
+  userId: row.user_id,
+  authorName: names.get(row.user_id) || "Fan",
+  body: row.body || "",
+  createdAt: row.created_at || nowIso()
+});
+
+const mapFeedPost = (row: any, names: Map<string, string>, comments: FanFeedComment[], likeCount: number, viewerHasLiked: boolean): FanFeedPost => ({
+  id: String(row.id),
+  userId: row.user_id,
+  authorName: names.get(row.user_id) || "Fan",
+  body: row.body || "",
+  mediaUrl: row.media_url || null,
+  mediaType: (row.media_type as FanFeedMediaType | null) || null,
+  shareCount: Number(row.share_count || 0),
+  likeCount,
+  viewerHasLiked,
+  comments,
+  createdAt: row.created_at || nowIso(),
+  updatedAt: row.updated_at || row.created_at || nowIso()
+});
+
+export const getFanFeed = async (limit = 30): Promise<Result<{ posts: FanFeedPost[] }>> => {
+  if (!isCloudVaultEnabled) return { ok: false, error: "Fan Feed requires Supabase cloud mode." };
+  const supabase = getSupabase();
+  if (!supabase) return { ok: false, error: "Vault is not configured." };
+  const viewer = await getCloudUserAndProfile();
+  if (!viewer) return { ok: false, error: "Log in to Fan Vault to view the feed." };
+
+  const { data: postRows, error: postsError } = await supabase
+    .from("fan_feed_posts")
+    .select("id,user_id,body,media_url,media_type,share_count,created_at,updated_at")
+    .order("created_at", { ascending: false })
+    .limit(Math.max(1, Math.min(100, limit)));
+
+  if (postsError) return { ok: false, error: postsError.message };
+  const posts = postRows || [];
+  if (!posts.length) return { ok: true, posts: [] };
+
+  const postIds = posts.map((row: any) => Number(row.id));
+  const userIds = Array.from(new Set(posts.map((row: any) => row.user_id)));
+
+  const [{ data: profileRows }, { data: commentRows }, { data: likeRows }] = await Promise.all([
+    supabase.from("fan_profiles").select("id,name").in("id", userIds),
+    supabase
+      .from("fan_feed_comments")
+      .select("id,post_id,user_id,body,created_at")
+      .in("post_id", postIds)
+      .order("created_at", { ascending: true }),
+    supabase.from("fan_feed_likes").select("post_id,user_id").in("post_id", postIds)
+  ]);
+
+  const commentUserIds = Array.from(new Set((commentRows || []).map((row: any) => row.user_id)));
+  const missingCommentUserIds = commentUserIds.filter((id) => !userIds.includes(id));
+  let commentProfileRows: Array<{ id: string; name: string }> = [];
+  if (missingCommentUserIds.length) {
+    const { data } = await supabase.from("fan_profiles").select("id,name").in("id", missingCommentUserIds);
+    commentProfileRows = (data || []) as Array<{ id: string; name: string }>;
+  }
+
+  const nameMap = new Map<string, string>();
+  (profileRows || []).forEach((row: any) => nameMap.set(row.id, row.name || "Fan"));
+  commentProfileRows.forEach((row) => nameMap.set(row.id, row.name || "Fan"));
+
+  const commentsByPost = new Map<string, FanFeedComment[]>();
+  (commentRows || []).forEach((row: any) => {
+    const key = String(row.post_id);
+    const list = commentsByPost.get(key) || [];
+    list.push(mapFeedComment(row, nameMap));
+    commentsByPost.set(key, list);
+  });
+
+  const likeCountByPost = new Map<string, number>();
+  const viewerLikeSet = new Set<string>();
+  (likeRows || []).forEach((row: any) => {
+    const key = String(row.post_id);
+    likeCountByPost.set(key, (likeCountByPost.get(key) || 0) + 1);
+    if (row.user_id === viewer.id) viewerLikeSet.add(key);
+  });
+
+  return {
+    ok: true,
+    posts: posts.map((row: any) =>
+      mapFeedPost(
+        row,
+        nameMap,
+        commentsByPost.get(String(row.id)) || [],
+        likeCountByPost.get(String(row.id)) || 0,
+        viewerLikeSet.has(String(row.id))
+      )
+    )
+  };
+};
+
+export const createFeedPost = async (input: {
+  body: string;
+  mediaUrl?: string | null;
+  mediaType?: FanFeedMediaType | null;
+}): Promise<Result<{ created: true }>> => {
+  if (!isCloudVaultEnabled) return { ok: false, error: "Fan Feed requires Supabase cloud mode." };
+  const supabase = getSupabase();
+  if (!supabase) return { ok: false, error: "Vault is not configured." };
+  const viewer = await getCloudUserAndProfile();
+  if (!viewer) return { ok: false, error: "Log in to Fan Vault to publish posts." };
+
+  const body = (input.body || "").trim();
+  const mediaUrl = (input.mediaUrl || "").trim();
+  if (!body && !mediaUrl) return { ok: false, error: "Add text or a media link to publish." };
+
+  const { error } = await supabase.from("fan_feed_posts").insert({
+    user_id: viewer.id,
+    body,
+    media_url: mediaUrl || null,
+    media_type: input.mediaType || (mediaUrl ? "link" : null),
+    share_count: 0
+  });
+
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, created: true };
+};
+
+export const createFeedComment = async (postId: string, body: string): Promise<Result<{ created: true }>> => {
+  if (!isCloudVaultEnabled) return { ok: false, error: "Fan Feed requires Supabase cloud mode." };
+  const supabase = getSupabase();
+  if (!supabase) return { ok: false, error: "Vault is not configured." };
+  const viewer = await getCloudUserAndProfile();
+  if (!viewer) return { ok: false, error: "Log in to Fan Vault to comment." };
+
+  const cleanBody = body.trim();
+  if (!cleanBody) return { ok: false, error: "Comment cannot be empty." };
+
+  const { error } = await supabase.from("fan_feed_comments").insert({
+    post_id: Number(postId),
+    user_id: viewer.id,
+    body: cleanBody
+  });
+
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, created: true };
+};
+
+export const toggleFeedLike = async (postId: string): Promise<Result<{ liked: boolean }>> => {
+  if (!isCloudVaultEnabled) return { ok: false, error: "Fan Feed requires Supabase cloud mode." };
+  const supabase = getSupabase();
+  if (!supabase) return { ok: false, error: "Vault is not configured." };
+  const viewer = await getCloudUserAndProfile();
+  if (!viewer) return { ok: false, error: "Log in to Fan Vault to like posts." };
+
+  const post = Number(postId);
+  const { data: existing } = await supabase
+    .from("fan_feed_likes")
+    .select("post_id")
+    .eq("post_id", post)
+    .eq("user_id", viewer.id)
+    .maybeSingle();
+
+  if (existing) {
+    const { error } = await supabase
+      .from("fan_feed_likes")
+      .delete()
+      .eq("post_id", post)
+      .eq("user_id", viewer.id);
+    if (error) return { ok: false, error: error.message };
+    return { ok: true, liked: false };
+  }
+
+  const { error } = await supabase.from("fan_feed_likes").insert({
+    post_id: post,
+    user_id: viewer.id
+  });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, liked: true };
+};
+
+export const incrementFeedShare = async (postId: string): Promise<Result<{ shared: true }>> => {
+  if (!isCloudVaultEnabled) return { ok: false, error: "Fan Feed requires Supabase cloud mode." };
+  const supabase = getSupabase();
+  if (!supabase) return { ok: false, error: "Vault is not configured." };
+  const viewer = await getCloudUserAndProfile();
+  if (!viewer) return { ok: false, error: "Log in to Fan Vault to share posts." };
+
+  const post = Number(postId);
+  const { data: row, error: readError } = await supabase
+    .from("fan_feed_posts")
+    .select("id,share_count")
+    .eq("id", post)
+    .maybeSingle();
+  if (readError) return { ok: false, error: readError.message };
+  if (!row) return { ok: false, error: "Post not found." };
+
+  const { error: updateError } = await supabase
+    .from("fan_feed_posts")
+    .update({ share_count: Number(row.share_count || 0) + 1 })
+    .eq("id", post);
+
+  if (updateError) return { ok: false, error: updateError.message };
+  return { ok: true, shared: true };
+};
+
+export const subscribeToFanFeed = (onChange: () => void): (() => void) | null => {
+  if (!isCloudVaultEnabled) return null;
+  const supabase = getSupabase();
+  if (!supabase) return null;
+
+  const channel = supabase
+    .channel("fan-feed-realtime")
+    .on("postgres_changes", { event: "*", schema: "public", table: "fan_feed_posts" }, onChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "fan_feed_comments" }, onChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "fan_feed_likes" }, onChange)
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+};
+
+export const uploadFeedPhoto = async (file: File): Promise<Result<{ url: string }>> => {
+  if (!isCloudVaultEnabled) return { ok: false, error: "Photo upload requires Supabase cloud mode." };
+  const supabase = getSupabase();
+  if (!supabase) return { ok: false, error: "Vault is not configured." };
+  const viewer = await getCloudUserAndProfile();
+  if (!viewer) return { ok: false, error: "Log in to Fan Vault to upload photos." };
+
+  if (!file || !file.type.startsWith("image/")) {
+    return { ok: false, error: "Please choose an image file." };
+  }
+  if (file.size > 15 * 1024 * 1024) {
+    return { ok: false, error: "Image is too large. Max 15MB." };
+  }
+
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const ext = safeName.includes(".") ? safeName.split(".").pop() : "jpg";
+  const path = `${viewer.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+  const { error } = await supabase.storage.from(FAN_FEED_MEDIA_BUCKET).upload(path, file, {
+    cacheControl: "3600",
+    upsert: false
+  });
+
+  if (error) return { ok: false, error: error.message };
+
+  const { data } = supabase.storage.from(FAN_FEED_MEDIA_BUCKET).getPublicUrl(path);
+  return { ok: true, url: data.publicUrl };
 };

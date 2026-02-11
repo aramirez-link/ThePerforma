@@ -82,7 +82,7 @@ create table if not exists public.fan_engagement_profiles (
 );
 
 create index if not exists idx_fan_engagement_profiles_score
-on public.fan_engagement_profiles ((points + weekly_signal + (streak * 17))) desc;
+on public.fan_engagement_profiles ((points + weekly_signal + (streak * 17)));
 
 do $$
 begin
@@ -104,6 +104,58 @@ exception
     null;
 end
 $$;
+
+-- ===============================
+-- Fan Feed media storage
+-- ===============================
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'fan-feed-media',
+  'fan-feed-media',
+  true,
+  15728640,
+  array['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif']
+)
+on conflict (id) do update
+set
+  public = excluded.public,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
+
+drop policy if exists "fan_feed_media_read" on storage.objects;
+drop policy if exists "fan_feed_media_upload_authenticated" on storage.objects;
+drop policy if exists "fan_feed_media_update_own" on storage.objects;
+drop policy if exists "fan_feed_media_delete_own" on storage.objects;
+
+create policy "fan_feed_media_read"
+on storage.objects for select
+using (bucket_id = 'fan-feed-media');
+
+create policy "fan_feed_media_upload_authenticated"
+on storage.objects for insert
+with check (
+  bucket_id = 'fan-feed-media'
+  and auth.role() = 'authenticated'
+);
+
+create policy "fan_feed_media_update_own"
+on storage.objects for update
+using (
+  bucket_id = 'fan-feed-media'
+  and owner = auth.uid()
+)
+with check (
+  bucket_id = 'fan-feed-media'
+  and owner = auth.uid()
+);
+
+create policy "fan_feed_media_delete_own"
+on storage.objects for delete
+using (
+  bucket_id = 'fan-feed-media'
+  and owner = auth.uid()
+);
 
 alter table public.fan_profiles enable row level security;
 alter table public.fan_favorites enable row level security;
@@ -559,3 +611,148 @@ using (public.is_store_admin());
 create policy "store_order_events_insert_admin"
 on public.store_order_events for insert
 with check (public.is_store_admin());
+
+-- ===============================
+-- Fan Feed schema
+-- ===============================
+
+create table if not exists public.fan_feed_posts (
+  id bigserial primary key,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  body text not null default '',
+  media_url text,
+  media_type text check (media_type in ('image', 'video', 'link')),
+  share_count integer not null default 0 check (share_count >= 0),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.fan_feed_comments (
+  id bigserial primary key,
+  post_id bigint not null references public.fan_feed_posts(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  body text not null,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.fan_feed_likes (
+  post_id bigint not null references public.fan_feed_posts(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (post_id, user_id)
+);
+
+create index if not exists idx_fan_feed_posts_created on public.fan_feed_posts(created_at desc);
+create index if not exists idx_fan_feed_comments_post on public.fan_feed_comments(post_id, created_at);
+create index if not exists idx_fan_feed_likes_post on public.fan_feed_likes(post_id);
+
+drop trigger if exists trg_fan_feed_posts_updated_at on public.fan_feed_posts;
+create trigger trg_fan_feed_posts_updated_at
+before update on public.fan_feed_posts
+for each row
+execute function public.touch_updated_at();
+
+alter table public.fan_feed_posts enable row level security;
+alter table public.fan_feed_comments enable row level security;
+alter table public.fan_feed_likes enable row level security;
+
+drop policy if exists "fan_feed_posts_select_authenticated" on public.fan_feed_posts;
+drop policy if exists "fan_feed_posts_insert_own" on public.fan_feed_posts;
+drop policy if exists "fan_feed_posts_update_own" on public.fan_feed_posts;
+drop policy if exists "fan_feed_posts_delete_own" on public.fan_feed_posts;
+
+create policy "fan_feed_posts_select_authenticated"
+on public.fan_feed_posts for select
+using (auth.role() = 'authenticated');
+
+create policy "fan_feed_posts_insert_own"
+on public.fan_feed_posts for insert
+with check (auth.uid() = user_id);
+
+create policy "fan_feed_posts_update_own"
+on public.fan_feed_posts for update
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
+create policy "fan_feed_posts_delete_own"
+on public.fan_feed_posts for delete
+using (auth.uid() = user_id);
+
+drop policy if exists "fan_feed_comments_select_authenticated" on public.fan_feed_comments;
+drop policy if exists "fan_feed_comments_insert_own" on public.fan_feed_comments;
+drop policy if exists "fan_feed_comments_update_own" on public.fan_feed_comments;
+drop policy if exists "fan_feed_comments_delete_own" on public.fan_feed_comments;
+
+create policy "fan_feed_comments_select_authenticated"
+on public.fan_feed_comments for select
+using (auth.role() = 'authenticated');
+
+create policy "fan_feed_comments_insert_own"
+on public.fan_feed_comments for insert
+with check (auth.uid() = user_id);
+
+create policy "fan_feed_comments_update_own"
+on public.fan_feed_comments for update
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
+create policy "fan_feed_comments_delete_own"
+on public.fan_feed_comments for delete
+using (auth.uid() = user_id);
+
+drop policy if exists "fan_feed_likes_select_authenticated" on public.fan_feed_likes;
+drop policy if exists "fan_feed_likes_insert_own" on public.fan_feed_likes;
+drop policy if exists "fan_feed_likes_delete_own" on public.fan_feed_likes;
+
+create policy "fan_feed_likes_select_authenticated"
+on public.fan_feed_likes for select
+using (auth.role() = 'authenticated');
+
+create policy "fan_feed_likes_insert_own"
+on public.fan_feed_likes for insert
+with check (auth.uid() = user_id);
+
+create policy "fan_feed_likes_delete_own"
+on public.fan_feed_likes for delete
+using (auth.uid() = user_id);
+
+do $$
+begin
+  if exists (
+    select 1
+    from pg_publication
+    where pubname = 'supabase_realtime'
+  ) then
+    if not exists (
+      select 1
+      from pg_publication_tables
+      where pubname = 'supabase_realtime'
+        and schemaname = 'public'
+        and tablename = 'fan_feed_posts'
+    ) then
+      alter publication supabase_realtime add table public.fan_feed_posts;
+    end if;
+    if not exists (
+      select 1
+      from pg_publication_tables
+      where pubname = 'supabase_realtime'
+        and schemaname = 'public'
+        and tablename = 'fan_feed_comments'
+    ) then
+      alter publication supabase_realtime add table public.fan_feed_comments;
+    end if;
+    if not exists (
+      select 1
+      from pg_publication_tables
+      where pubname = 'supabase_realtime'
+        and schemaname = 'public'
+        and tablename = 'fan_feed_likes'
+    ) then
+      alter publication supabase_realtime add table public.fan_feed_likes;
+    end if;
+  end if;
+exception
+  when insufficient_privilege then
+    null;
+end
+$$;

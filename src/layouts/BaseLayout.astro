@@ -14,6 +14,8 @@ const {
   image = "/media/og-default.svg",
   schema = null
 } = Astro.props;
+
+const isFeedRoute = Astro.url.pathname === "/feed";
 ---
 <!doctype html>
 <html lang="en">
@@ -38,7 +40,7 @@ const {
     <main id="main-content" tabindex="-1">
       <slot />
     </main>
-    <GlobalMiniPlayer />
+    {!isFeedRoute && <GlobalMiniPlayer />}
     <div transition:name="engagement-hub" transition:persist>
       <EngagementHub client:load />
     </div>

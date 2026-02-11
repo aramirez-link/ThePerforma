@@ -604,6 +604,25 @@ export default function PerformaConciergeWizardV2() {
     window.print();
   };
 
+  const shareToFanFeed = () => {
+    const payload = {
+      title: `${stageModeName} - ${state.cityState || "City TBD"}`,
+      city: state.cityState || "",
+      date: state.targetDate || "",
+      venueType: venueOptions.find((item) => item.key === state.venue)?.label || state.venue,
+      intensity: outputPercent,
+      tier: state.performanceTier,
+      modules: modulesSelected.map((mod) => `${mod.label} (${mod.tier})`),
+      estimatedCostRange: `${toCurrency(costBreakdown.low)} - ${toCurrency(costBreakdown.high)}`,
+      roi: { low: roiLow, expected: roiExpected, high: roiHigh },
+      riskScore,
+      shareLink: `${window.location.origin}/book?p=${base64UrlEncodeJson(state)}`
+    };
+    const id = `bp_${Date.now().toString(36)}`;
+    localStorage.setItem("the-performa-blueprint-draft-v1", JSON.stringify({ id, payload }));
+    window.location.href = `/feed?draft=${encodeURIComponent(id)}`;
+  };
+
   return (
     <section className="mx-auto w-full max-w-6xl px-4 pb-20 pt-8 sm:px-6">
       <style>{`
@@ -884,6 +903,7 @@ export default function PerformaConciergeWizardV2() {
             <button type="button" onClick={requestAvailability} className="inline-flex min-h-11 items-center rounded-full bg-ember px-6 py-3 text-xs uppercase tracking-[0.28em] text-ink">Request Availability</button>
             <a href="/media/press-kit.pdf" target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center rounded-full border border-white/30 px-6 py-3 text-xs uppercase tracking-[0.28em] text-white/80">Download Event Brief</a>
             <button type="button" onClick={printBlueprint} className="inline-flex min-h-11 items-center rounded-full border border-white/30 px-6 py-3 text-xs uppercase tracking-[0.28em] text-white/80">Print / Save PDF</button>
+            <button type="button" onClick={shareToFanFeed} className="inline-flex min-h-11 items-center rounded-full border border-gold/45 px-5 py-2 text-[11px] uppercase tracking-[0.24em] text-gold">Share to Link Up</button>
             <button type="button" onClick={copyProfile} className="inline-flex min-h-11 items-center rounded-full border border-gold/45 px-5 py-2 text-[11px] uppercase tracking-[0.24em] text-gold">Copy Event Profile Link</button>
           </div>
           {notice && <p className="mt-2 text-xs text-gold">{notice}</p>}

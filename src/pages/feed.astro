@@ -1,0 +1,24 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Section from "../components/Section.astro";
+import FanFeed from "../components/FanFeed";
+---
+<BaseLayout title="Link Up | The Performa" description="Shared community feed for The Performa fans. Post updates, media links, comments, likes, and shares.">
+  <section class="mx-auto max-w-6xl px-4 pt-8 sm:px-6">
+    <div class="relative overflow-hidden rounded-[2rem] border border-white/15">
+      <img src="/assets/img/0032ChipFiesta_4K.jpg" alt="" aria-hidden="true" class="h-[34vh] w-full object-cover opacity-35" />
+      <div class="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,7,11,0.3),rgba(7,7,11,0.92))]"></div>
+      <div class="absolute inset-0 flex items-end p-5 md:p-8">
+        <div>
+          <p class="text-xs uppercase tracking-[0.34em] text-gold/90">Community Network</p>
+          <h1 class="mt-3 font-display text-4xl md:text-5xl">The Performa Link Up</h1>
+          <p class="mt-3 max-w-2xl text-sm text-white/75 md:text-base">A live fan timeline for posts, media drops, comments, likes, and shares.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <Section eyebrow="Link Up" title="Live Community Timeline" subtitle="Post with text, photo links, and video links. Engage with other fans in real time.">
+    <FanFeed client:load />
+  </Section>
+</BaseLayout>
