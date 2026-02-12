@@ -16,6 +16,27 @@ const {
 } = Astro.props;
 
 const isFeedRoute = Astro.url.pathname === "/feed";
+const enablePartnerCredit = import.meta.env.PUBLIC_ENABLE_PARTNER_CREDIT !== "false";
+const partnerSchema = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://theperforma.com/#organization",
+      name: "The Performa",
+      url: "https://theperforma.com",
+      affiliation: {
+        "@id": "https://link-collective.com/#organization"
+      }
+    },
+    {
+      "@type": "Organization",
+      "@id": "https://link-collective.com/#organization",
+      name: "The LINK Collective",
+      url: "https://link-collective.com"
+    }
+  ]
+};
 ---
 <!doctype html>
 <html lang="en">
@@ -33,6 +54,7 @@ const isFeedRoute = Astro.url.pathname === "/feed";
     <Seo title={title} description={description} canonical={canonical} image={image} />
     <meta name="theme-color" content="#07070a" />
     {schema && <script type="application/ld+json" set:html={JSON.stringify(schema)} />}
+    {enablePartnerCredit && <script type="application/ld+json" set:html={JSON.stringify(partnerSchema)} />}
   </head>
   <body class="text-white" data-stage="false" data-stage-profile="club" data-stage-intensity="45" data-stage-theme="ember">
     <a href="#main-content" class="skip-link">Skip to content</a>
@@ -41,9 +63,11 @@ const isFeedRoute = Astro.url.pathname === "/feed";
       <slot />
     </main>
     {!isFeedRoute && <GlobalMiniPlayer />}
-    <div transition:name="engagement-hub" transition:persist>
-      <EngagementHub client:load />
-    </div>
+    {!isFeedRoute && (
+      <div transition:name="engagement-hub" transition:persist>
+        <EngagementHub client:load />
+      </div>
+    )}
     <Footer />
     <script>
       const STAGE_KEY = "the-performa-stage-mode";

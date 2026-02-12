@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
+  completeOAuthFromUrl,
   getEngagementLeaderboard,
   getEngagementProfile,
   getAllFavorites,
@@ -105,6 +106,12 @@ export default function FanVaultConsole() {
   useEffect(() => {
     const run = async () => {
       setLoading(true);
+      if (isCloudVaultEnabled) {
+        const oauthResult = await completeOAuthFromUrl();
+        if (!oauthResult.ok) {
+          setNotice(oauthResult.error);
+        }
+      }
       await sync();
       setLoading(false);
     };

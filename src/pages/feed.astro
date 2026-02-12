@@ -1,24 +1,164 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
-import Section from "../components/Section.astro";
 import FanFeed from "../components/FanFeed";
 ---
 <BaseLayout title="Link Up | The Performa" description="Shared community feed for The Performa fans. Post updates, media links, comments, likes, and shares.">
-  <section class="mx-auto max-w-6xl px-4 pt-8 sm:px-6">
-    <div class="relative overflow-hidden rounded-[2rem] border border-white/15">
-      <img src="/assets/img/0032ChipFiesta_4K.jpg" alt="" aria-hidden="true" class="h-[34vh] w-full object-cover opacity-35" />
-      <div class="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,7,11,0.3),rgba(7,7,11,0.92))]"></div>
-      <div class="absolute inset-0 flex items-end p-5 md:p-8">
-        <div>
-          <p class="text-xs uppercase tracking-[0.34em] text-gold/90">Community Network</p>
-          <h1 class="mt-3 font-display text-4xl md:text-5xl">The Performa Link Up</h1>
-          <p class="mt-3 max-w-2xl text-sm text-white/75 md:text-base">A live fan timeline for posts, media drops, comments, likes, and shares.</p>
-        </div>
+  <div id="linkup-preloader" class="linkup-preloader" aria-live="polite" aria-label="Loading Link Up">
+    <div class="linkup-preloader__center">
+      <img src="/assets/img/CHIPLEE_LOGO_Clear.png" alt="The Performa" class="linkup-preloader__logo" />
+      <p class="linkup-preloader__title">Link Up</p>
+      <p class="linkup-preloader__subtitle">Syncing fan signal</p>
+      <div class="linkup-preloader__meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <div id="linkup-preloader-fill" class="linkup-preloader__fill"></div>
+      </div>
+      <p id="linkup-preloader-label" class="linkup-preloader__pct">0%</p>
+    </div>
+  </div>
+  <section class="py-10 md:py-12">
+    <div class="mx-auto w-full max-w-[1700px] px-4 sm:px-6">
+      <div class="w-full">
+        <FanFeed client:load />
       </div>
     </div>
   </section>
-
-  <Section eyebrow="Link Up" title="Live Community Timeline" subtitle="Post with text, photo links, and video links. Engage with other fans in real time.">
-    <FanFeed client:load />
-  </Section>
 </BaseLayout>
+<script is:inline>
+  (() => {
+    const root = document.getElementById("linkup-preloader");
+    const fill = document.getElementById("linkup-preloader-fill");
+    const label = document.getElementById("linkup-preloader-label");
+    if (!root || !fill || !label) return;
+
+    let progress = 0;
+    const step = () => {
+      progress = Math.min(progress + Math.floor(Math.random() * 8) + 3, 92);
+      fill.style.width = `${progress}%`;
+      label.textContent = `${progress}%`;
+      root.setAttribute("aria-busy", "true");
+    };
+    const timer = window.setInterval(step, 120);
+
+    const finish = () => {
+      window.clearInterval(timer);
+      progress = 100;
+      fill.style.width = "100%";
+      label.textContent = "100%";
+      root.classList.add("is-done");
+      window.setTimeout(() => {
+        root.remove();
+      }, 520);
+    };
+
+    if (document.readyState === "complete") {
+      window.setTimeout(finish, 220);
+      return;
+    }
+    window.addEventListener("load", () => {
+      window.setTimeout(finish, 220);
+    }, { once: true });
+  })();
+</script>
+<style>
+  .linkup-preloader {
+    position: fixed;
+    inset: 0;
+    z-index: 120;
+    display: grid;
+    place-items: center;
+    background:
+      radial-gradient(800px 380px at 50% 18%, rgba(243, 211, 139, 0.18), transparent 68%),
+      radial-gradient(900px 480px at 50% 100%, rgba(242, 84, 45, 0.2), transparent 70%),
+      #050507;
+    transition: opacity 360ms ease, visibility 360ms ease;
+  }
+
+  .linkup-preloader.is-done {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  .linkup-preloader__center {
+    width: min(520px, calc(100vw - 2rem));
+    padding: 1.75rem 1.4rem;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 1.5rem;
+    background: rgba(5, 5, 8, 0.72);
+    backdrop-filter: blur(14px);
+    text-align: center;
+    box-shadow: 0 20px 80px rgba(0, 0, 0, 0.55);
+  }
+
+  .linkup-preloader__logo {
+    width: min(180px, 42vw);
+    margin: 0 auto 0.6rem;
+    filter: drop-shadow(0 0 18px rgba(243, 211, 139, 0.2));
+    animation: linkup-logo-float 1.6s ease-in-out infinite;
+  }
+
+  .linkup-preloader__title {
+    margin: 0;
+    font-size: 0.92rem;
+    letter-spacing: 0.34em;
+    text-transform: uppercase;
+    color: rgba(243, 211, 139, 0.95);
+  }
+
+  .linkup-preloader__subtitle {
+    margin: 0.35rem 0 1rem;
+    font-size: 0.76rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(245, 245, 247, 0.66);
+  }
+
+  .linkup-preloader__meter {
+    position: relative;
+    width: 100%;
+    height: 0.72rem;
+    border-radius: 999px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .linkup-preloader__fill {
+    position: relative;
+    height: 100%;
+    width: 0;
+    border-radius: inherit;
+    background: linear-gradient(90deg, rgba(243, 211, 139, 0.96), rgba(242, 84, 45, 0.96));
+    transition: width 180ms ease;
+    overflow: hidden;
+  }
+
+  .linkup-preloader__fill::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      120deg,
+      rgba(255, 255, 255, 0.2) 0 10px,
+      rgba(255, 255, 255, 0.04) 10px 20px
+    );
+    animation: linkup-meter-stripe 0.7s linear infinite;
+  }
+
+  .linkup-preloader__pct {
+    margin: 0.62rem 0 0;
+    font-size: 0.72rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.75);
+  }
+
+  @keyframes linkup-meter-stripe {
+    from { transform: translateX(0); }
+    to { transform: translateX(20px); }
+  }
+
+  @keyframes linkup-logo-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-4px); }
+  }
+</style>

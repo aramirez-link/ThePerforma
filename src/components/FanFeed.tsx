@@ -3,13 +3,16 @@ import SignalCommandCenter from "./SignalCommandCenter";
 import {
   createFeedComment,
   createFeedPost,
+  deleteFeedPost,
   getCurrentUser,
   getFanFeed,
   incrementFeedShare,
   reportFeedContent,
   subscribeToFanFeed,
   toggleFeedLike,
+  updateFeedPost,
   uploadFeedPhoto,
+  voteFeedPoll,
   type FanFeedMediaType,
   type FanFeedPost,
   type VaultUser
@@ -30,9 +33,15 @@ type BlueprintPayload = {
 };
 
 type DisplayPost = FanFeedPost & {
-  postType: "text" | "media" | "blueprint";
+  postType: "text" | "media" | "blueprint" | "poll" | "runbun" | "trivia";
   cleanBody: string;
   blueprint: BlueprintPayload | null;
+  triviaMeta: TriviaPostMeta | null;
+};
+
+type PollOptionDraft = {
+  label: string;
+  imageUrl: string;
 };
 
 type ActivityType = "post" | "comment" | "like" | "share";
@@ -64,11 +73,29 @@ type ActiveFan = {
   online: boolean;
 };
 
+type TriviaPostMeta = {
+  campaignId?: string;
+  questionId?: string;
+  label?: string;
+  accentColor?: string;
+  cardTone?: "ember" | "gold" | "cyan" | "neutral";
+  createdAt?: string;
+};
+
 const PROFILE_KEY = "the-performa-feed-profile-v1";
 const ACTIVITY_KEY = "the-performa-feed-activity-v1";
 const CITY_KEY = "the-performa-feed-city-signals-v1";
 const BLUEPRINT_DRAFT_KEY = "the-performa-blueprint-draft-v1";
 const BLUEPRINT_PREFIX = "[[BLUEPRINT]]";
+const RUN_BUN_PREFIX = "[[RUN_BUN]]";
+const TRIVIA_PREFIX = "[[TRIVIA]]";
+const SWIPE_VOTE_DELTA_PX = 60;
+const RUN_BUN_MIN_MINUTES = 1;
+const RUN_BUN_MAX_MINUTES = 15;
+const BOOK_BLUEPRINT_POLL_OPTIONS: PollOptionDraft[] = [
+  { label: "Run It", imageUrl: "" },
+  { label: "Bun It", imageUrl: "" }
+];
 
 const ranks: RankDef[] = [
   { label: "Listener", minXp: 0 },
@@ -166,6 +193,11 @@ const getEmbedUrl = (url: string) => {
   return null;
 };
 
+const mediaTypeFromUrlOrNull = (url: string): FanFeedMediaType | null => {
+  if (!url.trim()) return null;
+  return resolveMediaType(url);
+};
+
 const parseBlueprint = (body: string): { cleanBody: string; blueprint: BlueprintPayload | null } => {
   if (!body.startsWith(BLUEPRINT_PREFIX)) return { cleanBody: body, blueprint: null };
   const payloadRaw = body.slice(BLUEPRINT_PREFIX.length).trim();
@@ -178,6 +210,42 @@ const parseBlueprint = (body: string): { cleanBody: string; blueprint: Blueprint
   } catch {
     return { cleanBody: body, blueprint: null };
   }
+};
+
+const parseRunBun = (body: string): { cleanBody: string; isRunBun: boolean } => {
+  if (!body.startsWith(RUN_BUN_PREFIX)) return { cleanBody: body, isRunBun: false };
+  return { cleanBody: body.slice(RUN_BUN_PREFIX.length).replace(/^\s+/, ""), isRunBun: true };
+};
+
+const parseTrivia = (body: string): { cleanBody: string; isTrivia: boolean; triviaMeta: TriviaPostMeta | null } => {
+  if (!body.startsWith(TRIVIA_PREFIX)) return { cleanBody: body, isTrivia: false, triviaMeta: null };
+  const payloadRaw = body.slice(TRIVIA_PREFIX.length).trim();
+  const firstNewline = payloadRaw.indexOf("\n");
+  const jsonPart = firstNewline >= 0 ? payloadRaw.slice(0, firstNewline) : payloadRaw;
+  const textPart = firstNewline >= 0 ? payloadRaw.slice(firstNewline + 1) : "";
+  try {
+    const triviaMeta = JSON.parse(jsonPart) as TriviaPostMeta;
+    return { cleanBody: textPart, isTrivia: true, triviaMeta: triviaMeta || null };
+  } catch {
+    return { cleanBody: payloadRaw, isTrivia: true, triviaMeta: null };
+  }
+};
+
+const normalizeVoteLabel = (value: string) =>
+  value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+const sanitizeHexColor = (value: string) => {
+  const trimmed = String(value || "").trim();
+  if (!trimmed) return null;
+  return /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(trimmed) ? trimmed : null;
+};
+
+const formatCountdown = (remainingMs: number) => {
+  const safeMs = Math.max(0, remainingMs);
+  const totalSeconds = Math.floor(safeMs / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 };
 
 const moderationPill = (status: string) => {
@@ -215,21 +283,21 @@ export default function FanFeed() {
   const [activityLog, setActivityLog] = useState<ActivityEvent[]>([]);
   const [citySignals, setCitySignals] = useState<CitySignal[]>(baseCitySignals);
   const [activeFans, setActiveFans] = useState<ActiveFan[]>([]);
-  const [isBlueprintMode, setIsBlueprintMode] = useState(false);
-  const [blueprint, setBlueprint] = useState<BlueprintPayload>({
-    title: "",
-    city: "",
-    date: "",
-    venueType: "Warehouse",
-    intensity: 75,
-    tier: "Enhanced",
-    modules: [],
-    estimatedCostRange: "$45k-$90k",
-    roi: { low: 8, expected: 21, high: 35 },
-    riskScore: 32,
-    shareLink: "/book"
-  });
+  const [isPollMode, setIsPollMode] = useState(false);
+  const [isRunBunMode, setIsRunBunMode] = useState(false);
+  const [runBunMinutes, setRunBunMinutes] = useState(5);
+  const [pollQuestion, setPollQuestion] = useState("");
+  const [pollAllowMultiple, setPollAllowMultiple] = useState(false);
+  const [pollOptions, setPollOptions] = useState<PollOptionDraft[]>([
+    { label: "", imageUrl: "" },
+    { label: "", imageUrl: "" }
+  ]);
+  const [pollSelections, setPollSelections] = useState<Record<string, string[]>>({});
+  const [bookBlueprintDraft, setBookBlueprintDraft] = useState<BlueprintPayload | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const [mobileFeedMode, setMobileFeedMode] = useState<"all" | "media" | "polls">("all");
   const prevLikeMapRef = useRef<Record<string, number>>({});
+  const swipeStartXRef = useRef<Record<string, number>>({});
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const commentInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
@@ -261,12 +329,25 @@ export default function FanFeed() {
       return;
     }
     const mapped: DisplayPost[] = result.posts.map((post) => {
-      const parsed = parseBlueprint(post.body);
+      const triviaParsed = parseTrivia(post.body);
+      const runBunParsed = parseRunBun(triviaParsed.cleanBody);
+      const parsed = parseBlueprint(runBunParsed.cleanBody);
       return {
         ...post,
-        postType: parsed.blueprint ? "blueprint" : post.mediaUrl ? "media" : "text",
+        postType: post.poll
+          ? runBunParsed.isRunBun
+            ? "runbun"
+            : triviaParsed.isTrivia
+              ? "trivia"
+              : "poll"
+          : parsed.blueprint
+            ? "blueprint"
+            : post.mediaUrl
+              ? "media"
+              : "text",
         cleanBody: parsed.cleanBody,
-        blueprint: parsed.blueprint
+        blueprint: parsed.blueprint,
+        triviaMeta: triviaParsed.triviaMeta
       };
     });
     setPosts(mapped);
@@ -357,6 +438,11 @@ export default function FanFeed() {
   }, []);
 
   useEffect(() => {
+    const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
     const timer = window.setInterval(() => {
       setCitySignals((current) => {
         const next = current.map((city, index) => {
@@ -403,10 +489,15 @@ export default function FanFeed() {
     try {
       const parsed = JSON.parse(raw) as { id: string; payload: BlueprintPayload };
       if (parsed.id !== draftId) return;
-      setIsBlueprintMode(true);
-      setBlueprint(parsed.payload);
+      setIsPollMode(false);
+      setIsRunBunMode(false);
+      setBookBlueprintDraft(parsed.payload);
+      setIsPollMode(true);
+      setPollQuestion(`Run this blueprint: ${parsed.payload.title}?`);
+      setPollAllowMultiple(false);
+      setPollOptions(BOOK_BLUEPRINT_POLL_OPTIONS);
       setPostBody(`Promoter share: ${parsed.payload.title}`);
-      setNotice("Blueprint draft loaded.");
+      setNotice("Blueprint poll draft loaded.");
       params.delete("draft");
       window.history.replaceState({}, "", `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ""}`);
     } catch {
@@ -419,6 +510,18 @@ export default function FanFeed() {
     const timer = window.setTimeout(() => setNotice(""), 2200);
     return () => window.clearTimeout(timer);
   }, [notice]);
+
+  useEffect(() => {
+    setPollSelections((current) => {
+      const next = { ...current };
+      posts.forEach((post) => {
+        if (!post.poll) return;
+        const voted = post.poll.options.filter((option) => option.viewerVoted).map((option) => option.id);
+        if (voted.length) next[post.id] = voted;
+      });
+      return next;
+    });
+  }, [posts]);
 
   const energyMetrics = useMemo(() => {
     const now = Date.now();
@@ -438,70 +541,137 @@ export default function FanFeed() {
   }, [activityLog]);
 
   const rank = useMemo(() => rankFromXp(profile.xp), [profile.xp]);
+  const activeOnlineCount = useMemo(
+    () => activeFans.reduce((count, fan) => count + (fan.online ? 1 : 0), 0),
+    [activeFans]
+  );
+  const visiblePosts = useMemo(() => {
+    if (mobileFeedMode === "media") return posts.filter((post) => Boolean(post.mediaUrl));
+    if (mobileFeedMode === "polls") return posts.filter((post) => Boolean(post.poll));
+    return posts;
+  }, [mobileFeedMode, posts]);
 
   const canPublish = useMemo(() => {
-    if (isBlueprintMode) return Boolean(blueprint.title.trim());
+    if (isRunBunMode) {
+      return Boolean(postPhotoFile || postMediaUrl.trim());
+    }
+    if (isPollMode) {
+      if (bookBlueprintDraft) return Boolean(pollQuestion.trim());
+      const filledOptions = pollOptions.filter((option) => option.label.trim().length > 0);
+      return Boolean(pollQuestion.trim()) && filledOptions.length >= 2;
+    }
     return postBody.trim().length > 0 || postMediaUrl.trim().length > 0 || Boolean(postPhotoFile);
-  }, [postBody, postMediaUrl, postPhotoFile, isBlueprintMode, blueprint.title]);
+  }, [postBody, postMediaUrl, postPhotoFile, isPollMode, isRunBunMode, pollQuestion, pollOptions, bookBlueprintDraft]);
 
   const submitPost = async () => {
+    if (busy) return;
     if (!viewer) {
       setNotice("Log in to Fan Vault to publish posts.");
       return;
     }
-    if (!canPublish) return;
-
-    setBusy(true);
-
-    let mediaUrl = postMediaUrl.trim();
-    let mediaType: FanFeedMediaType | null = mediaUrl ? resolveMediaType(mediaUrl) : null;
-
-    if (mediaUrl) {
-      const safe = sanitizeExternalUrl(mediaUrl);
-      if (!safe) {
-        setBusy(false);
-        setNotice("Media URL must start with http:// or https://.");
-        return;
+    if (!canPublish) {
+      if (isRunBunMode) {
+        setNotice("Add a photo or image URL for Run It / Bun It.");
+      } else if (isPollMode) {
+        setNotice("Add a poll question and at least two options.");
+      } else {
+        setNotice("Add text, a media link, or a photo before publishing.");
       }
-      mediaUrl = safe;
-    }
-
-    if (postPhotoFile) {
-      const upload = await uploadFeedPhoto(postPhotoFile);
-      if (!upload.ok) {
-        setBusy(false);
-        setNotice(upload.error);
-        return;
-      }
-      mediaUrl = upload.url;
-      mediaType = "image";
-    }
-
-    const payloadBody = isBlueprintMode
-      ? `${BLUEPRINT_PREFIX}${JSON.stringify(blueprint)}\n${postBody.trim()}`
-      : postBody.trim();
-
-    const result = await createFeedPost({
-      body: payloadBody,
-      mediaUrl: mediaUrl || null,
-      mediaType
-    });
-
-    setBusy(false);
-    if (!result.ok) {
-      setNotice(result.error);
       return;
     }
 
-    setPostBody("");
-    setPostMediaUrl("");
-    setPostPhotoFile(null);
-    setIsBlueprintMode(false);
-    setBlueprint((current) => ({ ...current, title: "", city: "", date: "" }));
-    logActivity("post");
-    addXp(25, "Post published");
-    setNotice("Post published.");
-    await loadFeed();
+    setBusy(true);
+    try {
+      let mediaUrl = postMediaUrl.trim();
+      let mediaType: FanFeedMediaType | null = mediaUrl ? resolveMediaType(mediaUrl) : null;
+
+      if (mediaUrl) {
+        const safe = sanitizeExternalUrl(mediaUrl);
+        if (!safe) {
+          setNotice("Media URL must start with http:// or https://.");
+          return;
+        }
+        mediaUrl = safe;
+        if (isRunBunMode && resolveMediaType(mediaUrl) !== "image") {
+          setNotice("Run It / Bun It requires an image URL.");
+          return;
+        }
+      }
+
+      if (postPhotoFile) {
+        const upload = await uploadFeedPhoto(postPhotoFile);
+        if (!upload.ok) {
+          setNotice(upload.error);
+          return;
+        }
+        mediaUrl = upload.url;
+        mediaType = "image";
+      }
+
+      const payloadBody = bookBlueprintDraft
+        ? `${BLUEPRINT_PREFIX}${JSON.stringify(bookBlueprintDraft)}\n${postBody.trim()}`
+        : isRunBunMode
+          ? `${RUN_BUN_PREFIX}\n${postBody.trim()}`
+        : postBody.trim();
+
+      const pollPayload = isRunBunMode
+        ? {
+            question: "Run It or Bun It?",
+            allowMultiple: false,
+            expiresAt: new Date(
+              Date.now() +
+                Math.max(RUN_BUN_MIN_MINUTES, Math.min(RUN_BUN_MAX_MINUTES, runBunMinutes)) * 60 * 1000
+            ).toISOString(),
+            options: [
+              { label: "Run It", imageUrl: "" },
+              { label: "Bun It", imageUrl: "" }
+            ]
+          }
+        : isPollMode
+        ? {
+            question: pollQuestion.trim(),
+            allowMultiple: pollAllowMultiple,
+            options: (bookBlueprintDraft ? BOOK_BLUEPRINT_POLL_OPTIONS : pollOptions)
+              .map((option) => ({ label: option.label.trim(), imageUrl: option.imageUrl.trim() }))
+              .filter((option) => option.label.length > 0)
+          }
+        : undefined;
+
+      const result = await createFeedPost({
+        body: payloadBody,
+        mediaUrl: mediaUrl || null,
+        mediaType,
+        poll: pollPayload
+      });
+
+      if (!result.ok) {
+        setNotice(result.error);
+        return;
+      }
+
+      setPostBody("");
+      setPostMediaUrl("");
+      setPostPhotoFile(null);
+      setIsPollMode(false);
+      setIsRunBunMode(false);
+      setBookBlueprintDraft(null);
+      setPollQuestion("");
+      setPollAllowMultiple(false);
+      setRunBunMinutes(5);
+      setPollOptions([
+        { label: "", imageUrl: "" },
+        { label: "", imageUrl: "" }
+      ]);
+      logActivity("post");
+      addXp(25, "Post published");
+      setNotice("Post published.");
+      await loadFeed();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not publish post.";
+      setNotice(message);
+    } finally {
+      setBusy(false);
+    }
   };
 
   const onLike = async (postId: string) => {
@@ -523,6 +693,27 @@ export default function FanFeed() {
       localStorage.setItem(PROFILE_KEY, JSON.stringify(next));
       return next;
     });
+    await loadFeed();
+  };
+
+  const onVotePoll = async (post: DisplayPost, optionIds: string[]) => {
+    if (!viewer) {
+      setNotice("Log in to Fan Vault to vote.");
+      return;
+    }
+    if (!post.poll) return;
+    if (!optionIds.length) {
+      setNotice("Pick at least one option.");
+      return;
+    }
+    const result = await voteFeedPoll({ postId: post.id, optionIds });
+    if (!result.ok) {
+      setNotice(result.error);
+      return;
+    }
+    setPollSelections((current) => ({ ...current, [post.id]: optionIds }));
+    addXp(6, "Crowd Beacon vote");
+    setNotice("Vote submitted.");
     await loadFeed();
   };
 
@@ -579,6 +770,59 @@ export default function FanFeed() {
     setNotice("Report submitted. Thank you.");
   };
 
+  const onEditPost = async (post: DisplayPost) => {
+    if (!viewer || post.userId !== viewer.id) return;
+
+    const currentText = post.cleanBody || "";
+    const nextText = window.prompt("Edit your post text:", currentText);
+    if (nextText === null) return;
+
+    const currentMedia = post.mediaUrl || "";
+    const nextMediaRaw = window.prompt("Edit media URL (leave blank for none):", currentMedia);
+    if (nextMediaRaw === null) return;
+
+    const nextMedia = nextMediaRaw.trim();
+    let nextBody = nextText.trim();
+    if (post.postType === "blueprint" && post.blueprint) {
+      nextBody = `${BLUEPRINT_PREFIX}${JSON.stringify(post.blueprint)}\n${nextBody}`;
+    } else if (post.postType === "trivia" && post.triviaMeta) {
+      nextBody = `${TRIVIA_PREFIX}${JSON.stringify(post.triviaMeta)}\n${nextBody}`;
+    } else if (post.postType === "runbun") {
+      if (nextMedia && mediaTypeFromUrlOrNull(nextMedia) !== "image") {
+        setNotice("Run It / Bun It posts require an image URL.");
+        return;
+      }
+      nextBody = `${RUN_BUN_PREFIX}\n${nextBody}`;
+    }
+
+    const result = await updateFeedPost({
+      postId: post.id,
+      body: nextBody,
+      mediaUrl: nextMedia || null,
+      mediaType: mediaTypeFromUrlOrNull(nextMedia || "")
+    });
+    if (!result.ok) {
+      setNotice(result.error);
+      return;
+    }
+    setNotice("Post updated.");
+    await loadFeed();
+  };
+
+  const onDeletePost = async (post: DisplayPost) => {
+    if (!viewer || post.userId !== viewer.id) return;
+    const confirmed = window.confirm("Delete this post? This cannot be undone.");
+    if (!confirmed) return;
+
+    const result = await deleteFeedPost(post.id);
+    if (!result.ok) {
+      setNotice(result.error);
+      return;
+    }
+    setNotice("Post deleted.");
+    await loadFeed();
+  };
+
   const onReportComment = async (commentId: string) => {
     const reason = window.prompt("Report reason (hate, sexual, harassment, violence, spam, other):", "other");
     if (!reason) return;
@@ -602,7 +846,9 @@ export default function FanFeed() {
 
   const onPromptPrefill = () => {
     setPostBody(weeklyPrompt);
-    setIsBlueprintMode(false);
+    setIsPollMode(false);
+    setIsRunBunMode(false);
+    setBookBlueprintDraft(null);
     focusComposer();
   };
 
@@ -625,8 +871,44 @@ export default function FanFeed() {
   };
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
-      <div className="order-2 space-y-6 pb-28 lg:order-1 lg:pb-0">
+    <div className="grid items-start gap-4 md:gap-5 xl:min-h-[58rem]">
+      <div className="sticky top-[5.2rem] z-30 -mx-1 flex items-center gap-2 overflow-x-auto rounded-2xl border border-white/15 bg-black/70 px-2 py-2 backdrop-blur-xl sm:hidden">
+        <button
+          type="button"
+          onClick={focusComposer}
+          className="min-h-10 whitespace-nowrap rounded-full border border-gold/45 bg-gold/10 px-4 py-2 text-[10px] uppercase tracking-[0.2em] text-gold"
+        >
+          Compose
+        </button>
+        <button
+          type="button"
+          onClick={() => setMobileFeedMode("all")}
+          className={`min-h-10 whitespace-nowrap rounded-full border px-4 py-2 text-[10px] uppercase tracking-[0.2em] ${mobileFeedMode === "all" ? "border-white/45 bg-white/10 text-white" : "border-white/25 bg-black/35 text-white/80"}`}
+        >
+          For You
+        </button>
+        <button
+          type="button"
+          onClick={() => setMobileFeedMode("media")}
+          className={`min-h-10 whitespace-nowrap rounded-full border px-4 py-2 text-[10px] uppercase tracking-[0.2em] ${mobileFeedMode === "media" ? "border-white/45 bg-white/10 text-white" : "border-white/25 bg-black/35 text-white/80"}`}
+        >
+          Media
+        </button>
+        <button
+          type="button"
+          onClick={() => setMobileFeedMode("polls")}
+          className={`min-h-10 whitespace-nowrap rounded-full border px-4 py-2 text-[10px] uppercase tracking-[0.2em] ${mobileFeedMode === "polls" ? "border-white/45 bg-white/10 text-white" : "border-white/25 bg-black/35 text-white/80"}`}
+        >
+          Polls
+        </button>
+        <span className="whitespace-nowrap rounded-full border border-cyan-300/40 bg-cyan-400/10 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-cyan-100">
+          Pulse {energyMetrics.pct}%
+        </span>
+        <span className="whitespace-nowrap rounded-full border border-emerald-300/40 bg-emerald-400/10 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-emerald-100">
+          {activeOnlineCount} online
+        </span>
+      </div>
+      <aside className="order-1 xl:fixed xl:top-24 xl:left-[max(1rem,calc((100vw-1700px)/2+1rem))] xl:z-30 xl:w-[340px] 2xl:w-[380px] xl:max-h-[calc(100dvh-7.5rem)] xl:overflow-y-auto">
         <article id="link-up-composer" className="rounded-[2rem] border border-white/15 bg-black/55 p-5 backdrop-blur-md md:p-6">
           <p className="text-xs uppercase tracking-[0.34em] text-gold/85">Link Up</p>
           <h3 className="mt-2 font-display text-3xl">Community Signal Wall</h3>
@@ -643,45 +925,231 @@ export default function FanFeed() {
 
           <div className="mt-4">
             <label className="text-xs text-white/70">Post type:</label>
-            <div className="mt-2 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
-              <button type="button" onClick={() => setIsBlueprintMode(false)} className={`min-h-11 rounded-full border px-4 py-2 text-[10px] uppercase tracking-[0.2em] ${!isBlueprintMode ? "border-gold/55 text-gold" : "border-white/20 text-white/70"}`}>Standard</button>
-              <button type="button" onClick={() => setIsBlueprintMode(true)} className={`min-h-11 rounded-full border px-4 py-2 text-[10px] uppercase tracking-[0.2em] ${isBlueprintMode ? "border-gold/55 text-gold" : "border-white/20 text-white/70"}`}>Post a Blueprint</button>
+            <div className="mt-2 grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsPollMode(false);
+                  setIsRunBunMode(false);
+                  setBookBlueprintDraft(null);
+                }}
+                className={`min-h-11 rounded-full border px-4 py-2 text-[10px] uppercase tracking-[0.2em] ${!isPollMode && !isRunBunMode ? "border-gold/55 text-gold" : "border-white/20 text-white/70"}`}
+              >
+                Standard
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsPollMode(true);
+                  setIsRunBunMode(false);
+                  setBookBlueprintDraft(null);
+                  setPostMediaUrl("");
+                  setPostPhotoFile(null);
+                }}
+                className={`min-h-11 rounded-full border px-4 py-2 text-[10px] uppercase tracking-[0.2em] ${isPollMode && !isRunBunMode ? "border-gold/55 text-gold" : "border-white/20 text-white/70"}`}
+              >
+                Crowd Beacon Poll
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsRunBunMode(true);
+                  setIsPollMode(false);
+                  setBookBlueprintDraft(null);
+                  setPollQuestion("");
+                  setPollAllowMultiple(false);
+                  setRunBunMinutes(5);
+                  setPollOptions([
+                    { label: "", imageUrl: "" },
+                    { label: "", imageUrl: "" }
+                  ]);
+                }}
+                className={`min-h-11 rounded-full border px-4 py-2 text-[10px] uppercase tracking-[0.2em] ${isRunBunMode ? "border-gold/55 text-gold" : "border-white/20 text-white/70"}`}
+              >
+                RUN IT or BUN IT
+              </button>
             </div>
           </div>
 
-          {isBlueprintMode && (
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              <input value={blueprint.title} onChange={(e) => setBlueprint((c) => ({ ...c, title: e.target.value }))} placeholder="Blueprint title" className="min-h-11 rounded-xl border border-white/20 bg-black/35 px-3 py-2 text-sm" />
-              <input value={blueprint.city} onChange={(e) => setBlueprint((c) => ({ ...c, city: e.target.value }))} placeholder="City" className="min-h-11 rounded-xl border border-white/20 bg-black/35 px-3 py-2 text-sm" />
-              <input type="date" value={blueprint.date} onChange={(e) => setBlueprint((c) => ({ ...c, date: e.target.value }))} className="min-h-11 rounded-xl border border-white/20 bg-black/35 px-3 py-2 text-sm" />
-              <input value={blueprint.estimatedCostRange} onChange={(e) => setBlueprint((c) => ({ ...c, estimatedCostRange: e.target.value }))} placeholder="Cost range" className="min-h-11 rounded-xl border border-white/20 bg-black/35 px-3 py-2 text-sm" />
-              <input value={blueprint.shareLink} onChange={(e) => setBlueprint((c) => ({ ...c, shareLink: e.target.value }))} placeholder="/book?p=..." className="min-h-11 rounded-xl border border-white/20 bg-black/35 px-3 py-2 text-sm sm:col-span-2" />
+          <div className="mt-4 grid gap-3">
+            {isRunBunMode ? (
+              <>
+                <textarea
+                  ref={composerRef}
+                  value={postBody}
+                  onChange={(event) => setPostBody(event.target.value)}
+                  rows={2}
+                  placeholder="Optional caption"
+                  className="w-full rounded-2xl border border-white/20 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-white/40"
+                />
+                <input
+                  value={postMediaUrl}
+                  onChange={(event) => setPostMediaUrl(event.target.value)}
+                  placeholder="Image URL (optional if uploading)"
+                  className="min-h-11 rounded-2xl border border-white/20 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-white/40"
+                />
+                <label className="grid gap-2 rounded-2xl border border-white/20 bg-black/35 px-4 py-3 text-xs text-white/75">
+                  <span className="uppercase tracking-[0.18em] text-white/55">Timer (minutes)</span>
+                  <input
+                    type="range"
+                    min={RUN_BUN_MIN_MINUTES}
+                    max={RUN_BUN_MAX_MINUTES}
+                    step={1}
+                    value={runBunMinutes}
+                    onChange={(event) =>
+                      setRunBunMinutes(
+                        Math.max(
+                          RUN_BUN_MIN_MINUTES,
+                          Math.min(RUN_BUN_MAX_MINUTES, Number(event.target.value) || RUN_BUN_MIN_MINUTES)
+                        )
+                      )
+                    }
+                    className="w-full accent-amber-400"
+                  />
+                  <span className="text-gold">{runBunMinutes} minute{runBunMinutes === 1 ? "" : "s"}</span>
+                </label>
+                <div className="rounded-2xl border border-white/20 bg-black/35 px-4 py-3">
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-white/55">Run It / Bun It Image</p>
+                  <input type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" onChange={(event) => setPostPhotoFile(event.target.files?.[0] || null)} className="mt-2 block w-full text-xs text-white/75 file:mr-4 file:min-h-10 file:rounded-full file:border file:border-white/25 file:bg-black/40 file:px-4 file:py-2 file:text-[10px] file:uppercase file:tracking-[0.22em] file:text-white/85" />
+                  {postPhotoFile && <p className="mt-2 text-[11px] text-white/55">Selected: {postPhotoFile.name} ({(postPhotoFile.size / (1024 * 1024)).toFixed(2)} MB)</p>}
+                </div>
+              </>
+            ) : isPollMode ? (
+              <>
+                <input
+                  value={pollQuestion}
+                  onChange={(event) => setPollQuestion(event.target.value)}
+                  placeholder="Poll question (Crowd Beacon)"
+                  className="min-h-11 rounded-2xl border border-white/20 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-white/40"
+                />
+                <textarea
+                  ref={composerRef}
+                  value={postBody}
+                  onChange={(event) => setPostBody(event.target.value)}
+                  rows={2}
+                  placeholder="Optional caption for this poll"
+                  className="w-full rounded-2xl border border-white/20 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-white/40"
+                />
+                <label className="inline-flex items-center gap-2 text-xs text-white/70">
+                  <input
+                    type="checkbox"
+                    checked={pollAllowMultiple}
+                    onChange={(event) => setPollAllowMultiple(event.target.checked)}
+                    disabled={Boolean(bookBlueprintDraft)}
+                    className="h-4 w-4 rounded border-white/30 bg-black/40"
+                  />
+                  Allow multiple selections
+                </label>
+                <div className="grid gap-2">
+                  {(bookBlueprintDraft ? BOOK_BLUEPRINT_POLL_OPTIONS : pollOptions).map((option, index) => (
+                    <div key={`poll-option-${index}`} className="rounded-2xl border border-white/20 bg-black/35 p-3">
+                      <p className="mb-2 text-[10px] uppercase tracking-[0.18em] text-white/55">Option {index + 1}</p>
+                      <div className="grid gap-2">
+                        <input
+                          value={option.label}
+                          onChange={(event) =>
+                            setPollOptions((current) =>
+                              current.map((entry, entryIndex) =>
+                                entryIndex === index ? { ...entry, label: event.target.value } : entry
+                              )
+                            )
+                          }
+                          disabled={Boolean(bookBlueprintDraft)}
+                          placeholder="Option label"
+                          className="min-h-11 rounded-xl border border-white/20 bg-black/40 px-3 py-2 text-sm text-white placeholder:text-white/40"
+                        />
+                        <input
+                          value={option.imageUrl}
+                          onChange={(event) =>
+                            setPollOptions((current) =>
+                              current.map((entry, entryIndex) =>
+                                entryIndex === index ? { ...entry, imageUrl: event.target.value } : entry
+                              )
+                            )
+                          }
+                          disabled={Boolean(bookBlueprintDraft)}
+                          placeholder="Optional option image URL"
+                          className="min-h-11 rounded-xl border border-white/20 bg-black/40 px-3 py-2 text-sm text-white placeholder:text-white/40"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                  {!bookBlueprintDraft && (
+                    <div className="flex flex-wrap gap-2">
+                      {pollOptions.length < 6 && (
+                        <button
+                          type="button"
+                          onClick={() => setPollOptions((current) => [...current, { label: "", imageUrl: "" }])}
+                          className="min-h-10 rounded-full border border-white/25 px-4 py-2 text-[10px] uppercase tracking-[0.2em] text-white/70"
+                        >
+                          Add Option
+                        </button>
+                      )}
+                      {pollOptions.length > 2 && (
+                        <button
+                          type="button"
+                          onClick={() => setPollOptions((current) => current.slice(0, -1))}
+                          className="min-h-10 rounded-full border border-white/25 px-4 py-2 text-[10px] uppercase tracking-[0.2em] text-white/70"
+                        >
+                          Remove Option
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {bookBlueprintDraft && (
+                    <p className="text-xs text-white/55">Promoter blueprint polls use fixed options: <span className="text-gold/90">Run It</span> and <span className="text-gold/90">Bun It</span>.</p>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                <textarea ref={composerRef} value={postBody} onChange={(event) => setPostBody(event.target.value)} rows={3} placeholder="What is the energy tonight?" className="w-full rounded-2xl border border-white/20 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-white/40" />
+                <input value={postMediaUrl} onChange={(event) => setPostMediaUrl(event.target.value)} placeholder="Optional video/link URL (YouTube, Vimeo, etc.)" className="min-h-11 rounded-2xl border border-white/20 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-white/40" />
+                <div className="rounded-2xl border border-white/20 bg-black/35 px-4 py-3">
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-white/55">Photo Upload</p>
+                  <input type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" onChange={(event) => setPostPhotoFile(event.target.files?.[0] || null)} className="mt-2 block w-full text-xs text-white/75 file:mr-4 file:min-h-10 file:rounded-full file:border file:border-white/25 file:bg-black/40 file:px-4 file:py-2 file:text-[10px] file:uppercase file:tracking-[0.22em] file:text-white/85" />
+                  {postPhotoFile && <p className="mt-2 text-[11px] text-white/55">Selected: {postPhotoFile.name} ({(postPhotoFile.size / (1024 * 1024)).toFixed(2)} MB)</p>}
+                </div>
+              </>
+            )}
+            <div className="hidden items-center justify-between gap-3 sm:flex">
+              <p className="text-xs text-white/45">
+                {isRunBunMode ? "Run It / Bun It is image-only and tracks swipe vote totals." : isPollMode ? "Crowd Beacon polls support text options and optional image URLs." : "Upload photos directly. Videos are URL link based."}
+              </p>
+              <button type="button" onClick={submitPost} disabled={busy} className="min-h-11 rounded-full bg-ember px-5 py-2 text-xs uppercase tracking-[0.28em] text-ink disabled:opacity-50">{busy ? "Posting..." : "Publish"}</button>
+            </div>
+            <p className="text-xs text-white/45 sm:hidden">
+              {isRunBunMode ? "Run It / Bun It is image-only and tracks swipe vote totals." : isPollMode ? "Crowd Beacon polls support text options and optional image URLs." : "Upload photos directly. Videos are URL link based."}
+            </p>
+            {notice && (
+              <p className="text-xs text-gold" role="status" aria-live="polite">
+                {notice}
+              </p>
+            )}
+          </div>
+        </article>
+      </aside>
+
+      <div className="order-2 space-y-4 pb-28 xl:order-2 xl:ml-[360px] xl:mr-[360px] xl:pb-0 2xl:ml-[400px] 2xl:mr-[380px]">
+        <div className="space-y-4 md:space-y-4 max-sm:max-h-[calc(100dvh-16.5rem)] max-sm:overflow-y-auto max-sm:snap-y max-sm:snap-mandatory max-sm:pr-1">
+          {loading && <div className="rounded-2xl border border-white/15 bg-black/50 p-5 text-sm text-white/70">Loading feed...</div>}
+          {!loading && visiblePosts.length === 0 && (
+            <div className="rounded-2xl border border-white/15 bg-black/50 p-5 text-sm text-white/70">
+              {mobileFeedMode === "all" ? "No posts yet. Be first to publish." : "No posts in this view yet."}
             </div>
           )}
 
-          <div className="mt-4 grid gap-3">
-            <textarea ref={composerRef} value={postBody} onChange={(event) => setPostBody(event.target.value)} rows={3} placeholder="What is the energy tonight?" className="w-full rounded-2xl border border-white/20 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-white/40" />
-            <input value={postMediaUrl} onChange={(event) => setPostMediaUrl(event.target.value)} placeholder="Optional video/link URL (YouTube, Vimeo, etc.)" className="min-h-11 rounded-2xl border border-white/20 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-white/40" />
-            <div className="rounded-2xl border border-white/20 bg-black/35 px-4 py-3">
-              <p className="text-[11px] uppercase tracking-[0.2em] text-white/55">Photo Upload</p>
-              <input type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" onChange={(event) => setPostPhotoFile(event.target.files?.[0] || null)} className="mt-2 block w-full text-xs text-white/75 file:mr-4 file:min-h-10 file:rounded-full file:border file:border-white/25 file:bg-black/40 file:px-4 file:py-2 file:text-[10px] file:uppercase file:tracking-[0.22em] file:text-white/85" />
-              {postPhotoFile && <p className="mt-2 text-[11px] text-white/55">Selected: {postPhotoFile.name} ({(postPhotoFile.size / (1024 * 1024)).toFixed(2)} MB)</p>}
-            </div>
-            <div className="hidden items-center justify-between gap-3 sm:flex">
-              <p className="text-xs text-white/45">Upload photos directly. Videos are URL link based.</p>
-              <button type="button" onClick={submitPost} disabled={!canPublish || busy || !viewer} className="min-h-11 rounded-full bg-ember px-5 py-2 text-xs uppercase tracking-[0.28em] text-ink disabled:opacity-50">{busy ? "Posting..." : "Publish"}</button>
-            </div>
-            <p className="text-xs text-white/45 sm:hidden">Upload photos directly. Videos are URL link based.</p>
-          </div>
-        </article>
-
-        <div className="space-y-4">
-          {loading && <div className="rounded-2xl border border-white/15 bg-black/50 p-5 text-sm text-white/70">Loading feed...</div>}
-          {!loading && posts.length === 0 && <div className="rounded-2xl border border-white/15 bg-black/50 p-5 text-sm text-white/70">No posts yet. Be first to publish.</div>}
-
-          {posts.map((post) => (
-            <article id={`post-${post.id}`} key={post.id} className="rounded-3xl border border-white/15 bg-black/50 p-5 shadow-[0_0_60px_rgba(242,84,45,0.08)]">
-              <div className="flex items-start justify-between gap-3">
+          {visiblePosts.map((post) => {
+            const isImmersiveMediaPost = post.postType === "media" && post.mediaType !== "link" && Boolean(post.mediaUrl);
+            return (
+            <article
+              id={`post-${post.id}`}
+              key={post.id}
+              className={`relative snap-start overflow-hidden rounded-[1.55rem] border border-white/15 bg-gradient-to-b from-black/60 to-black/40 p-4 shadow-[0_0_60px_rgba(242,84,45,0.08)] max-sm:min-h-[calc(100dvh-18rem)] sm:rounded-3xl sm:p-5 ${
+                isImmersiveMediaPost ? "max-sm:pb-2" : ""
+              }`}
+            >
+              <div className={`flex items-start justify-between gap-3 ${isImmersiveMediaPost ? "max-sm:hidden" : ""}`}>
                 <div>
                   <p className="text-xs uppercase tracking-[0.24em] text-gold/85">{post.authorName || "Fan"}</p>
                   {viewer && post.userId === viewer.id && <p className="mt-1 inline-flex rounded-full border border-gold/35 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-gold/90">{rank.current}</p>}
@@ -695,14 +1163,38 @@ export default function FanFeed() {
                     <p className="mt-1 text-[11px] text-white/45">{post.moderationReason}</p>
                   )}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => onReportPost(post.id)}
-                  className="min-h-10 rounded-full border border-white/20 px-3 py-2 text-[10px] uppercase tracking-[0.18em] text-white/65"
-                >
-                  Report
-                </button>
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  {viewer && post.userId === viewer.id && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => onEditPost(post)}
+                        className="min-h-10 rounded-full border border-gold/35 px-3 py-2 text-[10px] uppercase tracking-[0.18em] text-gold/85"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onDeletePost(post)}
+                        className="min-h-10 rounded-full border border-rose-400/35 px-3 py-2 text-[10px] uppercase tracking-[0.18em] text-rose-200/90"
+                      >
+                        Delete
+                      </button>
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => onReportPost(post.id)}
+                    className="min-h-10 rounded-full border border-white/20 px-3 py-2 text-[10px] uppercase tracking-[0.18em] text-white/65"
+                  >
+                    Report
+                  </button>
+                </div>
               </div>
+
+              {post.cleanBody && post.postType !== "media" && (
+                <p className="mt-4 whitespace-pre-wrap text-sm text-white/85">{post.cleanBody}</p>
+              )}
 
               {post.postType === "blueprint" && post.blueprint && (
                 <div className="mt-4 rounded-2xl border border-gold/30 bg-gold/5 p-4">
@@ -719,15 +1211,280 @@ export default function FanFeed() {
                 </div>
               )}
 
-              {post.cleanBody && <p className="mt-4 whitespace-pre-wrap text-sm text-white/85">{post.cleanBody}</p>}
+              {post.postType === "trivia" && post.poll && (
+                <div
+                  className={`mt-4 rounded-2xl border p-4 ${
+                    post.triviaMeta?.cardTone === "cyan"
+                      ? "border-cyan-400/30 bg-cyan-500/5"
+                      : post.triviaMeta?.cardTone === "ember"
+                        ? "border-amber-300/35 bg-amber-500/5"
+                        : post.triviaMeta?.cardTone === "neutral"
+                          ? "border-white/20 bg-white/5"
+                          : "border-gold/30 bg-gold/5"
+                  }`}
+                >
+                  {(() => {
+                    const accent = sanitizeHexColor(post.triviaMeta?.accentColor || "") || "#f9b233";
+                    return (
+                      <>
+                        <p className="text-[10px] uppercase tracking-[0.22em]" style={{ color: accent }}>
+                          {post.triviaMeta?.label?.trim() || "Trivia Beacon"}
+                        </p>
+                        <h4 className="mt-2 text-lg text-white">{post.poll.question}</h4>
+                        <p className="mt-1 text-xs text-white/55">
+                          {post.poll.allowMultiple ? "Multiple choice enabled" : "Single choice"} · {post.poll.totalVotes} vote{post.poll.totalVotes === 1 ? "" : "s"}
+                          {post.poll.expiresAt ? ` · Ends ${prettyDate(post.poll.expiresAt)}` : ""}
+                        </p>
+                        <div className="mt-3 space-y-2">
+                          {post.poll.options.map((option) => {
+                            const pct = post.poll!.totalVotes > 0 ? Math.round((option.voteCount / post.poll!.totalVotes) * 100) : 0;
+                            const selected = option.viewerVoted || (pollSelections[post.id] || []).includes(option.id);
+                            const safeOptionImageUrl = option.imageUrl ? sanitizeExternalUrl(option.imageUrl) : null;
+                            const optionButtonBase = "w-full rounded-xl border px-3 py-2 text-left text-sm transition";
+                            const optionButtonTone = selected
+                              ? "bg-black/40 text-white border-white/45"
+                              : "border-white/20 bg-black/30 text-white/80 hover:border-white/45";
+                            return (
+                              <div key={option.id} className="space-y-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (!post.poll) return;
+                                    if (post.poll.allowMultiple) {
+                                      setPollSelections((current) => {
+                                        const existing = current[post.id] || post.poll!.options.filter((entry) => entry.viewerVoted).map((entry) => entry.id);
+                                        const has = existing.includes(option.id);
+                                        const next = has ? existing.filter((id) => id !== option.id) : [...existing, option.id];
+                                        return { ...current, [post.id]: next };
+                                      });
+                                      return;
+                                    }
+                                    void onVotePoll(post, [option.id]);
+                                  }}
+                                  className={`${optionButtonBase} ${optionButtonTone}`}
+                                  style={selected ? { borderColor: accent } : undefined}
+                                >
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span>{option.label}</span>
+                                    <span className="text-xs text-white/55">{option.voteCount} · {pct}%</span>
+                                  </div>
+                                  {safeOptionImageUrl && (
+                                    <img src={safeOptionImageUrl} alt="" loading="lazy" className="mt-2 max-h-44 w-full rounded-lg object-cover" />
+                                  )}
+                                </button>
+                                <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+                                  <div className="h-full" style={{ width: `${pct}%`, backgroundColor: accent }} />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        {post.poll.allowMultiple && (
+                          <div className="mt-3 flex items-center justify-end">
+                            <button
+                              type="button"
+                              onClick={() => void onVotePoll(post, pollSelections[post.id] || [])}
+                              className="min-h-10 rounded-full border px-4 py-2 text-[10px] uppercase tracking-[0.2em] text-white"
+                              style={{ borderColor: accent, color: accent }}
+                            >
+                              Cast Vote
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
 
-              {post.mediaUrl && (
-                <div className="mt-4 overflow-hidden rounded-2xl border border-white/15 bg-black/40">
+              {post.postType === "poll" && post.poll && (
+                <div className="mt-4 rounded-2xl border border-cyan-400/25 bg-cyan-500/5 p-4">
+                  <p className="text-[10px] uppercase tracking-[0.22em] text-cyan-200/90">Crowd Beacon</p>
+                  <h4 className="mt-2 text-lg text-white">{post.poll.question}</h4>
+                  <p className="mt-1 text-xs text-white/55">
+                    {post.poll.allowMultiple ? "Multiple choice enabled" : "Single choice"} · {post.poll.totalVotes} vote{post.poll.totalVotes === 1 ? "" : "s"}
+                    {post.poll.expiresAt ? ` · Ends ${prettyDate(post.poll.expiresAt)}` : ""}
+                  </p>
+                  <div className="mt-3 space-y-2">
+                    {post.poll.options.map((option) => {
+                      const pct = post.poll!.totalVotes > 0 ? Math.round((option.voteCount / post.poll!.totalVotes) * 100) : 0;
+                      const selected = option.viewerVoted || (pollSelections[post.id] || []).includes(option.id);
+                      const safeOptionImageUrl = option.imageUrl ? sanitizeExternalUrl(option.imageUrl) : null;
+                      const optionButtonBase = "w-full rounded-xl border px-3 py-2 text-left text-sm transition";
+                      const optionButtonTone = selected
+                        ? "border-cyan-300/60 bg-cyan-300/10 text-cyan-100"
+                        : "border-white/20 bg-black/30 text-white/80 hover:border-white/45";
+                      return (
+                        <div key={option.id} className="space-y-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!post.poll) return;
+                              if (post.poll.allowMultiple) {
+                                setPollSelections((current) => {
+                                  const existing = current[post.id] || post.poll!.options.filter((entry) => entry.viewerVoted).map((entry) => entry.id);
+                                  const has = existing.includes(option.id);
+                                  const next = has ? existing.filter((id) => id !== option.id) : [...existing, option.id];
+                                  return { ...current, [post.id]: next };
+                                });
+                                return;
+                              }
+                              void onVotePoll(post, [option.id]);
+                            }}
+                            className={`${optionButtonBase} ${optionButtonTone}`}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span>{option.label}</span>
+                              <span className="text-xs text-white/55">{option.voteCount} · {pct}%</span>
+                            </div>
+                            {safeOptionImageUrl && (
+                              <img src={safeOptionImageUrl} alt="" loading="lazy" className="mt-2 max-h-44 w-full rounded-lg object-cover" />
+                            )}
+                          </button>
+                          <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+                            <div className="h-full bg-cyan-300/70" style={{ width: `${pct}%` }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {post.poll.allowMultiple && (
+                    <div className="mt-3 flex items-center justify-end">
+                      <button
+                        type="button"
+                        onClick={() => void onVotePoll(post, pollSelections[post.id] || [])}
+                        className="min-h-10 rounded-full border border-cyan-300/50 px-4 py-2 text-[10px] uppercase tracking-[0.2em] text-cyan-100"
+                      >
+                        Cast Vote
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {post.postType === "runbun" && post.poll && (
+                <div className="mt-4 rounded-2xl border border-gold/30 bg-gold/5 p-4">
+                  {(() => {
+                    const runOption = post.poll.options.find((option) => normalizeVoteLabel(option.label) === "run it");
+                    const bunOption = post.poll.options.find((option) => normalizeVoteLabel(option.label) === "bun it");
+                    const runVotes = runOption?.voteCount || 0;
+                    const bunVotes = bunOption?.voteCount || 0;
+                    const total = Math.max(1, runVotes + bunVotes);
+                    const runPct = Math.round((runVotes / total) * 100);
+                    const bunPct = Math.round((bunVotes / total) * 100);
+                    const safeImageUrl = post.mediaUrl ? sanitizeExternalUrl(post.mediaUrl) : null;
+                    const expiresAtMs = post.poll?.expiresAt ? Date.parse(post.poll.expiresAt) : NaN;
+                    const hasExpiry = Number.isFinite(expiresAtMs);
+                    const remainingMs = hasExpiry ? Math.max(0, expiresAtMs - nowMs) : 0;
+                    const isExpired = hasExpiry ? remainingMs <= 0 : false;
+
+                    const onSwipeVote = (deltaX: number) => {
+                      if (isExpired) return;
+                      if (Math.abs(deltaX) < SWIPE_VOTE_DELTA_PX) return;
+                      if (deltaX > 0 && runOption) {
+                        void onVotePoll(post, [runOption.id]);
+                        return;
+                      }
+                      if (deltaX < 0 && bunOption) {
+                        void onVotePoll(post, [bunOption.id]);
+                      }
+                    };
+
+                    return (
+                      <>
+                        <p className="text-[10px] uppercase tracking-[0.22em] text-gold/90">Run It / Bun It</p>
+                        <p className="mt-1 text-xs text-white/60">
+                          {isExpired ? "Voting closed." : "Swipe right to Run It. Swipe left to Bun It."}
+                          {post.poll?.expiresAt ? ` Ends ${prettyDate(post.poll.expiresAt)}.` : ""}
+                        </p>
+                        <div className="mt-2 inline-flex items-center rounded-full border border-gold/35 bg-black/45 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-gold/90">
+                          {hasExpiry ? `Countdown ${formatCountdown(remainingMs)}` : "No timer"}
+                        </div>
+                        <div
+                          className="relative mt-3 overflow-hidden rounded-2xl border border-white/15 bg-black/35"
+                          onTouchStart={(event) => {
+                            swipeStartXRef.current[post.id] = event.changedTouches[0]?.clientX || 0;
+                          }}
+                          onTouchEnd={(event) => {
+                            const startX = swipeStartXRef.current[post.id] || 0;
+                            const endX = event.changedTouches[0]?.clientX || startX;
+                            onSwipeVote(endX - startX);
+                          }}
+                          onMouseDown={(event) => {
+                            swipeStartXRef.current[post.id] = event.clientX;
+                          }}
+                          onMouseUp={(event) => {
+                            const startX = swipeStartXRef.current[post.id] || event.clientX;
+                            onSwipeVote(event.clientX - startX);
+                          }}
+                        >
+                          {safeImageUrl ? (
+                            <img src={safeImageUrl} alt="" loading="lazy" className="max-h-[34rem] w-full object-cover" />
+                          ) : (
+                            <p className="px-4 py-3 text-sm text-white/55">Run It / Bun It requires a safe image URL.</p>
+                          )}
+                          {isExpired && (
+                            <div className="pointer-events-none absolute inset-0">
+                              <div className="absolute inset-0 bg-gradient-to-t from-orange-700/70 via-amber-500/35 to-transparent animate-pulse" />
+                              <div className="absolute bottom-0 left-0 right-0 h-2/5 bg-[radial-gradient(circle_at_10%_100%,rgba(255,120,0,0.85),transparent_40%),radial-gradient(circle_at_35%_100%,rgba(255,180,0,0.8),transparent_45%),radial-gradient(circle_at_60%_100%,rgba(255,90,0,0.8),transparent_42%),radial-gradient(circle_at_85%_100%,rgba(255,170,0,0.75),transparent_44%)] opacity-90 animate-pulse" />
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <span className="rounded-2xl border border-amber-300/60 bg-black/65 px-8 py-4 text-3xl font-semibold uppercase tracking-[0.24em] text-amber-200 shadow-[0_0_30px_rgba(255,140,0,0.55)]">
+                                  BUN UP!
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                          <div className="pointer-events-none absolute inset-0 flex items-end justify-between p-3 text-[10px] uppercase tracking-[0.2em]">
+                            <span className="rounded-full border border-gold/40 bg-black/55 px-3 py-1 text-gold">Run It →</span>
+                            <span className="rounded-full border border-rose-300/35 bg-black/55 px-3 py-1 text-rose-200">← Bun It</span>
+                          </div>
+                        </div>
+                        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                          <button
+                            type="button"
+                            disabled={!runOption || isExpired}
+                            onClick={() => runOption && void onVotePoll(post, [runOption.id])}
+                            className="min-h-11 rounded-xl border border-gold/40 bg-black/35 px-4 py-2 text-left text-sm text-gold disabled:opacity-50"
+                          >
+                            Run It · {runVotes} ({runPct}%)
+                          </button>
+                          <button
+                            type="button"
+                            disabled={!bunOption || isExpired}
+                            onClick={() => bunOption && void onVotePoll(post, [bunOption.id])}
+                            className="min-h-11 rounded-xl border border-rose-300/35 bg-black/35 px-4 py-2 text-left text-sm text-rose-200 disabled:opacity-50"
+                          >
+                            Bun It · {bunVotes} ({bunPct}%)
+                          </button>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {post.mediaUrl && post.postType !== "runbun" && (
+                <div
+                  className={`relative mt-4 overflow-hidden rounded-2xl border bg-black/40 ${
+                    post.postType === "media" ? "border-gold/30 shadow-[0_0_32px_rgba(243,211,139,0.12)]" : "border-white/15"
+                  } ${
+                    isImmersiveMediaPost ? "max-sm:-mx-4 max-sm:rounded-none max-sm:border-x-0 max-sm:border-b-0" : ""
+                  }`}
+                >
                   {post.mediaType === "image" && (
                     (() => {
                       const safe = sanitizeExternalUrl(post.mediaUrl || "");
                       if (!safe) return <p className="px-4 py-3 text-sm text-white/55">Blocked unsafe image URL.</p>;
-                      return <img src={safe} alt="" loading="lazy" className="max-h-[34rem] w-full object-cover" />;
+                      return (
+                        <img
+                          src={safe}
+                          alt=""
+                          loading="lazy"
+                          className={`w-full object-cover ${
+                            post.postType === "media" ? "max-h-[72dvh] max-sm:h-[72dvh]" : "max-h-[34rem]"
+                          }`}
+                        />
+                      );
                     })()
                   )}
                   {post.mediaType === "video" && (
@@ -736,7 +1493,15 @@ export default function FanFeed() {
                       if (!safe) return <p className="px-4 py-3 text-sm text-white/55">Blocked unsafe video URL.</p>;
                       const embed = getEmbedUrl(safe);
                       if (embed) {
-                        return <iframe src={embed} title="Shared fan video" className="aspect-video w-full" allow="autoplay; encrypted-media; picture-in-picture; web-share" loading="lazy" />;
+                        return (
+                          <iframe
+                            src={embed}
+                            title="Shared fan video"
+                            className={`w-full ${isImmersiveMediaPost ? "max-sm:h-[72dvh]" : "aspect-video"}`}
+                            allow="autoplay; encrypted-media; picture-in-picture; web-share"
+                            loading="lazy"
+                          />
+                        );
                       }
                       return <a href={safe} target="_blank" rel="noreferrer noopener" className="block px-4 py-3 text-sm text-gold hover:text-gold/80">Open video link</a>;
                     })()
@@ -748,10 +1513,55 @@ export default function FanFeed() {
                       return <a href={safe} target="_blank" rel="noreferrer noopener" className="block px-4 py-3 text-sm text-gold hover:text-gold/80">Open shared link</a>;
                     })()
                   )}
+                  {isImmersiveMediaPost && (
+                    <>
+                      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-44 bg-gradient-to-t from-black via-black/65 to-transparent sm:hidden" />
+                      <div className="pointer-events-none absolute bottom-0 left-0 right-0 z-10 p-3 sm:hidden">
+                        <div className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-black/55 px-3 py-1 text-[9px] uppercase tracking-[0.2em] text-white/75 animate-pulse">
+                          <span>Swipe</span>
+                          <span className="text-white/45">|</span>
+                          <span>Next Drop</span>
+                        </div>
+                        <p className="mt-3 text-[10px] uppercase tracking-[0.22em] text-gold/90">{post.authorName || "Fan"}</p>
+                        <p className="mt-1 text-[11px] text-white/55">{prettyDate(post.createdAt)}</p>
+                        {post.cleanBody && (
+                          <p className="mt-2 max-w-[95%] text-sm leading-5 text-white/92">{post.cleanBody}</p>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
 
-              <div className="mt-4 grid grid-cols-3 gap-2 text-xs uppercase tracking-[0.22em] sm:flex sm:flex-wrap sm:items-center">
+              <div className="absolute right-3 top-[4.2rem] z-20 flex flex-col gap-2 sm:hidden">
+                <button
+                  type="button"
+                  onClick={() => onLike(post.id)}
+                  className={`min-h-11 min-w-11 rounded-full border bg-black/70 px-2 text-[11px] font-medium backdrop-blur-lg ${post.viewerHasLiked ? "border-gold/70 text-gold" : "border-white/30 text-white/85"}`}
+                >
+                  {post.likeCount}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openCommentComposer(post.id)}
+                  className="min-h-11 min-w-11 rounded-full border border-white/30 bg-black/70 px-2 text-[11px] font-medium text-white/85 backdrop-blur-lg"
+                >
+                  {post.comments.length}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onShare(post)}
+                  className="min-h-11 min-w-11 rounded-full border border-white/30 bg-black/70 px-2 text-[10px] uppercase tracking-[0.15em] text-white/85 backdrop-blur-lg"
+                >
+                  Share
+                </button>
+              </div>
+
+              {post.cleanBody && post.postType === "media" && !isImmersiveMediaPost && (
+                <p className="mt-4 whitespace-pre-wrap text-sm text-white/90">{post.cleanBody}</p>
+              )}
+
+              <div className="mt-4 hidden grid-cols-3 gap-2 text-[11px] uppercase tracking-[0.19em] sm:flex sm:flex-wrap sm:items-center sm:text-xs sm:tracking-[0.22em]">
                 <button type="button" onClick={() => onLike(post.id)} className={`min-h-11 rounded-full border px-4 py-2 transition ${post.viewerHasLiked ? "border-gold/60 text-gold" : "border-white/20 text-white/70 hover:border-white/45 hover:text-white"}`}>Like {post.likeCount}</button>
                 <button type="button" onClick={() => onShare(post)} className="min-h-11 rounded-full border border-white/20 px-4 py-2 text-white/70 transition hover:border-white/45 hover:text-white">Share {post.shareCount}</button>
                 <button
@@ -814,12 +1624,13 @@ export default function FanFeed() {
                 <button type="button" onClick={() => onComment(post.id)} className="min-h-11 rounded-full border border-gold/40 px-4 py-2 text-xs uppercase tracking-[0.22em] text-gold hover:bg-gold/10">Send</button>
               </div>
             </article>
-          ))}
+            );
+          })}
         </div>
         {notice && <p className="text-xs text-gold">{notice}</p>}
       </div>
 
-      <div className="order-1 lg:order-2">
+      <aside className="order-3 xl:fixed xl:top-24 xl:right-[max(1rem,calc((100vw-1700px)/2+1rem))] xl:z-30 xl:w-[340px] 2xl:w-[360px] xl:max-h-[calc(100dvh-7.5rem)] xl:overflow-y-auto">
         <SignalCommandCenter
         energy={energyMetrics.pct}
         trend={energyMetrics.trend}
@@ -831,14 +1642,15 @@ export default function FanFeed() {
         progressPct={rank.progress}
         onUsePrompt={onPromptPrefill}
         onDropAttend={onDropAttend}
+        inline
         />
-      </div>
+      </aside>
 
       {!activeCommentPostId && (
         <button
           type="button"
           onClick={focusComposer}
-          className="fixed bottom-[6.15rem] right-4 z-40 min-h-11 rounded-full border border-white/20 bg-black/80 px-4 py-2 text-[10px] uppercase tracking-[0.22em] text-white/80 backdrop-blur-xl sm:hidden"
+          className="fixed bottom-[6.25rem] right-4 z-40 min-h-11 rounded-full border border-gold/40 bg-black/85 px-4 py-2 text-[10px] uppercase tracking-[0.22em] text-gold backdrop-blur-xl sm:hidden"
         >
           Jump to Composer
         </button>
@@ -882,13 +1694,17 @@ export default function FanFeed() {
           ) : (
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-[10px] uppercase tracking-[0.24em] text-white/60">{isBlueprintMode ? "Blueprint" : "Standard Post"}</p>
-                <p className="text-xs text-white/75">{canPublish ? "Ready to publish" : "Add text, photo, or link"}</p>
+                <p className="text-[10px] uppercase tracking-[0.24em] text-white/60">
+                  {isRunBunMode ? "Run It / Bun It" : isPollMode ? "Crowd Beacon Poll" : "Standard Post"}
+                </p>
+                <p className="text-xs text-white/75">
+                  {canPublish ? "Ready to publish" : isRunBunMode ? "Add a photo or image URL" : isPollMode ? "Add question + 2 options" : "Add text, photo, or link"}
+                </p>
               </div>
               <button
                 type="button"
                 onClick={submitPost}
-                disabled={!canPublish || busy || !viewer}
+                disabled={busy}
                 className="min-h-11 rounded-full bg-ember px-5 py-2 text-xs uppercase tracking-[0.26em] text-ink disabled:opacity-50"
               >
                 {busy ? "Posting..." : "Publish"}

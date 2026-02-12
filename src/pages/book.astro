@@ -5,6 +5,8 @@ import Card from "../components/Card.astro";
 import Button from "../components/Button.astro";
 import BookingConciergeEntry from "../components/BookingConciergeEntry";
 import PerformaConciergeWizardV2 from "../components/PerformaConciergeWizardV2";
+
+const enablePartnerCredit = import.meta.env.PUBLIC_ENABLE_PARTNER_CREDIT !== "false";
 ---
 <BaseLayout title="VIP Reservation | The Performa" description="Concierge-level availability request for promoters and agents.">
   <section class="mx-auto max-w-6xl px-4 pt-8 sm:px-6">
@@ -35,6 +37,26 @@ import PerformaConciergeWizardV2 from "../components/PerformaConciergeWizardV2";
       <BookingConciergeEntry client:load />
       <Button href="mailto:booking@theperforma.example" variant="ghost">Email Bookings</Button>
     </div>
+    {enablePartnerCredit && (
+      <div class="mt-4 max-w-xl rounded-2xl border border-white/10 bg-black/35 px-4 py-3">
+        <p class="text-[11px] uppercase tracking-[0.24em] text-white/45">Credits</p>
+        <dl class="mt-2 grid grid-cols-[auto,1fr] gap-x-4 gap-y-1 text-xs text-white/70">
+          <dt class="text-white/45">Artist</dt>
+          <dd>Chip Lee (The Performa)</dd>
+          <dt class="text-white/45">Transformation Partner</dt>
+          <dd>
+            <a
+              href="https://link-collective.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="text-white/75 transition hover:text-gold focus-visible:text-gold"
+            >
+              The LINK Collective
+            </a>
+          </dd>
+        </dl>
+      </div>
+    )}
   </Section>
   <PerformaConciergeWizardV2 client:load />
   <section class="mx-auto max-w-6xl px-4 pb-16 sm:px-6">

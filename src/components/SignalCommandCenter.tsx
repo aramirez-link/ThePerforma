@@ -41,6 +41,7 @@ type Props = {
   progressPct: number;
   onUsePrompt: () => void;
   onDropAttend: () => void;
+  inline?: boolean;
 };
 
 const ASSISTANT_KEY = "the-performa-claude-assistant-v1";
@@ -107,7 +108,8 @@ export default function SignalCommandCenter({
   xp,
   progressPct,
   onUsePrompt,
-  onDropAttend
+  onDropAttend,
+  inline = false
 }: Props) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [fanSyncEnabled, setFanSyncEnabled] = useState(false);
@@ -369,6 +371,8 @@ export default function SignalCommandCenter({
       </section>
     </aside>
   );
+
+  if (inline) return panel;
 
   return (
     <>

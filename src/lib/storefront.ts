@@ -106,6 +106,15 @@ type Result<T> = { ok: true; data: T } | { ok: false; error: string };
 const url = import.meta.env.PUBLIC_SUPABASE_URL;
 const anonKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY;
 export const isStoreCloudEnabled = Boolean(url && anonKey);
+const STORE_PRODUCT_MEDIA_BUCKET = "store-product-media";
+const STORE_ALLOWED_IMAGE_MIME = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "image/avif"
+]);
+const STORE_MAX_IMAGE_BYTES = 15 * 1024 * 1024;
 
 let supabaseClient: SupabaseClient | null = null;
 
@@ -268,6 +277,46 @@ export const signOutStore = async () => {
   await supabase.auth.signOut();
 };
 
+export const uploadStoreProductImage = async (file: File): Promise<Result<{ url: string }>> => {
+  const supabase = getSupabaseBrowser();
+  if (!supabase) return { ok: false, error: "Supabase is not configured." };
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "Please log in first." };
+  if (!file || !file.type.startsWith("image/")) {
+    return { ok: false, error: "Please choose an image file." };
+  }
+  if (!STORE_ALLOWED_IMAGE_MIME.has(file.type)) {
+    return { ok: false, error: "Unsupported image format. Use JPG, PNG, WEBP, GIF, or AVIF." };
+  }
+  if (file.size > STORE_MAX_IMAGE_BYTES) {
+    return { ok: false, error: "Image is too large. Max 15MB." };
+  }
+
+  const extByMime: Record<string, string> = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "image/gif": "gif",
+    "image/avif": "avif"
+  };
+  const ext = extByMime[file.type] || "jpg";
+  const objectId =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  const path = `${user.id}/products/${objectId}.${ext}`;
+
+  const { error } = await supabase.storage.from(STORE_PRODUCT_MEDIA_BUCKET).upload(path, file, {
+    cacheControl: "3600",
+    upsert: false,
+    contentType: file.type
+  });
+  if (error) return { ok: false, error: error.message };
+
+  const { data } = supabase.storage.from(STORE_PRODUCT_MEDIA_BUCKET).getPublicUrl(path);
+  return { ok: true, data: { url: data.publicUrl } };
+};
+
 const callStoreFunction = async <T>(name: string, body: Record<string, unknown>, withAuth = false): Promise<Result<T>> => {
   const projectRef = getProjectRef();
   if (!projectRef) return { ok: false, error: "Supabase project is not configured." };
@@ -427,6 +476,10 @@ export const isStoreAdmin = async (): Promise<boolean> => {
   if (!supabase) return false;
   const user = await getCurrentUser();
   if (!user) return false;
+  const rpc = await supabase.rpc("is_store_admin");
+  if (!rpc.error && typeof rpc.data === "boolean") {
+    return rpc.data;
+  }
   const { data } = await supabase.from("store_admins").select("role").eq("user_id", user.id).maybeSingle();
   return Boolean(data?.role);
 };
@@ -507,6 +560,17 @@ export const upsertProduct = async (product: Partial<StoreProduct> & { name: str
   const { data, error } = await query;
   if (error) return { ok: false, error: error.message };
   return { ok: true, data: mapProduct(data) };
+};
+
+export const deleteProduct = async (productId: string): Promise<Result<{ deleted: true }>> => {
+  const supabase = getSupabaseBrowser();
+  if (!supabase) return { ok: false, error: "Supabase is not configured." };
+  const id = String(productId || "").trim();
+  if (!id) return { ok: false, error: "Product id is required." };
+
+  const { error } = await supabase.from("store_products").delete().eq("id", id);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, data: { deleted: true } };
 };
 
 export const upsertVariant = async (

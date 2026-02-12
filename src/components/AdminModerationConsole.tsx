@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  getFeedModerationEnabled,
   getFeedModerationReports,
   moderateFeedItem,
+  setFeedModerationEnabled,
   updateFeedReportStatus,
   type FeedModerationReport,
   type FeedModerationStatus,
@@ -51,12 +53,20 @@ export default function AdminModerationConsole() {
   const [reports, setReports] = useState<FeedModerationReport[]>([]);
   const [targets, setTargets] = useState<Record<string, TargetPreview>>({});
   const [statusFilter, setStatusFilter] = useState<FeedReportStatus | "all">("open");
+  const [moderationEnabled, setModerationEnabledState] = useState(false);
+  const [toggleBusy, setToggleBusy] = useState(false);
 
   const refresh = async () => {
-    const reportResult = await getFeedModerationReports(200);
+    const [reportResult, moderationResult] = await Promise.all([
+      getFeedModerationReports(200),
+      getFeedModerationEnabled()
+    ]);
     if (!reportResult.ok) {
       setNotice(reportResult.error);
       return;
+    }
+    if (moderationResult.ok) {
+      setModerationEnabledState(moderationResult.enabled);
     }
     setReports(reportResult.reports);
 
@@ -88,7 +98,7 @@ export default function AdminModerationConsole() {
         authorId: row.user_id,
         body: row.body || "",
         mediaUrl: row.media_url || null,
-        moderationStatus: (row.moderation_status as FeedModerationStatus) || "pending",
+        moderationStatus: (row.moderation_status as FeedModerationStatus) || "approved",
         moderationReason: row.moderation_reason || null,
         createdAt: row.created_at
       };
@@ -100,7 +110,7 @@ export default function AdminModerationConsole() {
         authorId: row.user_id,
         body: row.body || "",
         mediaUrl: null,
-        moderationStatus: (row.moderation_status as FeedModerationStatus) || "pending",
+        moderationStatus: (row.moderation_status as FeedModerationStatus) || "approved",
         moderationReason: row.moderation_reason || null,
         createdAt: row.created_at
       };
@@ -201,6 +211,20 @@ export default function AdminModerationConsole() {
     await refresh();
   };
 
+  const onToggleModeration = async () => {
+    setToggleBusy(true);
+    const next = !moderationEnabled;
+    const result = await setFeedModerationEnabled(next);
+    setToggleBusy(false);
+    if (!result.ok) {
+      setNotice(result.error);
+      return;
+    }
+    setModerationEnabledState(result.enabled);
+    setNotice(result.enabled ? "Feed moderation enabled." : "Feed moderation disabled.");
+    await refresh();
+  };
+
   if (loading) {
     return (
       <section className="mx-auto w-full max-w-6xl px-4 pb-20 pt-8 sm:px-6">
@@ -279,8 +303,19 @@ export default function AdminModerationConsole() {
             <p className="text-xs uppercase tracking-[0.3em] text-gold/80">Admin Moderation</p>
             <h1 className="mt-2 font-display text-3xl">Safety Queue</h1>
             <p className="mt-1 text-sm text-white/70">{userEmail}</p>
+            <p className="mt-1 text-xs text-white/60">
+              Moderation: {moderationEnabled ? "ON (new posts/comments may be queued)" : "OFF (new posts/comments auto-approved)"}
+            </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={onToggleModeration}
+              disabled={toggleBusy}
+              className="min-h-11 rounded-full border border-gold/45 px-4 py-2 text-[11px] uppercase tracking-[0.22em] text-gold disabled:opacity-50"
+            >
+              {toggleBusy ? "Updating..." : moderationEnabled ? "Turn Moderation Off" : "Turn Moderation On"}
+            </button>
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as FeedReportStatus | "all")}

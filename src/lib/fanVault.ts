@@ -1,4 +1,4 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
 import { defaultProfileBadgeId } from "./profileBadges";
 
 export type FavoriteType = "gallery" | "watch" | "listen";
@@ -90,6 +90,64 @@ export type FanFeedComment = {
   createdAt: string;
 };
 
+export type FanFeedPollOption = {
+  id: string;
+  label: string;
+  imageUrl: string | null;
+  position: number;
+  voteCount: number;
+  viewerVoted: boolean;
+};
+
+export type FanFeedPoll = {
+  question: string;
+  allowMultiple: boolean;
+  expiresAt: string | null;
+  totalVotes: number;
+  viewerHasVoted: boolean;
+  options: FanFeedPollOption[];
+};
+
+export type TriviaLookAndFeel = {
+  accentColor?: string;
+  label?: string;
+  cardTone?: "ember" | "gold" | "cyan" | "neutral";
+};
+
+export type TriviaQuestion = {
+  id: string;
+  prompt: string;
+  options: string[];
+  correctOptionIndex: number;
+  category: string;
+  difficulty: "easy" | "medium" | "hard";
+  imageUrl: string | null;
+  explanation: string | null;
+  isActive: boolean;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type TriviaCampaign = {
+  id: string;
+  title: string;
+  status: "draft" | "active" | "paused" | "completed";
+  questionIds: string[];
+  scheduleTimezone: string;
+  startAt: string;
+  endAt: string | null;
+  cadenceMinutes: number;
+  postDurationMinutes: number;
+  nextRunAt: string;
+  lastRunAt: string | null;
+  lookAndFeel: TriviaLookAndFeel;
+  createdBy: string | null;
+  updatedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type FanFeedPost = {
   id: string;
   userId: string;
@@ -103,6 +161,7 @@ export type FanFeedPost = {
   shareCount: number;
   likeCount: number;
   viewerHasLiked: boolean;
+  poll: FanFeedPoll | null;
   comments: FanFeedComment[];
   createdAt: string;
   updatedAt: string;
@@ -113,6 +172,10 @@ const FEED_MAX_POST_BODY_LEN = 4000;
 const FEED_MAX_COMMENT_BODY_LEN = 600;
 const FEED_MAX_MEDIA_URL_LEN = 2048;
 const FEED_MAX_IMAGE_BYTES = 15 * 1024 * 1024;
+const FEED_MAX_POLL_QUESTION_LEN = 280;
+const FEED_MAX_POLL_OPTION_LEN = 120;
+const FEED_MIN_POLL_OPTIONS = 2;
+const FEED_MAX_POLL_OPTIONS = 6;
 const FEED_ALLOWED_IMAGE_MIME = new Set([
   "image/jpeg",
   "image/png",
@@ -152,6 +215,51 @@ const anonKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY;
 export const isCloudVaultEnabled = Boolean(url && anonKey);
 
 let supabaseClient: SupabaseClient | null = null;
+let authListenerBound = false;
+
+const parseAuthErrorFromUrl = () => {
+  if (typeof window === "undefined") return "";
+  const url = new URL(window.location.href);
+  const hash = url.hash.startsWith("#") ? url.hash.slice(1) : url.hash;
+  const hashParams = new URLSearchParams(hash);
+  const searchError = url.searchParams.get("error_description") || url.searchParams.get("error");
+  const hashError = hashParams.get("error_description") || hashParams.get("error");
+  return (searchError || hashError || "").trim();
+};
+
+const stripAuthParamsFromUrl = () => {
+  if (typeof window === "undefined") return;
+  const url = new URL(window.location.href);
+  const paramsToDelete = ["code", "error", "error_code", "error_description", "access_token", "refresh_token", "expires_at", "expires_in", "token_type", "provider_token", "provider_refresh_token"];
+  let changed = false;
+  paramsToDelete.forEach((key) => {
+    if (url.searchParams.has(key)) {
+      url.searchParams.delete(key);
+      changed = true;
+    }
+  });
+  if (url.hash) {
+    url.hash = "";
+    changed = true;
+  }
+  if (changed) {
+    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+  }
+};
+
+const resolveAuthEmail = (authUser: User): string => {
+  const direct = typeof authUser.email === "string" ? authUser.email.trim() : "";
+  if (direct) return direct.toLowerCase();
+  const metaEmail = typeof authUser.user_metadata?.email === "string" ? authUser.user_metadata.email.trim() : "";
+  if (metaEmail) return metaEmail.toLowerCase();
+  const identities = Array.isArray(authUser.identities) ? authUser.identities : [];
+  for (const identity of identities) {
+    const email = typeof identity?.identity_data?.email === "string" ? identity.identity_data.email.trim() : "";
+    if (email) return email.toLowerCase();
+  }
+  return `${authUser.id}@fan.local`;
+};
+
 const getSupabase = () => {
   if (!isCloudVaultEnabled || !url || !anonKey) return null;
   if (supabaseClient) return supabaseClient;
@@ -162,6 +270,12 @@ const getSupabase = () => {
       detectSessionInUrl: true
     }
   });
+  if (typeof window !== "undefined" && !authListenerBound) {
+    supabaseClient.auth.onAuthStateChange(() => {
+      emitChange();
+    });
+    authListenerBound = true;
+  }
   return supabaseClient;
 };
 
@@ -420,9 +534,10 @@ const getCloudUserAndProfile = async (): Promise<VaultUser | null> => {
 
   const { data: authData } = await supabase.auth.getUser();
   const authUser = authData.user;
-  if (!authUser || !authUser.email) return null;
+  if (!authUser) return null;
+  const resolvedEmail = resolveAuthEmail(authUser);
 
-  await ensureCloudProfile(authUser.id, authUser.email, (authUser.user_metadata?.name as string) || "Fan");
+  await ensureCloudProfile(authUser.id, resolvedEmail, (authUser.user_metadata?.name as string) || "Fan");
 
   const [{ data: profile }, { data: favorites }] = await Promise.all([
     supabase.from("fan_profiles").select("id,name,email,bio,created_at").eq("id", authUser.id).maybeSingle(),
@@ -432,12 +547,47 @@ const getCloudUserAndProfile = async (): Promise<VaultUser | null> => {
   return {
     id: authUser.id,
     name: profile?.name || (authUser.user_metadata?.name as string) || "Fan",
-    email: profile?.email || authUser.email,
+    email: profile?.email || resolvedEmail,
     createdAt: profile?.created_at || authUser.created_at || nowIso(),
     bio: profile?.bio || "",
     profileBadgeId: (authUser.user_metadata?.profileBadgeId as string) || defaultProfileBadgeId,
     favorites: (favorites || []).map(mapCloudFavorite)
   };
+};
+
+export const completeOAuthFromUrl = async (): Promise<Result<{ completed: boolean }>> => {
+  if (!isCloudVaultEnabled) return { ok: true, completed: false };
+  const supabase = getSupabase();
+  if (!supabase) return { ok: false, error: "Vault is not configured." };
+  if (typeof window === "undefined") return { ok: true, completed: false };
+
+  const authError = parseAuthErrorFromUrl();
+  if (authError) {
+    stripAuthParamsFromUrl();
+    return { ok: false, error: authError };
+  }
+
+  const urlNow = new URL(window.location.href);
+  const code = urlNow.searchParams.get("code");
+  if (!code) return { ok: true, completed: false };
+
+  const { data: existingSession } = await supabase.auth.getSession();
+  if (existingSession.session) {
+    stripAuthParamsFromUrl();
+    emitChange();
+    return { ok: true, completed: true };
+  }
+
+  const { error } = await supabase.auth.exchangeCodeForSession(code);
+  stripAuthParamsFromUrl();
+  if (error) return { ok: false, error: error.message };
+
+  const user = await getCloudUserAndProfile();
+  if (user) {
+    await migrateLegacyLocalToCloud(user.id, user.email);
+  }
+  emitChange();
+  return { ok: true, completed: true };
 };
 
 export const getCurrentUser = async (): Promise<VaultUser | null> => {
@@ -520,7 +670,7 @@ export const loginWithOAuth = async (provider: OAuthProvider): Promise<Result<{ 
 
   const redirectTo =
     typeof window !== "undefined"
-      ? new URL(`${import.meta.env.BASE_URL}fan-club/`, window.location.origin).toString()
+      ? new URL("/fan-club", window.location.origin).toString()
       : undefined;
 
   const { error } = await supabase.auth.signInWithOAuth({
@@ -825,24 +975,32 @@ const mapFeedComment = (row: any, names: Map<string, string>): FanFeedComment =>
   userId: row.user_id,
   authorName: names.get(row.user_id) || "Fan",
   body: row.body || "",
-  moderationStatus: (row.moderation_status as FeedModerationStatus) || "pending",
+  moderationStatus: (row.moderation_status as FeedModerationStatus) || "approved",
   moderationReason: row.moderation_reason || null,
   createdAt: row.created_at || nowIso()
 });
 
-const mapFeedPost = (row: any, names: Map<string, string>, comments: FanFeedComment[], likeCount: number, viewerHasLiked: boolean): FanFeedPost => ({
+const mapFeedPost = (
+  row: any,
+  names: Map<string, string>,
+  comments: FanFeedComment[],
+  likeCount: number,
+  viewerHasLiked: boolean,
+  poll: FanFeedPoll | null
+): FanFeedPost => ({
   id: String(row.id),
   userId: row.user_id,
   authorName: names.get(row.user_id) || "Fan",
   body: row.body || "",
   mediaUrl: row.media_url || null,
   mediaType: (row.media_type as FanFeedMediaType | null) || null,
-  moderationStatus: (row.moderation_status as FeedModerationStatus) || "pending",
+  moderationStatus: (row.moderation_status as FeedModerationStatus) || "approved",
   moderationReason: row.moderation_reason || null,
   isNsfw: Boolean(row.is_nsfw),
   shareCount: Number(row.share_count || 0),
   likeCount,
   viewerHasLiked,
+  poll,
   comments,
   createdAt: row.created_at || nowIso(),
   updatedAt: row.updated_at || row.created_at || nowIso()
@@ -902,6 +1060,62 @@ const runRemoteModerationHook = async (payload: {
   }
 };
 
+const isFeedModerationEnabled = async (): Promise<boolean> => {
+  const supabase = getSupabase();
+  if (!supabase) return false;
+  const { data, error } = await supabase
+    .from("fan_feed_settings")
+    .select("moderation_enabled")
+    .eq("id", 1)
+    .maybeSingle();
+  if (error) return false;
+  return Boolean(data?.moderation_enabled);
+};
+
+export const getFeedModerationEnabled = async (): Promise<Result<{ enabled: boolean }>> => {
+  if (!isCloudVaultEnabled) return { ok: true, enabled: false };
+  const supabase = getSupabase();
+  if (!supabase) return { ok: false, error: "Vault is not configured." };
+  const enabled = await isFeedModerationEnabled();
+  return { ok: true, enabled };
+};
+
+export const setFeedModerationEnabled = async (enabled: boolean): Promise<Result<{ enabled: boolean }>> => {
+  if (!isCloudVaultEnabled) return { ok: false, error: "Fan Feed requires Supabase cloud mode." };
+  const supabase = getSupabase();
+  if (!supabase) return { ok: false, error: "Vault is not configured." };
+  const viewer = await getCloudUserAndProfile();
+  if (!viewer) return { ok: false, error: "Log in required." };
+
+  const { error } = await supabase.from("fan_feed_settings").upsert({
+    id: 1,
+    moderation_enabled: Boolean(enabled),
+    updated_by: viewer.id,
+    updated_at: nowIso()
+  });
+  if (error) return { ok: false, error: error.message };
+
+  if (!enabled) {
+    const approvePosts = await supabase
+      .from("fan_feed_posts")
+      .update({ moderation_status: "approved", moderation_reason: null })
+      .eq("moderation_status", "pending");
+    if (approvePosts.error && !hasMissingColumnError(approvePosts.error, "moderation_status")) {
+      return { ok: false, error: approvePosts.error.message };
+    }
+
+    const approveComments = await supabase
+      .from("fan_feed_comments")
+      .update({ moderation_status: "approved", moderation_reason: null })
+      .eq("moderation_status", "pending");
+    if (approveComments.error && !hasMissingColumnError(approveComments.error, "moderation_status")) {
+      return { ok: false, error: approveComments.error.message };
+    }
+  }
+
+  return { ok: true, enabled: Boolean(enabled) };
+};
+
 const detectImageMimeByHeader = (bytes: Uint8Array): string | null => {
   if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "image/jpeg";
   if (bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return "image/png";
@@ -943,6 +1157,42 @@ const extByMime: Record<string, string> = {
   "image/avif": "avif"
 };
 
+const hasMissingColumnError = (error: unknown, column: string) => {
+  const message = String((error as { message?: string })?.message || "").toLowerCase();
+  const target = column.toLowerCase();
+  const schemaCacheMissing = message.includes("schema cache") && message.includes("column") && message.includes(target);
+  const postgresMissing = message.includes("column") && message.includes("does not exist") && message.includes(target);
+  return schemaCacheMissing || postgresMissing;
+};
+
+const hasMissingRelationError = (error: unknown, relation: string) => {
+  const message = String((error as { message?: string })?.message || "").toLowerCase();
+  const target = relation.toLowerCase();
+  const bare = target.replace("public.", "");
+  const postgresMissing = message.includes("relation") && message.includes("does not exist") && message.includes(target);
+  const schemaCacheMissing = message.includes("could not find the table") && (message.includes(bare) || message.includes(target));
+  const schemaCacheMissingAlt =
+    message.includes("schema cache") &&
+    message.includes("table") &&
+    (message.includes(bare) || message.includes(target));
+  return postgresMissing || schemaCacheMissing || schemaCacheMissingAlt;
+};
+
+const normalizeTriviaLookAndFeel = (value: unknown): TriviaLookAndFeel => {
+  if (!value || typeof value !== "object") return {};
+  const raw = value as Record<string, unknown>;
+  const tone = String(raw.cardTone || "").toLowerCase();
+  const cardTone: TriviaLookAndFeel["cardTone"] =
+    tone === "ember" || tone === "gold" || tone === "cyan" || tone === "neutral" ? (tone as any) : undefined;
+  const accentColor = typeof raw.accentColor === "string" ? raw.accentColor.slice(0, 32) : undefined;
+  const label = typeof raw.label === "string" ? raw.label.slice(0, 64) : undefined;
+  return {
+    accentColor,
+    label,
+    cardTone
+  };
+};
+
 export const getFanFeed = async (limit = 30): Promise<Result<{ posts: FanFeedPost[] }>> => {
   if (!isCloudVaultEnabled) return { ok: false, error: "Fan Feed requires Supabase cloud mode." };
   const supabase = getSupabase();
@@ -950,11 +1200,27 @@ export const getFanFeed = async (limit = 30): Promise<Result<{ posts: FanFeedPos
   const viewer = await getCloudUserAndProfile();
   if (!viewer) return { ok: false, error: "Log in to Fan Vault to view the feed." };
 
-  const { data: postRows, error: postsError } = await supabase
+  let { data: postRows, error: postsError } = await supabase
     .from("fan_feed_posts")
     .select("id,user_id,body,media_url,media_type,moderation_status,moderation_reason,is_nsfw,share_count,created_at,updated_at")
     .order("created_at", { ascending: false })
     .limit(Math.max(1, Math.min(100, limit)));
+
+  const postSelectMissingModerationCols =
+    postsError &&
+    (hasMissingColumnError(postsError, "is_nsfw") ||
+      hasMissingColumnError(postsError, "moderation_status") ||
+      hasMissingColumnError(postsError, "moderation_reason"));
+
+  if (postSelectMissingModerationCols) {
+    const fallback = await supabase
+      .from("fan_feed_posts")
+      .select("id,user_id,body,media_url,media_type,share_count,created_at,updated_at")
+      .order("created_at", { ascending: false })
+      .limit(Math.max(1, Math.min(100, limit)));
+    postRows = fallback.data as any[] | null;
+    postsError = fallback.error;
+  }
 
   if (postsError) return { ok: false, error: postsError.message };
   const posts = postRows || [];
@@ -963,15 +1229,28 @@ export const getFanFeed = async (limit = 30): Promise<Result<{ posts: FanFeedPos
   const postIds = posts.map((row: any) => Number(row.id));
   const userIds = Array.from(new Set(posts.map((row: any) => row.user_id)));
 
-  const [{ data: profileRows }, { data: commentRows }, { data: likeRows }] = await Promise.all([
+  const [{ data: profileRows }, { data: likeRows }] = await Promise.all([
     supabase.from("fan_profiles").select("id,name").in("id", userIds),
-    supabase
-      .from("fan_feed_comments")
-      .select("id,post_id,user_id,body,moderation_status,moderation_reason,created_at")
-      .in("post_id", postIds)
-      .order("created_at", { ascending: true }),
     supabase.from("fan_feed_likes").select("post_id,user_id").in("post_id", postIds)
   ]);
+
+  let { data: commentRows, error: commentsError } = await supabase
+    .from("fan_feed_comments")
+    .select("id,post_id,user_id,body,moderation_status,moderation_reason,created_at")
+    .in("post_id", postIds)
+    .order("created_at", { ascending: true });
+
+  if (commentsError && (hasMissingColumnError(commentsError, "moderation_status") || hasMissingColumnError(commentsError, "moderation_reason"))) {
+    const fallbackComments = await supabase
+      .from("fan_feed_comments")
+      .select("id,post_id,user_id,body,created_at")
+      .in("post_id", postIds)
+      .order("created_at", { ascending: true });
+    commentRows = fallbackComments.data as any[] | null;
+    commentsError = fallbackComments.error;
+  }
+
+  if (commentsError) return { ok: false, error: commentsError.message };
 
   const commentUserIds = Array.from(new Set((commentRows || []).map((row: any) => row.user_id)));
   const missingCommentUserIds = commentUserIds.filter((id) => !userIds.includes(id));
@@ -1001,6 +1280,86 @@ export const getFanFeed = async (limit = 30): Promise<Result<{ posts: FanFeedPos
     if (row.user_id === viewer.id) viewerLikeSet.add(key);
   });
 
+  const pollByPost = new Map<string, FanFeedPoll>();
+  let pollRows: any[] = [];
+  const pollRes = await supabase
+    .from("fan_feed_polls")
+    .select("post_id,question,allow_multiple,expires_at")
+    .in("post_id", postIds);
+  if (!pollRes.error) {
+    pollRows = pollRes.data || [];
+  } else if (!hasMissingRelationError(pollRes.error, "fan_feed_polls")) {
+    return { ok: false, error: pollRes.error.message };
+  }
+
+  if (pollRows.length) {
+    const pollPostIds = pollRows.map((row) => Number(row.post_id));
+    const [optionRes, voteRes] = await Promise.all([
+      supabase
+        .from("fan_feed_poll_options")
+        .select("id,poll_post_id,label,image_url,position")
+        .in("poll_post_id", pollPostIds)
+        .order("position", { ascending: true })
+        .order("id", { ascending: true }),
+      supabase
+        .from("fan_feed_poll_votes")
+        .select("poll_post_id,option_id,user_id")
+        .in("poll_post_id", pollPostIds)
+    ]);
+
+    if (optionRes.error && !hasMissingRelationError(optionRes.error, "fan_feed_poll_options")) {
+      return { ok: false, error: optionRes.error.message };
+    }
+    if (voteRes.error && !hasMissingRelationError(voteRes.error, "fan_feed_poll_votes")) {
+      return { ok: false, error: voteRes.error.message };
+    }
+
+    const optionRows = optionRes.data || [];
+    const voteRows = voteRes.data || [];
+    const voteCountByOption = new Map<string, number>();
+    const viewerVotes = new Set<string>();
+    const totalVotesByPoll = new Map<string, number>();
+    const viewerHasVotedByPoll = new Set<string>();
+
+    voteRows.forEach((row: any) => {
+      const optionKey = String(row.option_id);
+      const pollKey = String(row.poll_post_id);
+      voteCountByOption.set(optionKey, (voteCountByOption.get(optionKey) || 0) + 1);
+      totalVotesByPoll.set(pollKey, (totalVotesByPoll.get(pollKey) || 0) + 1);
+      if (row.user_id === viewer.id) {
+        viewerVotes.add(optionKey);
+        viewerHasVotedByPoll.add(pollKey);
+      }
+    });
+
+    const optionsByPoll = new Map<string, FanFeedPollOption[]>();
+    optionRows.forEach((row: any) => {
+      const pollKey = String(row.poll_post_id);
+      const list = optionsByPoll.get(pollKey) || [];
+      list.push({
+        id: String(row.id),
+        label: String(row.label || ""),
+        imageUrl: row.image_url || null,
+        position: Number(row.position || 0),
+        voteCount: voteCountByOption.get(String(row.id)) || 0,
+        viewerVoted: viewerVotes.has(String(row.id))
+      });
+      optionsByPoll.set(pollKey, list);
+    });
+
+    pollRows.forEach((row: any) => {
+      const key = String(row.post_id);
+      pollByPost.set(key, {
+        question: String(row.question || ""),
+        allowMultiple: Boolean(row.allow_multiple),
+        expiresAt: row.expires_at || null,
+        totalVotes: totalVotesByPoll.get(key) || 0,
+        viewerHasVoted: viewerHasVotedByPoll.has(key),
+        options: optionsByPoll.get(key) || []
+      });
+    });
+  }
+
   return {
     ok: true,
     posts: posts.map((row: any) =>
@@ -1009,7 +1368,8 @@ export const getFanFeed = async (limit = 30): Promise<Result<{ posts: FanFeedPos
         nameMap,
         commentsByPost.get(String(row.id)) || [],
         likeCountByPost.get(String(row.id)) || 0,
-        viewerLikeSet.has(String(row.id))
+        viewerLikeSet.has(String(row.id)),
+        pollByPost.get(String(row.id)) || null
       )
     )
   };
@@ -1019,6 +1379,12 @@ export const createFeedPost = async (input: {
   body: string;
   mediaUrl?: string | null;
   mediaType?: FanFeedMediaType | null;
+  poll?: {
+    question: string;
+    allowMultiple?: boolean;
+    expiresAt?: string | null;
+    options: Array<{ label: string; imageUrl?: string | null }>;
+  };
 }): Promise<Result<{ created: true }>> => {
   if (!isCloudVaultEnabled) return { ok: false, error: "Fan Feed requires Supabase cloud mode." };
   const supabase = getSupabase();
@@ -1027,8 +1393,329 @@ export const createFeedPost = async (input: {
   if (!viewer) return { ok: false, error: "Log in to Fan Vault to publish posts." };
 
   const body = (input.body || "").trim();
+  const pollInput = input.poll || null;
   const rawMediaUrl = (input.mediaUrl || "").trim();
-  if (!body && !rawMediaUrl) return { ok: false, error: "Add text or a media link to publish." };
+  if (!body && !rawMediaUrl && !pollInput) return { ok: false, error: "Add text, a media link, or a poll to publish." };
+  if (body.length > FEED_MAX_POST_BODY_LEN) {
+    return { ok: false, error: `Post is too long. Max ${FEED_MAX_POST_BODY_LEN} characters.` };
+  }
+  if (rawMediaUrl.length > FEED_MAX_MEDIA_URL_LEN) {
+    return { ok: false, error: `Media URL is too long. Max ${FEED_MAX_MEDIA_URL_LEN} characters.` };
+  }
+
+  const mediaUrl = rawMediaUrl ? sanitizeExternalUrl(rawMediaUrl) : null;
+  if (rawMediaUrl && !mediaUrl) {
+    return { ok: false, error: "Media URL must start with http:// or https://." };
+  }
+  if (input.mediaType && !["image", "video", "link"].includes(input.mediaType)) {
+    return { ok: false, error: "Invalid media type." };
+  }
+
+  let normalizedPoll:
+    | {
+        question: string;
+        allowMultiple: boolean;
+        expiresAt: string | null;
+        options: Array<{ label: string; imageUrl: string | null; position: number }>;
+      }
+    | null = null;
+
+  if (pollInput) {
+    const question = String(pollInput.question || "").trim();
+    if (!question) return { ok: false, error: "Poll question is required." };
+    if (question.length > FEED_MAX_POLL_QUESTION_LEN) {
+      return { ok: false, error: `Poll question is too long. Max ${FEED_MAX_POLL_QUESTION_LEN} characters.` };
+    }
+    const blockedQuestion = findBlockedTerm(question);
+    if (blockedQuestion) return { ok: false, error: "Poll question blocked by community safety filter." };
+
+    const optionCandidates = Array.isArray(pollInput.options) ? pollInput.options : [];
+    const options = optionCandidates
+      .map((option, index) => ({
+        label: String(option?.label || "").trim(),
+        imageUrlRaw: String(option?.imageUrl || "").trim(),
+        position: index
+      }))
+      .filter((option) => option.label.length > 0);
+
+    if (options.length < FEED_MIN_POLL_OPTIONS || options.length > FEED_MAX_POLL_OPTIONS) {
+      return { ok: false, error: `Poll must have ${FEED_MIN_POLL_OPTIONS}-${FEED_MAX_POLL_OPTIONS} options.` };
+    }
+
+    for (const option of options) {
+      if (option.label.length > FEED_MAX_POLL_OPTION_LEN) {
+        return { ok: false, error: `Poll option is too long. Max ${FEED_MAX_POLL_OPTION_LEN} characters.` };
+      }
+      const blockedOption = findBlockedTerm(option.label);
+      if (blockedOption) return { ok: false, error: "Poll option blocked by community safety filter." };
+    }
+
+    const normalizedOptions: Array<{ label: string; imageUrl: string | null; position: number }> = [];
+    for (const option of options) {
+      const safeImageUrl = option.imageUrlRaw ? sanitizeExternalUrl(option.imageUrlRaw) : null;
+      if (option.imageUrlRaw && !safeImageUrl) {
+        return { ok: false, error: "Poll option image URL must start with http:// or https://." };
+      }
+      normalizedOptions.push({
+        label: option.label,
+        imageUrl: safeImageUrl,
+        position: option.position
+      });
+    }
+
+    let expiresAt: string | null = null;
+    if (pollInput.expiresAt) {
+      const parsed = Date.parse(String(pollInput.expiresAt));
+      if (Number.isNaN(parsed)) return { ok: false, error: "Invalid poll end date." };
+      if (parsed <= Date.now()) return { ok: false, error: "Poll end date must be in the future." };
+      expiresAt = new Date(parsed).toISOString();
+    }
+
+    normalizedPoll = {
+      question,
+      allowMultiple: Boolean(pollInput.allowMultiple),
+      expiresAt,
+      options: normalizedOptions
+    };
+  }
+
+  const blocked = findBlockedTerm(body);
+  if (blocked) {
+    return { ok: false, error: "Post blocked by community safety filter." };
+  }
+
+  let moderationStatus: FeedModerationStatus = "approved";
+  let moderationReason: string | null = null;
+  const moderationEnabled = await isFeedModerationEnabled();
+  if (moderationEnabled) {
+    const remoteModeration = await runRemoteModerationHook({
+      type: "post",
+      body,
+      mediaUrl,
+      userId: viewer.id
+    });
+    if (remoteModeration) {
+      moderationReason = remoteModeration.reason;
+      if (remoteModeration.status === "rejected") moderationStatus = "rejected";
+      else moderationStatus = remoteModeration.status;
+    } else {
+      moderationStatus = "pending";
+    }
+    if (moderationStatus === "rejected") {
+      return { ok: false, error: moderationReason || "Post rejected by moderation policy." };
+    }
+  }
+
+  const insertPayload = {
+    user_id: viewer.id,
+    body,
+    media_url: mediaUrl || null,
+    media_type: input.mediaType || (mediaUrl ? "link" : null),
+    moderation_status: moderationStatus,
+    moderation_reason: moderationReason,
+    is_nsfw: false,
+    share_count: 0
+  };
+
+  const insertPostWithPayload = async (payload: typeof insertPayload) => {
+    const inserted = await supabase.from("fan_feed_posts").insert(payload).select("id").single();
+    return inserted;
+  };
+
+  let createdPostId: number | null = null;
+  let error: any = null;
+  const inserted = await insertPostWithPayload(insertPayload);
+  error = inserted.error;
+  if (!error) createdPostId = Number(inserted.data?.id);
+
+  if (error) {
+    const isRlsError =
+      error.code === "42501" ||
+      /row-level security/i.test(error.message || "") ||
+      /policy/i.test(error.message || "");
+
+    if (isRlsError) {
+      // Compatibility path for earlier policies that only allow pending inserts.
+      const pendingInsert = await insertPostWithPayload({
+        ...insertPayload,
+        moderation_status: "pending",
+        moderation_reason: null
+      });
+      if (!pendingInsert.error) {
+        createdPostId = Number(pendingInsert.data?.id);
+      } else {
+        error = pendingInsert.error;
+      }
+    }
+
+    const missingModerationCols =
+      hasMissingColumnError(error, "is_nsfw") ||
+      hasMissingColumnError(error, "moderation_status") ||
+      hasMissingColumnError(error, "moderation_reason");
+
+    if (!missingModerationCols) return { ok: false, error: error.message };
+
+    const legacyInsert = await supabase.from("fan_feed_posts").insert({
+      user_id: viewer.id,
+      body,
+      media_url: mediaUrl || null,
+      media_type: input.mediaType || (mediaUrl ? "link" : null),
+      share_count: 0
+    }).select("id").single();
+    if (legacyInsert.error) return { ok: false, error: legacyInsert.error.message };
+    createdPostId = Number(legacyInsert.data?.id);
+  }
+
+  if (normalizedPoll && createdPostId) {
+    const pollInsert = await supabase.from("fan_feed_polls").insert({
+      post_id: createdPostId,
+      question: normalizedPoll.question,
+      allow_multiple: normalizedPoll.allowMultiple,
+      expires_at: normalizedPoll.expiresAt
+    });
+    if (pollInsert.error) {
+      await supabase.from("fan_feed_posts").delete().eq("id", createdPostId).eq("user_id", viewer.id);
+      if (hasMissingRelationError(pollInsert.error, "fan_feed_polls")) {
+        return {
+          ok: false,
+          error: "Poll feature is not fully installed yet. Run the latest fan_vault_schema.sql and reload Supabase schema cache."
+        };
+      }
+      return { ok: false, error: pollInsert.error.message };
+    }
+
+    const optionInsert = await supabase.from("fan_feed_poll_options").insert(
+      normalizedPoll.options.map((option) => ({
+        poll_post_id: createdPostId,
+        label: option.label,
+        image_url: option.imageUrl,
+        position: option.position
+      }))
+    );
+    if (optionInsert.error) {
+      await supabase.from("fan_feed_posts").delete().eq("id", createdPostId).eq("user_id", viewer.id);
+      if (hasMissingRelationError(optionInsert.error, "fan_feed_poll_options")) {
+        return {
+          ok: false,
+          error: "Poll feature is not fully installed yet. Run the latest fan_vault_schema.sql and reload Supabase schema cache."
+        };
+      }
+      return { ok: false, error: optionInsert.error.message };
+    }
+  }
+
+  return { ok: true, created: true };
+};
+
+export const voteFeedPoll = async (input: {
+  postId: string;
+  optionIds: string[];
+}): Promise<Result<{ voted: true }>> => {
+  if (!isCloudVaultEnabled) return { ok: false, error: "Fan Feed requires Supabase cloud mode." };
+  const supabase = getSupabase();
+  if (!supabase) return { ok: false, error: "Vault is not configured." };
+  const viewer = await getCloudUserAndProfile();
+  if (!viewer) return { ok: false, error: "Log in to Fan Vault to vote." };
+
+  const postId = Number(input.postId);
+  if (!Number.isFinite(postId)) return { ok: false, error: "Invalid poll id." };
+  const uniqueOptionIds = Array.from(new Set((input.optionIds || []).map((id) => Number(id)).filter(Number.isFinite)));
+  if (!uniqueOptionIds.length) return { ok: false, error: "Pick at least one option." };
+
+  const { data: pollRow, error: pollError } = await supabase
+    .from("fan_feed_polls")
+    .select("post_id,allow_multiple,expires_at")
+    .eq("post_id", postId)
+    .maybeSingle();
+  if (pollError) {
+    if (hasMissingRelationError(pollError, "fan_feed_polls")) {
+      return {
+        ok: false,
+        error: "Poll feature is not fully installed yet. Run the latest fan_vault_schema.sql and reload Supabase schema cache."
+      };
+    }
+    return { ok: false, error: pollError.message };
+  }
+  if (!pollRow) return { ok: false, error: "Poll not found." };
+
+  if (!pollRow.allow_multiple && uniqueOptionIds.length > 1) {
+    return { ok: false, error: "This poll only allows one selection." };
+  }
+  if (pollRow.expires_at && Date.parse(String(pollRow.expires_at)) <= Date.now()) {
+    return { ok: false, error: "This poll has ended." };
+  }
+
+  const { data: optionRows, error: optionsError } = await supabase
+    .from("fan_feed_poll_options")
+    .select("id")
+    .eq("poll_post_id", postId)
+    .in("id", uniqueOptionIds);
+  if (optionsError) {
+    if (hasMissingRelationError(optionsError, "fan_feed_poll_options")) {
+      return {
+        ok: false,
+        error: "Poll feature is not fully installed yet. Run the latest fan_vault_schema.sql and reload Supabase schema cache."
+      };
+    }
+    return { ok: false, error: optionsError.message };
+  }
+  if ((optionRows || []).length !== uniqueOptionIds.length) {
+    return { ok: false, error: "One or more poll options are invalid." };
+  }
+
+  const clearExisting = await supabase
+    .from("fan_feed_poll_votes")
+    .delete()
+    .eq("poll_post_id", postId)
+    .eq("user_id", viewer.id);
+  if (clearExisting.error) {
+    if (hasMissingRelationError(clearExisting.error, "fan_feed_poll_votes")) {
+      return {
+        ok: false,
+        error: "Poll feature is not fully installed yet. Run the latest fan_vault_schema.sql and reload Supabase schema cache."
+      };
+    }
+    return { ok: false, error: clearExisting.error.message };
+  }
+
+  const insertVotes = await supabase.from("fan_feed_poll_votes").insert(
+    uniqueOptionIds.map((optionId) => ({
+      poll_post_id: postId,
+      option_id: optionId,
+      user_id: viewer.id
+    }))
+  );
+  if (insertVotes.error) {
+    if (hasMissingRelationError(insertVotes.error, "fan_feed_poll_votes")) {
+      return {
+        ok: false,
+        error: "Poll feature is not fully installed yet. Run the latest fan_vault_schema.sql and reload Supabase schema cache."
+      };
+    }
+    return { ok: false, error: insertVotes.error.message };
+  }
+
+  return { ok: true, voted: true };
+};
+
+export const updateFeedPost = async (input: {
+  postId: string;
+  body: string;
+  mediaUrl?: string | null;
+  mediaType?: FanFeedMediaType | null;
+}): Promise<Result<{ updated: true }>> => {
+  if (!isCloudVaultEnabled) return { ok: false, error: "Fan Feed requires Supabase cloud mode." };
+  const supabase = getSupabase();
+  if (!supabase) return { ok: false, error: "Vault is not configured." };
+  const viewer = await getCloudUserAndProfile();
+  if (!viewer) return { ok: false, error: "Log in to Fan Vault to edit posts." };
+
+  const postId = Number(input.postId);
+  if (!Number.isFinite(postId)) return { ok: false, error: "Invalid post id." };
+
+  const body = (input.body || "").trim();
+  const rawMediaUrl = (input.mediaUrl || "").trim();
+  if (!body && !rawMediaUrl) return { ok: false, error: "Post cannot be empty." };
   if (body.length > FEED_MAX_POST_BODY_LEN) {
     return { ok: false, error: `Post is too long. Max ${FEED_MAX_POST_BODY_LEN} characters.` };
   }
@@ -1045,39 +1732,64 @@ export const createFeedPost = async (input: {
   }
 
   const blocked = findBlockedTerm(body);
-  if (blocked) {
-    return { ok: false, error: "Post blocked by community safety filter." };
-  }
+  if (blocked) return { ok: false, error: "Post blocked by community safety filter." };
 
-  let moderationStatus: FeedModerationStatus = "pending";
+  let moderationStatus: FeedModerationStatus = "approved";
   let moderationReason: string | null = null;
-  const remoteModeration = await runRemoteModerationHook({
-    type: "post",
-    body,
-    mediaUrl,
-    userId: viewer.id
-  });
-  if (remoteModeration) {
-    moderationStatus = remoteModeration.status;
-    moderationReason = remoteModeration.reason;
-  }
-  if (moderationStatus === "rejected") {
-    return { ok: false, error: moderationReason || "Post rejected by moderation policy." };
+  const moderationEnabled = await isFeedModerationEnabled();
+  if (moderationEnabled) {
+    const remoteModeration = await runRemoteModerationHook({
+      type: "post",
+      body,
+      mediaUrl,
+      userId: viewer.id
+    });
+    if (remoteModeration) {
+      moderationReason = remoteModeration.reason;
+      if (remoteModeration.status === "rejected") moderationStatus = "rejected";
+      else moderationStatus = remoteModeration.status;
+    } else {
+      moderationStatus = "pending";
+    }
+    if (moderationStatus === "rejected") {
+      return { ok: false, error: moderationReason || "Post rejected by moderation policy." };
+    }
   }
 
-  const { error } = await supabase.from("fan_feed_posts").insert({
-    user_id: viewer.id,
-    body,
-    media_url: mediaUrl || null,
-    media_type: input.mediaType || (mediaUrl ? "link" : null),
-    moderation_status: moderationStatus,
-    moderation_reason: moderationReason,
-    is_nsfw: false,
-    share_count: 0
-  });
+  const { error } = await supabase
+    .from("fan_feed_posts")
+    .update({
+      body,
+      media_url: mediaUrl || null,
+      media_type: input.mediaType || (mediaUrl ? "link" : null),
+      moderation_status: moderationStatus,
+      moderation_reason: moderationReason
+    })
+    .eq("id", postId)
+    .eq("user_id", viewer.id);
 
   if (error) return { ok: false, error: error.message };
-  return { ok: true, created: true };
+  return { ok: true, updated: true };
+};
+
+export const deleteFeedPost = async (postId: string): Promise<Result<{ deleted: true }>> => {
+  if (!isCloudVaultEnabled) return { ok: false, error: "Fan Feed requires Supabase cloud mode." };
+  const supabase = getSupabase();
+  if (!supabase) return { ok: false, error: "Vault is not configured." };
+  const viewer = await getCloudUserAndProfile();
+  if (!viewer) return { ok: false, error: "Log in to Fan Vault to delete posts." };
+
+  const numericPostId = Number(postId);
+  if (!Number.isFinite(numericPostId)) return { ok: false, error: "Invalid post id." };
+
+  const { error } = await supabase
+    .from("fan_feed_posts")
+    .delete()
+    .eq("id", numericPostId)
+    .eq("user_id", viewer.id);
+
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, deleted: true };
 };
 
 export const createFeedComment = async (postId: string, body: string): Promise<Result<{ created: true }>> => {
@@ -1095,30 +1807,55 @@ export const createFeedComment = async (postId: string, body: string): Promise<R
   const blocked = findBlockedTerm(cleanBody);
   if (blocked) return { ok: false, error: "Comment blocked by community safety filter." };
 
-  let moderationStatus: FeedModerationStatus = "pending";
+  let moderationStatus: FeedModerationStatus = "approved";
   let moderationReason: string | null = null;
-  const remoteModeration = await runRemoteModerationHook({
-    type: "comment",
-    body: cleanBody,
-    userId: viewer.id
-  });
-  if (remoteModeration) {
-    moderationStatus = remoteModeration.status;
-    moderationReason = remoteModeration.reason;
-  }
-  if (moderationStatus === "rejected") {
-    return { ok: false, error: moderationReason || "Comment rejected by moderation policy." };
+  const moderationEnabled = await isFeedModerationEnabled();
+  if (moderationEnabled) {
+    const remoteModeration = await runRemoteModerationHook({
+      type: "comment",
+      body: cleanBody,
+      userId: viewer.id
+    });
+    if (remoteModeration) {
+      moderationReason = remoteModeration.reason;
+      if (remoteModeration.status === "rejected") moderationStatus = "rejected";
+      else moderationStatus = remoteModeration.status;
+    } else {
+      moderationStatus = "pending";
+    }
+    if (moderationStatus === "rejected") {
+      return { ok: false, error: moderationReason || "Comment rejected by moderation policy." };
+    }
   }
 
-  const { error } = await supabase.from("fan_feed_comments").insert({
+  const insertPayload = {
     post_id: Number(postId),
     user_id: viewer.id,
     body: cleanBody,
     moderation_status: moderationStatus,
     moderation_reason: moderationReason
-  });
+  };
 
-  if (error) return { ok: false, error: error.message };
+  const { error } = await supabase.from("fan_feed_comments").insert(insertPayload);
+
+  if (error) {
+    const isRlsError =
+      error.code === "42501" ||
+      /row-level security/i.test(error.message || "") ||
+      /policy/i.test(error.message || "");
+
+    if (isRlsError) {
+      // Compatibility path for earlier policies that only allow pending inserts.
+      const pendingInsert = await supabase.from("fan_feed_comments").insert({
+        ...insertPayload,
+        moderation_status: "pending",
+        moderation_reason: null
+      });
+      if (!pendingInsert.error) return { ok: true, created: true };
+    }
+
+    return { ok: false, error: error.message };
+  }
   return { ok: true, created: true };
 };
 
@@ -1310,6 +2047,261 @@ export const updateFeedReportStatus = async (input: {
   return { ok: true, updated: true };
 };
 
+export const listTriviaQuestions = async (): Promise<Result<{ questions: TriviaQuestion[] }>> => {
+  if (!isCloudVaultEnabled) return { ok: false, error: "Trivia requires Supabase cloud mode." };
+  const supabase = getSupabase();
+  if (!supabase) return { ok: false, error: "Vault is not configured." };
+  const { data, error } = await supabase
+    .from("fan_feed_trivia_questions")
+    .select("id,prompt,options,correct_option_index,category,difficulty,image_url,explanation,is_active,created_by,created_at,updated_at")
+    .order("created_at", { ascending: false });
+  if (error) return { ok: false, error: error.message };
+  return {
+    ok: true,
+    questions: (data || []).map((row: any) => ({
+      id: String(row.id),
+      prompt: String(row.prompt || ""),
+      options: Array.isArray(row.options) ? row.options.map((value: any) => String(value || "")) : [],
+      correctOptionIndex: Number(row.correct_option_index || 0),
+      category: String(row.category || "general"),
+      difficulty: (String(row.difficulty || "medium") as TriviaQuestion["difficulty"]),
+      imageUrl: row.image_url || null,
+      explanation: row.explanation || null,
+      isActive: Boolean(row.is_active),
+      createdBy: row.created_by || null,
+      createdAt: row.created_at || nowIso(),
+      updatedAt: row.updated_at || row.created_at || nowIso()
+    }))
+  };
+};
+
+export const createTriviaQuestion = async (input: {
+  prompt: string;
+  options: string[];
+  correctOptionIndex: number;
+  category?: string;
+  difficulty?: "easy" | "medium" | "hard";
+  imageUrl?: string | null;
+  explanation?: string | null;
+}): Promise<Result<{ created: true }>> => {
+  if (!isCloudVaultEnabled) return { ok: false, error: "Trivia requires Supabase cloud mode." };
+  const supabase = getSupabase();
+  if (!supabase) return { ok: false, error: "Vault is not configured." };
+  const viewer = await getCloudUserAndProfile();
+  if (!viewer) return { ok: false, error: "Log in required." };
+
+  const prompt = String(input.prompt || "").trim();
+  const options = (input.options || []).map((value) => String(value || "").trim()).filter(Boolean);
+  const correctOptionIndex = Number(input.correctOptionIndex || 0);
+  const category = String(input.category || "general").trim() || "general";
+  const difficulty = (String(input.difficulty || "medium").toLowerCase() as TriviaQuestion["difficulty"]);
+  const imageUrlRaw = String(input.imageUrl || "").trim();
+  const imageUrl = imageUrlRaw ? sanitizeExternalUrl(imageUrlRaw) : null;
+
+  if (!prompt) return { ok: false, error: "Question prompt is required." };
+  if (options.length < 2 || options.length > 6) return { ok: false, error: "Provide 2 to 6 options." };
+  if (!Number.isFinite(correctOptionIndex) || correctOptionIndex < 0 || correctOptionIndex >= options.length) {
+    return { ok: false, error: "Correct option index is out of range." };
+  }
+  if (difficulty !== "easy" && difficulty !== "medium" && difficulty !== "hard") {
+    return { ok: false, error: "Invalid difficulty." };
+  }
+  if (imageUrlRaw && !imageUrl) return { ok: false, error: "Image URL must start with http:// or https://." };
+
+  const { error } = await supabase.from("fan_feed_trivia_questions").insert({
+    prompt,
+    options,
+    correct_option_index: correctOptionIndex,
+    category,
+    difficulty,
+    image_url: imageUrl,
+    explanation: (input.explanation || null),
+    is_active: true,
+    created_by: viewer.id
+  });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, created: true };
+};
+
+export const updateTriviaQuestion = async (input: {
+  id: string;
+  prompt: string;
+  options: string[];
+  correctOptionIndex: number;
+  category?: string;
+  difficulty?: "easy" | "medium" | "hard";
+  imageUrl?: string | null;
+  explanation?: string | null;
+  isActive?: boolean;
+}): Promise<Result<{ updated: true }>> => {
+  if (!isCloudVaultEnabled) return { ok: false, error: "Trivia requires Supabase cloud mode." };
+  const supabase = getSupabase();
+  if (!supabase) return { ok: false, error: "Vault is not configured." };
+  const options = (input.options || []).map((value) => String(value || "").trim()).filter(Boolean);
+  if (options.length < 2 || options.length > 6) return { ok: false, error: "Provide 2 to 6 options." };
+  const imageUrlRaw = String(input.imageUrl || "").trim();
+  const imageUrl = imageUrlRaw ? sanitizeExternalUrl(imageUrlRaw) : null;
+  if (imageUrlRaw && !imageUrl) return { ok: false, error: "Image URL must start with http:// or https://." };
+
+  const { error } = await supabase
+    .from("fan_feed_trivia_questions")
+    .update({
+      prompt: String(input.prompt || "").trim(),
+      options,
+      correct_option_index: Number(input.correctOptionIndex || 0),
+      category: String(input.category || "general").trim() || "general",
+      difficulty: String(input.difficulty || "medium").toLowerCase(),
+      image_url: imageUrl,
+      explanation: input.explanation || null,
+      is_active: input.isActive !== undefined ? Boolean(input.isActive) : true,
+      updated_at: nowIso()
+    })
+    .eq("id", Number(input.id));
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, updated: true };
+};
+
+export const listTriviaCampaigns = async (): Promise<Result<{ campaigns: TriviaCampaign[] }>> => {
+  if (!isCloudVaultEnabled) return { ok: false, error: "Trivia requires Supabase cloud mode." };
+  const supabase = getSupabase();
+  if (!supabase) return { ok: false, error: "Vault is not configured." };
+  const { data, error } = await supabase
+    .from("fan_feed_trivia_campaigns")
+    .select("id,title,status,question_ids,schedule_timezone,start_at,end_at,cadence_minutes,post_duration_minutes,next_run_at,last_run_at,look_and_feel,created_by,updated_by,created_at,updated_at")
+    .order("created_at", { ascending: false });
+  if (error) return { ok: false, error: error.message };
+  return {
+    ok: true,
+    campaigns: (data || []).map((row: any) => ({
+      id: String(row.id),
+      title: String(row.title || ""),
+      status: String(row.status || "draft") as TriviaCampaign["status"],
+      questionIds: Array.isArray(row.question_ids) ? row.question_ids.map((value: any) => String(value)) : [],
+      scheduleTimezone: String(row.schedule_timezone || "UTC"),
+      startAt: row.start_at || nowIso(),
+      endAt: row.end_at || null,
+      cadenceMinutes: Number(row.cadence_minutes || 60),
+      postDurationMinutes: Number(row.post_duration_minutes || 10),
+      nextRunAt: row.next_run_at || nowIso(),
+      lastRunAt: row.last_run_at || null,
+      lookAndFeel: normalizeTriviaLookAndFeel(row.look_and_feel),
+      createdBy: row.created_by || null,
+      updatedBy: row.updated_by || null,
+      createdAt: row.created_at || nowIso(),
+      updatedAt: row.updated_at || row.created_at || nowIso()
+    }))
+  };
+};
+
+export const createTriviaCampaign = async (input: {
+  title: string;
+  questionIds: string[];
+  startAt: string;
+  cadenceMinutes: number;
+  postDurationMinutes: number;
+  endAt?: string | null;
+  lookAndFeel?: TriviaLookAndFeel;
+  status?: TriviaCampaign["status"];
+}): Promise<Result<{ created: true }>> => {
+  if (!isCloudVaultEnabled) return { ok: false, error: "Trivia requires Supabase cloud mode." };
+  const supabase = getSupabase();
+  if (!supabase) return { ok: false, error: "Vault is not configured." };
+  const viewer = await getCloudUserAndProfile();
+  if (!viewer) return { ok: false, error: "Log in required." };
+
+  const title = String(input.title || "").trim();
+  const numericQuestionIds = Array.from(new Set((input.questionIds || []).map((id) => Number(id)).filter(Number.isFinite)));
+  if (!title) return { ok: false, error: "Campaign title is required." };
+  if (!numericQuestionIds.length) return { ok: false, error: "Select at least one trivia question." };
+
+  const startAtMs = Date.parse(String(input.startAt || ""));
+  if (Number.isNaN(startAtMs)) return { ok: false, error: "Invalid campaign start time." };
+  const endAtMs = input.endAt ? Date.parse(String(input.endAt)) : NaN;
+  if (input.endAt && Number.isNaN(endAtMs)) return { ok: false, error: "Invalid campaign end time." };
+  if (input.endAt && endAtMs <= startAtMs) return { ok: false, error: "End time must be after start time." };
+
+  const cadenceMinutes = Math.max(1, Math.min(1440, Number(input.cadenceMinutes || 60)));
+  const postDurationMinutes = Math.max(1, Math.min(60, Number(input.postDurationMinutes || 10)));
+  const status = (input.status || "draft") as TriviaCampaign["status"];
+
+  const { error } = await supabase.from("fan_feed_trivia_campaigns").insert({
+    title,
+    status,
+    question_ids: numericQuestionIds,
+    schedule_timezone: "UTC",
+    start_at: new Date(startAtMs).toISOString(),
+    end_at: input.endAt ? new Date(endAtMs).toISOString() : null,
+    cadence_minutes: cadenceMinutes,
+    post_duration_minutes: postDurationMinutes,
+    next_run_at: new Date(startAtMs).toISOString(),
+    look_and_feel: normalizeTriviaLookAndFeel(input.lookAndFeel),
+    created_by: viewer.id,
+    updated_by: viewer.id
+  });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, created: true };
+};
+
+export const updateTriviaCampaign = async (input: {
+  id: string;
+  status?: TriviaCampaign["status"];
+  title?: string;
+  questionIds?: string[];
+  startAt?: string;
+  endAt?: string | null;
+  cadenceMinutes?: number;
+  postDurationMinutes?: number;
+  nextRunAt?: string;
+  lookAndFeel?: TriviaLookAndFeel;
+}): Promise<Result<{ updated: true }>> => {
+  if (!isCloudVaultEnabled) return { ok: false, error: "Trivia requires Supabase cloud mode." };
+  const supabase = getSupabase();
+  if (!supabase) return { ok: false, error: "Vault is not configured." };
+  const viewer = await getCloudUserAndProfile();
+  if (!viewer) return { ok: false, error: "Log in required." };
+
+  const patch: Record<string, unknown> = { updated_at: nowIso(), updated_by: viewer.id };
+  if (input.status) patch.status = input.status;
+  if (input.title !== undefined) patch.title = String(input.title || "").trim();
+  if (input.questionIds) patch.question_ids = Array.from(new Set(input.questionIds.map((id) => Number(id)).filter(Number.isFinite)));
+  if (input.startAt) {
+    const startMs = Date.parse(String(input.startAt));
+    if (Number.isNaN(startMs)) return { ok: false, error: "Invalid start time." };
+    patch.start_at = new Date(startMs).toISOString();
+  }
+  if (input.endAt !== undefined) {
+    if (!input.endAt) patch.end_at = null;
+    else {
+      const endMs = Date.parse(String(input.endAt));
+      if (Number.isNaN(endMs)) return { ok: false, error: "Invalid end time." };
+      patch.end_at = new Date(endMs).toISOString();
+    }
+  }
+  if (input.cadenceMinutes !== undefined) patch.cadence_minutes = Math.max(1, Math.min(1440, Number(input.cadenceMinutes || 60)));
+  if (input.postDurationMinutes !== undefined) patch.post_duration_minutes = Math.max(1, Math.min(60, Number(input.postDurationMinutes || 10)));
+  if (input.nextRunAt) {
+    const nextRunMs = Date.parse(String(input.nextRunAt));
+    if (Number.isNaN(nextRunMs)) return { ok: false, error: "Invalid next run time." };
+    patch.next_run_at = new Date(nextRunMs).toISOString();
+  }
+  if (input.lookAndFeel) patch.look_and_feel = normalizeTriviaLookAndFeel(input.lookAndFeel);
+
+  const { error } = await supabase.from("fan_feed_trivia_campaigns").update(patch).eq("id", input.id);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, updated: true };
+};
+
+export const runTriviaCampaignScheduler = async (maxPosts = 8): Promise<Result<{ posted: number }>> => {
+  if (!isCloudVaultEnabled) return { ok: false, error: "Trivia requires Supabase cloud mode." };
+  const supabase = getSupabase();
+  if (!supabase) return { ok: false, error: "Vault is not configured." };
+  const { data, error } = await supabase.rpc("run_due_trivia_campaigns", {
+    max_posts: Math.max(1, Math.min(50, Number(maxPosts || 8)))
+  });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, posted: Number(data || 0) };
+};
+
 export const subscribeToFanFeed = (onChange: () => void): (() => void) | null => {
   if (!isCloudVaultEnabled) return null;
   const supabase = getSupabase();
@@ -1320,6 +2312,10 @@ export const subscribeToFanFeed = (onChange: () => void): (() => void) | null =>
     .on("postgres_changes", { event: "*", schema: "public", table: "fan_feed_posts" }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "fan_feed_comments" }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "fan_feed_likes" }, onChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "fan_feed_polls" }, onChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "fan_feed_poll_options" }, onChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "fan_feed_poll_votes" }, onChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "fan_feed_trivia_posts" }, onChange)
     .subscribe();
 
   return () => {

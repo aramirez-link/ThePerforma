@@ -398,7 +398,7 @@ export default function EngagementHub() {
 
   return (
     <aside
-      className="fixed left-4 bottom-4 z-[72] w-[min(92vw,360px)] rounded-2xl border bg-black/75 p-3 shadow-[0_12px_42px_rgba(0,0,0,0.58)] backdrop-blur-xl"
+      className="fixed left-4 bottom-4 z-40 w-[min(92vw,360px)] max-h-[calc(100dvh-8rem)] rounded-2xl border bg-black/75 p-3 shadow-[0_12px_42px_rgba(0,0,0,0.58)] backdrop-blur-xl sm:max-h-[calc(100dvh-7rem)]"
       style={{
         borderColor: "rgba(var(--accent-rgb), 0.45)",
         boxShadow: "0 12px 42px rgba(0,0,0,0.58), 0 0 36px rgba(var(--accent-rgb), 0.2)"
@@ -422,7 +422,7 @@ export default function EngagementHub() {
       </div>
 
       {open && (
-        <div className="mt-3 space-y-3">
+        <div className="mt-3 space-y-3 overflow-y-auto pr-1 max-h-[calc(100dvh-13rem)] sm:max-h-[calc(100dvh-12rem)]">
           <div className="rounded-xl border border-white/15 bg-black/70 p-3">
             <p className="text-[10px] uppercase tracking-[0.26em] text-white/55">Crowd Pulse</p>
             <div className="mt-2 flex items-center gap-2">

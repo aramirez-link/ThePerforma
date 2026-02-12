@@ -161,6 +161,66 @@ using (
   and (storage.foldername(name))[1] = auth.uid()::text
 );
 
+-- ===============================
+-- Store product media storage
+-- ===============================
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'store-product-media',
+  'store-product-media',
+  true,
+  15728640,
+  array['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif']
+)
+on conflict (id) do update
+set
+  public = excluded.public,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
+
+drop policy if exists "store_product_media_read" on storage.objects;
+drop policy if exists "store_product_media_upload_admin" on storage.objects;
+drop policy if exists "store_product_media_update_admin_own" on storage.objects;
+drop policy if exists "store_product_media_delete_admin_own" on storage.objects;
+
+create policy "store_product_media_read"
+on storage.objects for select
+using (bucket_id = 'store-product-media');
+
+create policy "store_product_media_upload_admin"
+on storage.objects for insert
+with check (
+  bucket_id = 'store-product-media'
+  and auth.role() = 'authenticated'
+  and public.is_store_admin()
+  and (storage.foldername(name))[1] = auth.uid()::text
+);
+
+create policy "store_product_media_update_admin_own"
+on storage.objects for update
+using (
+  bucket_id = 'store-product-media'
+  and owner = auth.uid()
+  and public.is_store_admin()
+  and (storage.foldername(name))[1] = auth.uid()::text
+)
+with check (
+  bucket_id = 'store-product-media'
+  and owner = auth.uid()
+  and public.is_store_admin()
+  and (storage.foldername(name))[1] = auth.uid()::text
+);
+
+create policy "store_product_media_delete_admin_own"
+on storage.objects for delete
+using (
+  bucket_id = 'store-product-media'
+  and owner = auth.uid()
+  and public.is_store_admin()
+  and (storage.foldername(name))[1] = auth.uid()::text
+);
+
 alter table public.fan_profiles enable row level security;
 alter table public.fan_favorites enable row level security;
 alter table public.fan_badges enable row level security;
@@ -440,6 +500,8 @@ create or replace function public.is_store_admin()
 returns boolean
 language sql
 stable
+security definer
+set search_path = public
 as $$
   select exists (
     select 1
@@ -447,6 +509,8 @@ as $$
     where a.user_id = auth.uid()
   );
 $$;
+
+grant execute on function public.is_store_admin() to authenticated;
 
 alter table public.store_admins enable row level security;
 alter table public.store_products enable row level security;
@@ -462,7 +526,7 @@ drop policy if exists "store_admins_manage_owner_only" on public.store_admins;
 
 create policy "store_admins_select_admin_only"
 on public.store_admins for select
-using (public.is_store_admin());
+using (auth.uid() = user_id or public.is_store_admin());
 
 create policy "store_admins_manage_owner_only"
 on public.store_admins for all
@@ -620,6 +684,17 @@ with check (public.is_store_admin());
 -- Fan Feed schema
 -- ===============================
 
+create table if not exists public.fan_feed_settings (
+  id smallint primary key default 1 check (id = 1),
+  moderation_enabled boolean not null default false,
+  updated_by uuid references auth.users(id) on delete set null,
+  updated_at timestamptz not null default now()
+);
+
+insert into public.fan_feed_settings (id, moderation_enabled)
+values (1, false)
+on conflict (id) do nothing;
+
 create table if not exists public.fan_feed_posts (
   id bigserial primary key,
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -646,9 +721,213 @@ create table if not exists public.fan_feed_likes (
   primary key (post_id, user_id)
 );
 
+create table if not exists public.fan_feed_polls (
+  post_id bigint primary key references public.fan_feed_posts(id) on delete cascade,
+  question text not null,
+  allow_multiple boolean not null default false,
+  expires_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.fan_feed_poll_options (
+  id bigserial primary key,
+  poll_post_id bigint not null references public.fan_feed_polls(post_id) on delete cascade,
+  label text not null,
+  image_url text,
+  position integer not null default 0,
+  created_at timestamptz not null default now(),
+  unique (poll_post_id, position)
+);
+
+create table if not exists public.fan_feed_poll_votes (
+  poll_post_id bigint not null references public.fan_feed_polls(post_id) on delete cascade,
+  option_id bigint not null references public.fan_feed_poll_options(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (poll_post_id, option_id, user_id)
+);
+
+create table if not exists public.fan_feed_trivia_questions (
+  id bigserial primary key,
+  prompt text not null,
+  options jsonb not null default '[]'::jsonb,
+  correct_option_index integer not null default 0 check (correct_option_index >= 0),
+  category text not null default 'general',
+  difficulty text not null default 'medium' check (difficulty in ('easy', 'medium', 'hard')),
+  image_url text,
+  explanation text,
+  is_active boolean not null default true,
+  created_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.fan_feed_trivia_campaigns (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  status text not null default 'draft' check (status in ('draft', 'active', 'paused', 'completed')),
+  question_ids bigint[] not null default '{}',
+  schedule_timezone text not null default 'UTC',
+  start_at timestamptz not null,
+  end_at timestamptz,
+  cadence_minutes integer not null default 60 check (cadence_minutes between 1 and 1440),
+  post_duration_minutes integer not null default 10 check (post_duration_minutes between 1 and 60),
+  next_run_at timestamptz not null,
+  last_run_at timestamptz,
+  look_and_feel jsonb not null default '{}'::jsonb,
+  created_by uuid references auth.users(id) on delete set null,
+  updated_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.fan_feed_trivia_posts (
+  post_id bigint primary key references public.fan_feed_posts(id) on delete cascade,
+  campaign_id uuid not null references public.fan_feed_trivia_campaigns(id) on delete cascade,
+  question_id bigint not null references public.fan_feed_trivia_questions(id) on delete cascade,
+  correct_option_id bigint references public.fan_feed_poll_options(id) on delete set null,
+  look_and_feel jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create or replace function public.run_due_trivia_campaigns(max_posts integer default 8)
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_limit integer := greatest(1, least(coalesce(max_posts, 8), 50));
+  v_count integer := 0;
+  v_campaign record;
+  v_question record;
+  v_post_id bigint;
+  v_meta text;
+  v_created_option_ids bigint[];
+begin
+  if auth.uid() is null or not public.is_store_admin() then
+    return 0;
+  end if;
+
+  for v_campaign in
+    select *
+    from public.fan_feed_trivia_campaigns c
+    where c.status = 'active'
+      and c.next_run_at <= now()
+      and (c.end_at is null or c.next_run_at <= c.end_at)
+    order by c.next_run_at asc
+    limit v_limit
+  loop
+    select q.*
+    into v_question
+    from public.fan_feed_trivia_questions q
+    where q.is_active = true
+      and q.id = any (v_campaign.question_ids)
+    order by random()
+    limit 1;
+
+    if v_question.id is null then
+      update public.fan_feed_trivia_campaigns
+      set updated_at = now(), updated_by = auth.uid(), next_run_at = next_run_at + make_interval(mins => cadence_minutes)
+      where id = v_campaign.id;
+      continue;
+    end if;
+
+    v_meta := format(
+      '[[TRIVIA]]%s',
+      json_build_object(
+        'campaignId', v_campaign.id,
+        'campaignTitle', v_campaign.title,
+        'questionId', v_question.id,
+        'category', v_question.category,
+        'difficulty', v_question.difficulty,
+        'look', coalesce(v_campaign.look_and_feel, '{}'::jsonb)
+      )::text
+    );
+
+    insert into public.fan_feed_posts (
+      user_id,
+      body,
+      media_url,
+      media_type,
+      moderation_status,
+      moderation_reason,
+      is_nsfw,
+      share_count
+    )
+    values (
+      coalesce(v_campaign.created_by, auth.uid()),
+      v_meta || E'\n' || coalesce(v_question.prompt, ''),
+      v_question.image_url,
+      case when v_question.image_url is null then null else 'image' end,
+      'approved',
+      null,
+      false,
+      0
+    )
+    returning id into v_post_id;
+
+    insert into public.fan_feed_polls (post_id, question, allow_multiple, expires_at)
+    values (
+      v_post_id,
+      v_question.prompt,
+      false,
+      now() + make_interval(mins => v_campaign.post_duration_minutes)
+    );
+
+    with inserted as (
+      insert into public.fan_feed_poll_options (poll_post_id, label, image_url, position)
+      select
+        v_post_id,
+        trim(value::text, '"'),
+        null,
+        ordinality - 1
+      from jsonb_array_elements(v_question.options) with ordinality
+      returning id, position
+    )
+    select array_agg(id order by position)
+    into v_created_option_ids
+    from inserted;
+
+    insert into public.fan_feed_trivia_posts (post_id, campaign_id, question_id, correct_option_id, look_and_feel)
+    values (
+      v_post_id,
+      v_campaign.id,
+      v_question.id,
+      case
+        when v_created_option_ids is null or cardinality(v_created_option_ids) = 0 then null
+        when v_question.correct_option_index + 1 > cardinality(v_created_option_ids) then null
+        else v_created_option_ids[v_question.correct_option_index + 1]
+      end,
+      coalesce(v_campaign.look_and_feel, '{}'::jsonb)
+    );
+
+    update public.fan_feed_trivia_campaigns
+    set
+      last_run_at = now(),
+      next_run_at = next_run_at + make_interval(mins => cadence_minutes),
+      updated_at = now(),
+      updated_by = auth.uid(),
+      status = case
+        when end_at is not null and (next_run_at + make_interval(mins => cadence_minutes)) > end_at then 'completed'
+        else status
+      end
+    where id = v_campaign.id;
+
+    v_count := v_count + 1;
+  end loop;
+
+  return v_count;
+end
+$$;
+
+grant execute on function public.run_due_trivia_campaigns(integer) to authenticated;
+
 alter table public.fan_feed_posts
-  add column if not exists moderation_status text not null default 'pending'
+  add column if not exists moderation_status text not null default 'approved'
   check (moderation_status in ('pending', 'approved', 'rejected', 'flagged'));
+alter table public.fan_feed_posts
+  alter column moderation_status set default 'approved';
 alter table public.fan_feed_posts
   add column if not exists moderation_reason text;
 alter table public.fan_feed_posts
@@ -659,8 +938,10 @@ alter table public.fan_feed_posts
   add column if not exists moderated_at timestamptz;
 
 alter table public.fan_feed_comments
-  add column if not exists moderation_status text not null default 'pending'
+  add column if not exists moderation_status text not null default 'approved'
   check (moderation_status in ('pending', 'approved', 'rejected', 'flagged'));
+alter table public.fan_feed_comments
+  alter column moderation_status set default 'approved';
 alter table public.fan_feed_comments
   add column if not exists moderation_reason text;
 alter table public.fan_feed_comments
@@ -722,12 +1003,79 @@ begin
       add constraint fan_feed_comments_body_len_check
       check (length(trim(body)) between 1 and 600);
   end if;
+
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'fan_feed_polls_question_len_check'
+  ) then
+    alter table public.fan_feed_polls
+      add constraint fan_feed_polls_question_len_check
+      check (length(trim(question)) between 1 and 280);
+  end if;
+
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'fan_feed_poll_options_label_len_check'
+  ) then
+    alter table public.fan_feed_poll_options
+      add constraint fan_feed_poll_options_label_len_check
+      check (length(trim(label)) between 1 and 120);
+  end if;
+
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'fan_feed_poll_options_image_url_len_check'
+  ) then
+    alter table public.fan_feed_poll_options
+      add constraint fan_feed_poll_options_image_url_len_check
+      check (image_url is null or length(image_url) <= 2048);
+  end if;
+
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'fan_feed_poll_options_image_url_protocol_check'
+  ) then
+    alter table public.fan_feed_poll_options
+      add constraint fan_feed_poll_options_image_url_protocol_check
+      check (image_url is null or image_url ~* '^https?://');
+  end if;
+
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'fan_feed_trivia_questions_options_array_check'
+  ) then
+    alter table public.fan_feed_trivia_questions
+      add constraint fan_feed_trivia_questions_options_array_check
+      check (jsonb_typeof(options) = 'array' and jsonb_array_length(options) between 2 and 6);
+  end if;
 end
 $$;
+
+update public.fan_feed_posts
+set moderation_status = 'approved'
+where moderation_status = 'pending'
+  and moderated_by is null;
+
+update public.fan_feed_comments
+set moderation_status = 'approved'
+where moderation_status = 'pending'
+  and moderated_by is null;
 
 create index if not exists idx_fan_feed_posts_created on public.fan_feed_posts(created_at desc);
 create index if not exists idx_fan_feed_comments_post on public.fan_feed_comments(post_id, created_at);
 create index if not exists idx_fan_feed_likes_post on public.fan_feed_likes(post_id);
+create index if not exists idx_fan_feed_polls_expires_at on public.fan_feed_polls(expires_at);
+create index if not exists idx_fan_feed_poll_options_poll on public.fan_feed_poll_options(poll_post_id, position);
+create index if not exists idx_fan_feed_poll_votes_poll on public.fan_feed_poll_votes(poll_post_id, option_id);
+create index if not exists idx_fan_feed_poll_votes_user on public.fan_feed_poll_votes(user_id, poll_post_id);
+create index if not exists idx_fan_feed_trivia_questions_active on public.fan_feed_trivia_questions(is_active, created_at desc);
+create index if not exists idx_fan_feed_trivia_campaigns_status_next_run on public.fan_feed_trivia_campaigns(status, next_run_at);
+create index if not exists idx_fan_feed_trivia_posts_campaign on public.fan_feed_trivia_posts(campaign_id, created_at desc);
 create index if not exists idx_fan_feed_posts_moderation_status on public.fan_feed_posts(moderation_status, created_at desc);
 create index if not exists idx_fan_feed_comments_moderation_status on public.fan_feed_comments(moderation_status, created_at desc);
 create index if not exists idx_fan_feed_reports_status on public.fan_feed_reports(status, created_at desc);
@@ -743,6 +1091,30 @@ alter table public.fan_feed_posts enable row level security;
 alter table public.fan_feed_comments enable row level security;
 alter table public.fan_feed_likes enable row level security;
 alter table public.fan_feed_reports enable row level security;
+alter table public.fan_feed_settings enable row level security;
+alter table public.fan_feed_polls enable row level security;
+alter table public.fan_feed_poll_options enable row level security;
+alter table public.fan_feed_poll_votes enable row level security;
+alter table public.fan_feed_trivia_questions enable row level security;
+alter table public.fan_feed_trivia_campaigns enable row level security;
+alter table public.fan_feed_trivia_posts enable row level security;
+
+drop policy if exists "fan_feed_settings_select_authenticated" on public.fan_feed_settings;
+drop policy if exists "fan_feed_settings_update_admin" on public.fan_feed_settings;
+drop policy if exists "fan_feed_settings_insert_admin" on public.fan_feed_settings;
+
+create policy "fan_feed_settings_select_authenticated"
+on public.fan_feed_settings for select
+using (auth.role() = 'authenticated');
+
+create policy "fan_feed_settings_update_admin"
+on public.fan_feed_settings for update
+using (public.is_store_admin())
+with check (public.is_store_admin());
+
+create policy "fan_feed_settings_insert_admin"
+on public.fan_feed_settings for insert
+with check (public.is_store_admin());
 
 drop policy if exists "fan_feed_posts_select_authenticated" on public.fan_feed_posts;
 drop policy if exists "fan_feed_posts_insert_own" on public.fan_feed_posts;
@@ -765,7 +1137,16 @@ create policy "fan_feed_posts_insert_own"
 on public.fan_feed_posts for insert
 with check (
   auth.uid() = user_id
-  and moderation_status = 'pending'
+  and moderation_status = 'approved'
+  and moderated_by is null
+);
+
+create policy "fan_feed_posts_update_own"
+on public.fan_feed_posts for update
+using (auth.uid() = user_id)
+with check (
+  auth.uid() = user_id
+  and moderation_status = 'approved'
   and moderated_by is null
 );
 
@@ -809,7 +1190,7 @@ create policy "fan_feed_comments_insert_own"
 on public.fan_feed_comments for insert
 with check (
   auth.uid() = user_id
-  and moderation_status = 'pending'
+  and moderation_status = 'approved'
   and moderated_by is null
 );
 
@@ -862,6 +1243,250 @@ create policy "fan_feed_likes_delete_own"
 on public.fan_feed_likes for delete
 using (auth.uid() = user_id);
 
+drop policy if exists "fan_feed_polls_select_authenticated" on public.fan_feed_polls;
+drop policy if exists "fan_feed_polls_insert_own" on public.fan_feed_polls;
+drop policy if exists "fan_feed_polls_update_own" on public.fan_feed_polls;
+drop policy if exists "fan_feed_polls_delete_own" on public.fan_feed_polls;
+drop policy if exists "fan_feed_polls_moderate_admin" on public.fan_feed_polls;
+
+create policy "fan_feed_polls_select_authenticated"
+on public.fan_feed_polls for select
+using (
+  auth.role() = 'authenticated'
+  and exists (
+    select 1
+    from public.fan_feed_posts p
+    where p.id = post_id
+      and (
+        p.moderation_status = 'approved'
+        or p.user_id = auth.uid()
+        or public.is_store_admin()
+      )
+  )
+);
+
+create policy "fan_feed_polls_insert_own"
+on public.fan_feed_polls for insert
+with check (
+  exists (
+    select 1
+    from public.fan_feed_posts p
+    where p.id = post_id
+      and p.user_id = auth.uid()
+  )
+);
+
+create policy "fan_feed_polls_update_own"
+on public.fan_feed_polls for update
+using (
+  exists (
+    select 1
+    from public.fan_feed_posts p
+    where p.id = post_id
+      and p.user_id = auth.uid()
+  )
+)
+with check (
+  exists (
+    select 1
+    from public.fan_feed_posts p
+    where p.id = post_id
+      and p.user_id = auth.uid()
+  )
+);
+
+create policy "fan_feed_polls_delete_own"
+on public.fan_feed_polls for delete
+using (
+  exists (
+    select 1
+    from public.fan_feed_posts p
+    where p.id = post_id
+      and p.user_id = auth.uid()
+  )
+);
+
+create policy "fan_feed_polls_moderate_admin"
+on public.fan_feed_polls for all
+using (public.is_store_admin())
+with check (public.is_store_admin());
+
+drop policy if exists "fan_feed_poll_options_select_authenticated" on public.fan_feed_poll_options;
+drop policy if exists "fan_feed_poll_options_insert_own" on public.fan_feed_poll_options;
+drop policy if exists "fan_feed_poll_options_update_own" on public.fan_feed_poll_options;
+drop policy if exists "fan_feed_poll_options_delete_own" on public.fan_feed_poll_options;
+drop policy if exists "fan_feed_poll_options_moderate_admin" on public.fan_feed_poll_options;
+
+create policy "fan_feed_poll_options_select_authenticated"
+on public.fan_feed_poll_options for select
+using (
+  auth.role() = 'authenticated'
+  and exists (
+    select 1
+    from public.fan_feed_posts p
+    where p.id = poll_post_id
+      and (
+        p.moderation_status = 'approved'
+        or p.user_id = auth.uid()
+        or public.is_store_admin()
+      )
+  )
+);
+
+create policy "fan_feed_poll_options_insert_own"
+on public.fan_feed_poll_options for insert
+with check (
+  exists (
+    select 1
+    from public.fan_feed_posts p
+    where p.id = poll_post_id
+      and p.user_id = auth.uid()
+  )
+);
+
+create policy "fan_feed_poll_options_update_own"
+on public.fan_feed_poll_options for update
+using (
+  exists (
+    select 1
+    from public.fan_feed_posts p
+    where p.id = poll_post_id
+      and p.user_id = auth.uid()
+  )
+)
+with check (
+  exists (
+    select 1
+    from public.fan_feed_posts p
+    where p.id = poll_post_id
+      and p.user_id = auth.uid()
+  )
+);
+
+create policy "fan_feed_poll_options_delete_own"
+on public.fan_feed_poll_options for delete
+using (
+  exists (
+    select 1
+    from public.fan_feed_posts p
+    where p.id = poll_post_id
+      and p.user_id = auth.uid()
+  )
+);
+
+create policy "fan_feed_poll_options_moderate_admin"
+on public.fan_feed_poll_options for all
+using (public.is_store_admin())
+with check (public.is_store_admin());
+
+drop policy if exists "fan_feed_poll_votes_select_authenticated" on public.fan_feed_poll_votes;
+drop policy if exists "fan_feed_poll_votes_insert_own" on public.fan_feed_poll_votes;
+drop policy if exists "fan_feed_poll_votes_delete_own_or_admin" on public.fan_feed_poll_votes;
+
+create policy "fan_feed_poll_votes_select_authenticated"
+on public.fan_feed_poll_votes for select
+using (
+  auth.role() = 'authenticated'
+  and exists (
+    select 1
+    from public.fan_feed_posts p
+    where p.id = poll_post_id
+      and (
+        p.moderation_status = 'approved'
+        or p.user_id = auth.uid()
+        or public.is_store_admin()
+      )
+  )
+);
+
+create policy "fan_feed_poll_votes_insert_own"
+on public.fan_feed_poll_votes for insert
+with check (
+  auth.uid() = user_id
+  and exists (
+    select 1
+    from public.fan_feed_poll_options o
+    where o.id = option_id
+      and o.poll_post_id = poll_post_id
+  )
+  and exists (
+    select 1
+    from public.fan_feed_polls pl
+    where pl.post_id = poll_post_id
+      and (pl.expires_at is null or pl.expires_at > now())
+  )
+);
+
+create policy "fan_feed_poll_votes_delete_own_or_admin"
+on public.fan_feed_poll_votes for delete
+using (auth.uid() = user_id or public.is_store_admin());
+
+drop policy if exists "fan_feed_trivia_questions_select_admin" on public.fan_feed_trivia_questions;
+drop policy if exists "fan_feed_trivia_questions_insert_admin" on public.fan_feed_trivia_questions;
+drop policy if exists "fan_feed_trivia_questions_update_admin" on public.fan_feed_trivia_questions;
+drop policy if exists "fan_feed_trivia_questions_delete_admin" on public.fan_feed_trivia_questions;
+
+create policy "fan_feed_trivia_questions_select_admin"
+on public.fan_feed_trivia_questions for select
+using (public.is_store_admin());
+
+create policy "fan_feed_trivia_questions_insert_admin"
+on public.fan_feed_trivia_questions for insert
+with check (public.is_store_admin());
+
+create policy "fan_feed_trivia_questions_update_admin"
+on public.fan_feed_trivia_questions for update
+using (public.is_store_admin())
+with check (public.is_store_admin());
+
+create policy "fan_feed_trivia_questions_delete_admin"
+on public.fan_feed_trivia_questions for delete
+using (public.is_store_admin());
+
+drop policy if exists "fan_feed_trivia_campaigns_select_admin" on public.fan_feed_trivia_campaigns;
+drop policy if exists "fan_feed_trivia_campaigns_insert_admin" on public.fan_feed_trivia_campaigns;
+drop policy if exists "fan_feed_trivia_campaigns_update_admin" on public.fan_feed_trivia_campaigns;
+drop policy if exists "fan_feed_trivia_campaigns_delete_admin" on public.fan_feed_trivia_campaigns;
+
+create policy "fan_feed_trivia_campaigns_select_admin"
+on public.fan_feed_trivia_campaigns for select
+using (public.is_store_admin());
+
+create policy "fan_feed_trivia_campaigns_insert_admin"
+on public.fan_feed_trivia_campaigns for insert
+with check (public.is_store_admin());
+
+create policy "fan_feed_trivia_campaigns_update_admin"
+on public.fan_feed_trivia_campaigns for update
+using (public.is_store_admin())
+with check (public.is_store_admin());
+
+create policy "fan_feed_trivia_campaigns_delete_admin"
+on public.fan_feed_trivia_campaigns for delete
+using (public.is_store_admin());
+
+drop policy if exists "fan_feed_trivia_posts_select_authenticated" on public.fan_feed_trivia_posts;
+drop policy if exists "fan_feed_trivia_posts_insert_admin" on public.fan_feed_trivia_posts;
+drop policy if exists "fan_feed_trivia_posts_update_admin" on public.fan_feed_trivia_posts;
+drop policy if exists "fan_feed_trivia_posts_delete_admin" on public.fan_feed_trivia_posts;
+
+create policy "fan_feed_trivia_posts_select_authenticated"
+on public.fan_feed_trivia_posts for select
+using (auth.role() = 'authenticated');
+
+create policy "fan_feed_trivia_posts_insert_admin"
+on public.fan_feed_trivia_posts for insert
+with check (public.is_store_admin());
+
+create policy "fan_feed_trivia_posts_update_admin"
+on public.fan_feed_trivia_posts for update
+using (public.is_store_admin())
+with check (public.is_store_admin());
+
+create policy "fan_feed_trivia_posts_delete_admin"
+on public.fan_feed_trivia_posts for delete
+using (public.is_store_admin());
+
 drop policy if exists "fan_feed_reports_select_own_or_admin" on public.fan_feed_reports;
 drop policy if exists "fan_feed_reports_insert_own" on public.fan_feed_reports;
 drop policy if exists "fan_feed_reports_update_admin" on public.fan_feed_reports;
@@ -912,6 +1537,42 @@ begin
         and tablename = 'fan_feed_likes'
     ) then
       alter publication supabase_realtime add table public.fan_feed_likes;
+    end if;
+    if not exists (
+      select 1
+      from pg_publication_tables
+      where pubname = 'supabase_realtime'
+        and schemaname = 'public'
+        and tablename = 'fan_feed_polls'
+    ) then
+      alter publication supabase_realtime add table public.fan_feed_polls;
+    end if;
+    if not exists (
+      select 1
+      from pg_publication_tables
+      where pubname = 'supabase_realtime'
+        and schemaname = 'public'
+        and tablename = 'fan_feed_poll_options'
+    ) then
+      alter publication supabase_realtime add table public.fan_feed_poll_options;
+    end if;
+    if not exists (
+      select 1
+      from pg_publication_tables
+      where pubname = 'supabase_realtime'
+        and schemaname = 'public'
+        and tablename = 'fan_feed_poll_votes'
+    ) then
+      alter publication supabase_realtime add table public.fan_feed_poll_votes;
+    end if;
+    if not exists (
+      select 1
+      from pg_publication_tables
+      where pubname = 'supabase_realtime'
+        and schemaname = 'public'
+        and tablename = 'fan_feed_trivia_posts'
+    ) then
+      alter publication supabase_realtime add table public.fan_feed_trivia_posts;
     end if;
     if not exists (
       select 1

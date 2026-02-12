@@ -2,6 +2,7 @@
 import SocialLinks from "./SocialLinks.astro";
 
 const year = new Date().getFullYear();
+const enablePartnerCredit = import.meta.env.PUBLIC_ENABLE_PARTNER_CREDIT !== "false";
 ---
 <footer class="border-t border-white/10 py-10">
   <div class="mx-auto flex w-full max-w-6xl flex-col items-start justify-between gap-6 px-6 md:flex-row md:items-center">
@@ -19,6 +20,22 @@ const year = new Date().getFullYear();
       <div data-badge-dock="footer"></div>
       <SocialLinks size="sm" />
     </div>
-    <p class="text-xs text-white/40">? {year} The Performa</p>
+    <div class="text-left md:text-right">
+      <p class="text-xs text-white/40">© {year} The Performa</p>
+      {enablePartnerCredit && (
+        <p class="footer-credit mt-1">
+          A{" "}
+          <a
+            href="https://link-collective.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Visit The LINK Collective"
+          >
+            LINK Collective
+          </a>{" "}
+          Artist Transformation Client.
+        </p>
+      )}
+    </div>
   </div>
 </footer>

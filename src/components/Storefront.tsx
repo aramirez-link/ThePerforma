@@ -44,6 +44,94 @@ const avgRating = (ratings: number[]) => {
   return Math.round((sum / ratings.length) * 10) / 10;
 };
 
+const STORAGE_BUCKET = "store-product-media";
+const SUPABASE_URL = String(import.meta.env.PUBLIC_SUPABASE_URL || "").trim();
+const SUPABASE_ORIGIN = SUPABASE_URL ? SUPABASE_URL.replace(/\/+$/, "") : "";
+const LOCAL_FILE_PATH_RE = /^[a-zA-Z]:[\\/]/;
+const HTML_SNIPPET_RE = /<[^>]+>/;
+
+const safeEncodeUrl = (value: string) => {
+  try {
+    return encodeURI(value);
+  } catch {
+    return value;
+  }
+};
+
+const normalizeImageUrl = (value: string) => {
+  const original = String(value || "").trim();
+  if (!original) return null;
+
+  // Handle serialized JSON payloads or quoted URL strings.
+  let raw = original.replace(/^['"]+|['"]+$/g, "").trim();
+  if (raw.startsWith("{") && raw.endsWith("}")) {
+    try {
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      const candidate =
+        (typeof parsed.url === "string" && parsed.url) ||
+        (typeof parsed.src === "string" && parsed.src) ||
+        (typeof parsed.path === "string" && parsed.path) ||
+        (typeof parsed.key === "string" && parsed.key) ||
+        "";
+      raw = String(candidate || "").trim();
+    } catch {
+      raw = original;
+    }
+  }
+  if (!raw) return null;
+  if (LOCAL_FILE_PATH_RE.test(raw)) return null;
+  if (HTML_SNIPPET_RE.test(raw)) return null;
+  if (/^data:image\//i.test(raw)) return raw;
+  if (/^https?:\/\//i.test(raw)) return safeEncodeUrl(raw);
+  if (raw.startsWith("//")) {
+    const protocol = typeof window !== "undefined" ? window.location.protocol : "https:";
+    return safeEncodeUrl(`${protocol}${raw}`);
+  }
+  if (raw.startsWith("/storage/") && SUPABASE_ORIGIN) return safeEncodeUrl(`${SUPABASE_ORIGIN}${raw}`);
+  if (raw.startsWith("/")) return safeEncodeUrl(raw);
+  if (raw.startsWith("storage/v1/object/public/") && SUPABASE_ORIGIN) {
+    return safeEncodeUrl(`${SUPABASE_ORIGIN}/${raw}`);
+  }
+  if (raw.startsWith(`${STORAGE_BUCKET}/`) && SUPABASE_ORIGIN) {
+    const path = raw.replace(new RegExp(`^${STORAGE_BUCKET}/`), "");
+    return safeEncodeUrl(`${SUPABASE_ORIGIN}/storage/v1/object/public/${STORAGE_BUCKET}/${path}`);
+  }
+
+  // Accept bucket/object style values and convert to Supabase public URLs.
+  if (SUPABASE_ORIGIN) {
+    const marker = `/storage/v1/object/public/${STORAGE_BUCKET}/`;
+    if (raw.includes(marker)) {
+      const idx = raw.indexOf(marker);
+      const path = raw.slice(idx + marker.length).replace(/^\/+/, "");
+      if (path) return safeEncodeUrl(`${SUPABASE_ORIGIN}/storage/v1/object/public/${STORAGE_BUCKET}/${path}`);
+    }
+    if (raw.includes(`${STORAGE_BUCKET}/`)) {
+      const idx = raw.indexOf(`${STORAGE_BUCKET}/`);
+      const path = raw.slice(idx + `${STORAGE_BUCKET}/`.length).replace(/^\/+/, "");
+      if (path.includes("/")) {
+        return safeEncodeUrl(`${SUPABASE_ORIGIN}/storage/v1/object/public/${STORAGE_BUCKET}/${path}`);
+      }
+    }
+
+    const clean = raw
+      .replace(new RegExp(`^${STORAGE_BUCKET}/`), "")
+      .replace(/^\/+/, "");
+    if (clean.includes("/") && !clean.includes(" ")) {
+      return safeEncodeUrl(`${SUPABASE_ORIGIN}/storage/v1/object/public/${STORAGE_BUCKET}/${clean}`);
+    }
+  }
+  return null;
+};
+
+const productImages = (product: StorefrontProductView) => {
+  const all = [product.cover_image, ...(product.gallery || [])]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean)
+    .map((value) => normalizeImageUrl(value))
+    .filter(Boolean) as string[];
+  return Array.from(new Set(all));
+};
+
 export default function Storefront() {
   const [products, setProducts] = useState<StorefrontProductView[]>([]);
   const [wishlist, setWishlist] = useState<string[]>([]);
@@ -55,6 +143,8 @@ export default function Storefront() {
   const [checkingOut, setCheckingOut] = useState(false);
   const [notice, setNotice] = useState("");
   const [userEmail, setUserEmail] = useState("");
+  const [activeProductId, setActiveProductId] = useState<string | null>(null);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [reviewDraft, setReviewDraft] = useState<{ productId: string; rating: number; title: string; body: string }>({
     productId: "",
     rating: 5,
@@ -86,6 +176,18 @@ export default function Storefront() {
   }, []);
 
   useEffect(() => {
+    if (typeof window === "undefined" || !products.length) return;
+    const url = new URL(window.location.href);
+    const slug = (url.searchParams.get("product") || "").trim().toLowerCase();
+    if (!slug) return;
+    const product = products.find((entry) => entry.slug.toLowerCase() === slug);
+    if (product) {
+      setActiveProductId(product.id);
+      setActiveImageIndex(0);
+    }
+  }, [products]);
+
+  useEffect(() => {
     if (!notice) return;
     const timer = window.setTimeout(() => setNotice(""), 2400);
     return () => window.clearTimeout(timer);
@@ -95,6 +197,16 @@ export default function Storefront() {
     if (filter === "all") return products;
     return products.filter((product) => product.product_type === filter);
   }, [filter, products]);
+
+  const activeProduct = useMemo(
+    () => products.find((entry) => entry.id === activeProductId) || null,
+    [products, activeProductId]
+  );
+
+  const activeProductGallery = useMemo(
+    () => (activeProduct ? productImages(activeProduct) : []),
+    [activeProduct]
+  );
 
   const variantById = useMemo(() => {
     const map = new Map<string, { product: StorefrontProductView; variant: StorefrontProductView["variants"][number] }>();
@@ -209,6 +321,58 @@ export default function Storefront() {
     window.location.assign(result.data.checkoutUrl);
   };
 
+  const openProduct = (product: StorefrontProductView) => {
+    setActiveProductId(product.id);
+    setActiveImageIndex(0);
+    const url = new URL(window.location.href);
+    url.searchParams.set("product", product.slug);
+    window.history.replaceState({}, "", `${url.pathname}${url.search}`);
+  };
+
+  const closeProduct = () => {
+    setActiveProductId(null);
+    setActiveImageIndex(0);
+    const url = new URL(window.location.href);
+    url.searchParams.delete("product");
+    window.history.replaceState({}, "", `${url.pathname}${url.search}`);
+  };
+
+  const orderNow = async (product: StorefrontProductView) => {
+    const variantId = selectedVariants[product.id] || product.defaultVariant?.id;
+    if (!variantId) {
+      setNotice("No variant available for this product.");
+      return;
+    }
+    const selectedVariant = product.variants.find((item) => item.id === variantId) || null;
+    if (!selectedVariant) {
+      setNotice("Selected variant is unavailable.");
+      return;
+    }
+    const stock = getVariantStockState(selectedVariant);
+    if (stock.outOfStock) {
+      setNotice("This variant is currently out of stock.");
+      return;
+    }
+    if (!userEmail) {
+      setNotice("Log in to Fan Vault before checkout.");
+      return;
+    }
+    setCheckingOut(true);
+    const origin = window.location.origin;
+    const result = await createCheckoutSession({
+      items: [{ variantId: selectedVariant.id, quantity: 1 }],
+      promoCode: promoCode.trim() || undefined,
+      successUrl: `${origin}/store?checkout=success`,
+      cancelUrl: `${origin}/store?checkout=cancelled`
+    });
+    setCheckingOut(false);
+    if (!result.ok) {
+      setNotice(result.error);
+      return;
+    }
+    window.location.assign(result.data.checkoutUrl);
+  };
+
   const submitProductReview = async (productId: string) => {
     if (!reviewDraft.body.trim() || !reviewDraft.title.trim()) {
       setNotice("Write a title and review body.");
@@ -266,6 +430,8 @@ export default function Storefront() {
             const currentVariant = product.variants.find((item) => item.id === currentVariantId) || product.defaultVariant;
             const stock = currentVariant ? getVariantStockState(currentVariant) : { outOfStock: false, lowStock: false, remaining: null };
             const ratings = product.reviews.map((item) => item.rating);
+            const images = productImages(product);
+            const heroImage = images[0] || null;
             const related = product.related_product_ids
               .map((id) => products.find((entry) => entry.id === id))
               .filter(Boolean)
@@ -273,9 +439,9 @@ export default function Storefront() {
 
             return (
               <article key={product.id} className="rounded-3xl border border-white/15 bg-black/35 p-5 backdrop-blur">
-                {product.cover_image && (
+                {heroImage && (
                   <img
-                    src={product.cover_image}
+                    src={heroImage}
                     alt={product.name}
                     className="h-48 w-full rounded-2xl border border-white/10 object-cover"
                     loading="lazy"
@@ -317,6 +483,13 @@ export default function Storefront() {
                 )}
 
                 <div className="mt-4 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => openProduct(product)}
+                    className="rounded-full border border-gold/45 px-5 py-2 text-[11px] uppercase tracking-[0.24em] text-gold min-h-11"
+                  >
+                    View Product
+                  </button>
                   <button
                     type="button"
                     onClick={() => addToCart(product)}
@@ -497,6 +670,159 @@ export default function Storefront() {
       </div>
 
       {notice && <p className="mt-4 text-sm text-gold">{notice}</p>}
+
+      {activeProduct && (
+        <div className="fixed inset-0 z-[70] bg-black/80 backdrop-blur-sm">
+          <div className="mx-auto flex h-full w-full max-w-6xl items-center px-4 py-6 sm:px-6">
+            <article className="max-h-[92vh] w-full overflow-y-auto rounded-3xl border border-white/15 bg-black/90 p-5 sm:p-6">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.24em] text-gold/80">{activeProduct.product_type.replace("_", " ")}</p>
+                  <h2 className="mt-2 text-3xl font-semibold">{activeProduct.name}</h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeProduct}
+                  className="min-h-11 rounded-full border border-white/30 px-4 py-2 text-[10px] uppercase tracking-[0.22em] text-white/80"
+                >
+                  Close
+                </button>
+              </div>
+
+              <div className="mt-4 grid gap-5 lg:grid-cols-[1.2fr_1fr]">
+                <div>
+                  {activeProductGallery.length > 0 ? (
+                    <div className="rounded-2xl border border-white/15 bg-black/40 p-3">
+                      <div className="relative overflow-hidden rounded-xl border border-white/10">
+                        <img
+                          src={activeProductGallery[Math.max(0, Math.min(activeImageIndex, activeProductGallery.length - 1))]}
+                          alt={activeProduct.name}
+                          className="max-h-[30rem] w-full object-cover"
+                        />
+                        {activeProductGallery.length > 1 && (
+                          <div className="pointer-events-none absolute inset-0 flex items-center justify-between p-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setActiveImageIndex((current) =>
+                                  current <= 0 ? activeProductGallery.length - 1 : current - 1
+                                )
+                              }
+                              className="pointer-events-auto min-h-10 rounded-full border border-white/40 bg-black/50 px-3 py-2 text-xs text-white"
+                            >
+                              Prev
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setActiveImageIndex((current) =>
+                                  current >= activeProductGallery.length - 1 ? 0 : current + 1
+                                )
+                              }
+                              className="pointer-events-auto min-h-10 rounded-full border border-white/40 bg-black/50 px-3 py-2 text-xs text-white"
+                            >
+                              Next
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      {activeProductGallery.length > 1 && (
+                        <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6">
+                          {activeProductGallery.map((image, idx) => (
+                            <button
+                              key={`${activeProduct.id}-image-${idx}`}
+                              type="button"
+                              onClick={() => setActiveImageIndex(idx)}
+                              className={`overflow-hidden rounded-lg border ${idx === activeImageIndex ? "border-gold/70" : "border-white/20"}`}
+                            >
+                              <img src={image} alt="" className="h-16 w-full object-cover" />
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-white/15 bg-black/35 p-6 text-sm text-white/60">
+                      No product images uploaded yet.
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <p className="text-sm text-white/70 whitespace-pre-wrap">{activeProduct.description || "No description added yet."}</p>
+
+                  {(() => {
+                    const currentVariantId = selectedVariants[activeProduct.id] || activeProduct.defaultVariant?.id || "";
+                    const currentVariant = activeProduct.variants.find((item) => item.id === currentVariantId) || activeProduct.defaultVariant;
+                    const stock = currentVariant ? getVariantStockState(currentVariant) : { outOfStock: false, lowStock: false, remaining: null };
+                    const ratings = activeProduct.reviews.map((item) => item.rating);
+                    return (
+                      <div className="mt-4 rounded-2xl border border-white/15 bg-black/35 p-4">
+                        <p className="text-[10px] uppercase tracking-[0.22em] text-white/55">Pricing</p>
+                        <p className="mt-2 text-xl text-gold">{formatMoney(currentVariant?.price_cents || activeProduct.base_price_cents, activeProduct.currency)}</p>
+                        <p className="mt-1 text-xs text-white/55">
+                          {ratings.length ? `${avgRating(ratings)} / 5 (${ratings.length} reviews)` : "No ratings yet"}
+                        </p>
+
+                        {!!activeProduct.variants.length && (
+                          <select
+                            value={currentVariantId}
+                            onChange={(event) => updateSelectedVariant(activeProduct.id, event.target.value)}
+                            className="mt-3 w-full rounded-xl border border-white/20 bg-black/40 px-3 py-2 text-sm min-h-11"
+                          >
+                            {activeProduct.variants.map((variant) => (
+                              <option key={variant.id} value={variant.id}>
+                                {variant.title} ({formatMoney(variant.price_cents, activeProduct.currency)})
+                              </option>
+                            ))}
+                          </select>
+                        )}
+
+                        {stock.outOfStock && (
+                          <p className="mt-3 inline-flex rounded-full border border-rose-400/50 bg-rose-500/10 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-rose-200">
+                            Out of stock
+                          </p>
+                        )}
+                        {!stock.outOfStock && stock.lowStock && (
+                          <p className="mt-3 inline-flex rounded-full border border-gold/50 bg-gold/10 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-gold">
+                            Low stock: {stock.remaining} left
+                          </p>
+                        )}
+
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => orderNow(activeProduct)}
+                            disabled={checkingOut || stock.outOfStock}
+                            className="min-h-11 rounded-full bg-ember px-5 py-2 text-[11px] uppercase tracking-[0.24em] text-ink disabled:opacity-50"
+                          >
+                            {checkingOut ? "Redirecting..." : "Order now"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => addToCart(activeProduct)}
+                            disabled={stock.outOfStock}
+                            className="min-h-11 rounded-full border border-white/30 px-5 py-2 text-[11px] uppercase tracking-[0.24em] text-white/85 disabled:opacity-50"
+                          >
+                            Add to cart
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => toggleWishlist(activeProduct.id)}
+                            className="min-h-11 rounded-full border border-gold/45 px-5 py-2 text-[11px] uppercase tracking-[0.24em] text-gold"
+                          >
+                            {wishlist.includes(activeProduct.id) ? "Wishlisted" : "Wishlist"}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

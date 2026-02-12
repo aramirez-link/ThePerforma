@@ -7,20 +7,20 @@
 6 silly config load:file:C:\Users\arami\AppData\Roaming\npm\etc\npmrc
 7 verbose title npm run build
 8 verbose argv "run" "build"
-9 verbose logfile logs-max:10 dir:C:\Projects\The-Performa\.npm-cache\_logs\2026-02-10T23_43_54_976Z-
-10 verbose logfile C:\Projects\The-Performa\.npm-cache\_logs\2026-02-10T23_43_54_976Z-debug-0.log
+9 verbose logfile logs-max:10 dir:C:\Projects\The-Performa\.npm-cache\_logs\2026-02-12T07_04_40_748Z-
+10 verbose logfile C:\Projects\The-Performa\.npm-cache\_logs\2026-02-12T07_04_40_748Z-debug-0.log
 11 silly logfile start cleaning logs, removing 2 files
-12 silly logfile error removing log file C:\Projects\The-Performa\.npm-cache\_logs\2026-02-10T22_53_08_681Z-debug-0.log [Error: EPERM: operation not permitted, unlink 'C:\Projects\The-Performa\.npm-cache\_logs\2026-02-10T22_53_08_681Z-debug-0.log'] {
+12 silly logfile error removing log file C:\Projects\The-Performa\.npm-cache\_logs\2026-02-12T05_30_02_658Z-debug-0.log [Error: EPERM: operation not permitted, unlink 'C:\Projects\The-Performa\.npm-cache\_logs\2026-02-12T05_30_02_658Z-debug-0.log'] {
 12 silly logfile   errno: -4048,
 12 silly logfile   code: 'EPERM',
 12 silly logfile   syscall: 'unlink',
-12 silly logfile   path: 'C:\\Projects\\The-Performa\\.npm-cache\\_logs\\2026-02-10T22_53_08_681Z-debug-0.log'
+12 silly logfile   path: 'C:\\Projects\\The-Performa\\.npm-cache\\_logs\\2026-02-12T05_30_02_658Z-debug-0.log'
 12 silly logfile }
-13 silly logfile error removing log file C:\Projects\The-Performa\.npm-cache\_logs\2026-02-10T22_54_46_477Z-debug-0.log [Error: EPERM: operation not permitted, unlink 'C:\Projects\The-Performa\.npm-cache\_logs\2026-02-10T22_54_46_477Z-debug-0.log'] {
+13 silly logfile error removing log file C:\Projects\The-Performa\.npm-cache\_logs\2026-02-12T05_33_31_029Z-debug-0.log [Error: EPERM: operation not permitted, unlink 'C:\Projects\The-Performa\.npm-cache\_logs\2026-02-12T05_33_31_029Z-debug-0.log'] {
 13 silly logfile   errno: -4048,
 13 silly logfile   code: 'EPERM',
 13 silly logfile   syscall: 'unlink',
-13 silly logfile   path: 'C:\\Projects\\The-Performa\\.npm-cache\\_logs\\2026-02-10T22_54_46_477Z-debug-0.log'
+13 silly logfile   path: 'C:\\Projects\\The-Performa\\.npm-cache\\_logs\\2026-02-12T05_33_31_029Z-debug-0.log'
 13 silly logfile }
 14 silly logfile done cleaning log files
 15 verbose cwd C:\Projects\The-Performa
