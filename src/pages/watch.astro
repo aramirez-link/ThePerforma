@@ -5,6 +5,21 @@ import PerformanceMode from "../components/PerformanceMode";
 import WatchPlaylist from "../components/WatchPlaylist";
 import LiveStreamHub from "../components/LiveStreamHub";
 import watch from "../../content/watch.json";
+
+const miniConcertSeries = [
+  {
+    title: "Mini Concert Series - Episode 1",
+    embedUrl: "https://www.youtube.com/embed/70AeQqxEKd0"
+  }
+];
+
+const cookingWithPerforma = [
+  {
+    title: "Cooking with the Performa - Episode 1",
+    embedUrl: "https://www.youtube.com/embed/StpHxTDWwic"
+  }
+];
+
 const youtubeChannelUrl = "https://www.youtube.com/@chipleetheperforma";
 ---
 <BaseLayout title="Watch | The Performa" description="Featured performance reels and full sets.">
@@ -44,6 +59,50 @@ const youtubeChannelUrl = "https://www.youtube.com/@chipleetheperforma";
       </ol>
     </div>
   </section>
+  <Section
+    eyebrow="Watch"
+    title="Mini Concert Series"
+    subtitle="Exclusive short-form concert drops from The Performa."
+  >
+    <div class="grid gap-4 md:grid-cols-2">
+      {miniConcertSeries.map((video) => (
+        <article class="rounded-[1.4rem] border border-white/15 bg-black/45 p-3 shadow-[0_0_40px_rgba(242,84,45,0.06)]">
+          <div class="aspect-video overflow-hidden rounded-xl border border-white/10 bg-black">
+            <iframe
+              src={video.embedUrl}
+              title={video.title}
+              class="h-full w-full"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowfullscreen
+            ></iframe>
+          </div>
+          <p class="mt-3 text-sm text-white/85">{video.title}</p>
+        </article>
+      ))}
+    </div>
+  </Section>
+  <Section
+    eyebrow="Watch"
+    title="Cooking with the Performa"
+    subtitle="Behind-the-scenes kitchen sessions and lifestyle clips from The Performa."
+  >
+    <div class="grid gap-4 md:grid-cols-2">
+      {cookingWithPerforma.map((video) => (
+        <article class="rounded-[1.4rem] border border-white/15 bg-black/45 p-3 shadow-[0_0_40px_rgba(242,84,45,0.06)]">
+          <div class="aspect-video overflow-hidden rounded-xl border border-white/10 bg-black">
+            <iframe
+              src={video.embedUrl}
+              title={video.title}
+              class="h-full w-full"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowfullscreen
+            ></iframe>
+          </div>
+          <p class="mt-3 text-sm text-white/85">{video.title}</p>
+        </article>
+      ))}
+    </div>
+  </Section>
   <Section eyebrow="Watch" title="Featured Reels" subtitle="Curated moments from the mainstage - builds, drops, and room-shift transitions.">
     <PerformanceMode client:load>
       <WatchPlaylist items={watch} />

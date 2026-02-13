@@ -1,23 +1,23 @@
 [
   {
-    "title": "Chip Lee - Nah War With You",
+    "title": "Chip Lee - Live Reel 2",
     "platform": "YouTube",
-    "embedUrl": "https://www.youtube.com/embed/BzRA4f-cwWQ",
-    "thumbnail": "/assets/img/200NewChip_4K.jpg",
-    "featured": true
+    "embedUrl": "https://www.youtube.com/embed/x4iF1AXYWn4",
+    "thumbnail": "https://i.ytimg.com/vi/x4iF1AXYWn4/hqdefault.jpg",
+    "featured": false
   },
   {
-    "title": "Chip Lee - Throwback Concert 2001",
+    "title": "Chip Lee - Live Reel 3",
     "platform": "YouTube",
-    "embedUrl": "https://www.youtube.com/embed/PvrXChRa7LI",
-    "thumbnail": "/assets/img/084NewChip_4K.jpg",
-    "featured": true
+    "embedUrl": "https://www.youtube.com/embed/cQWf0qNAuh0",
+    "thumbnail": "https://i.ytimg.com/vi/cQWf0qNAuh0/hqdefault.jpg",
+    "featured": false
   },
   {
-    "title": "Chip Lee - Afterhours Live",
+    "title": "Chip Lee - Live Reel 4",
     "platform": "YouTube",
-    "embedUrl": "https://www.youtube.com/embed/dQw4w9WgXcQ",
-    "thumbnail": "/assets/img/134NewChip_4K.jpg",
+    "embedUrl": "https://www.youtube.com/embed/ZWpxlUwwYoE",
+    "thumbnail": "https://i.ytimg.com/vi/ZWpxlUwwYoE/hqdefault.jpg",
     "featured": false
   }
 ]
