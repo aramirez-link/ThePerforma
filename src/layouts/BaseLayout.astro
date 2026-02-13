@@ -219,8 +219,19 @@ const partnerSchema = {
       }
       renderBadgeDocks();
 
-      if (!prefersReduced.matches) {
+      const setupRevealObserver = () => {
         const revealItems = document.querySelectorAll("[data-reveal]");
+        if (!revealItems.length) return;
+
+        if (prefersReduced.matches || !("IntersectionObserver" in window)) {
+          revealItems.forEach((item) => item.classList.add("is-visible"));
+          return;
+        }
+
+        if (window.__performaRevealObserver) {
+          window.__performaRevealObserver.disconnect();
+        }
+
         const observer = new IntersectionObserver(
           (entries) => {
             entries.forEach((entry) => {
@@ -232,8 +243,16 @@ const partnerSchema = {
           },
           { threshold: 0.2 }
         );
+
         revealItems.forEach((item) => observer.observe(item));
+        window.__performaRevealObserver = observer;
+      };
+
+      if (!window.__performaRevealBound) {
+        window.__performaRevealBound = true;
+        document.addEventListener("astro:after-swap", setupRevealObserver);
       }
+      setupRevealObserver();
     </script>
   </body>
 </html>

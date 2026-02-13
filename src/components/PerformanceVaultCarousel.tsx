@@ -24,7 +24,7 @@ export default function PerformanceVaultCarousel({ items, stageActive }: Props) 
   const [activeIndex, setActiveIndex] = useState(0);
   const [open, setOpen] = useState(false);
   const current = featured[activeIndex];
-  const posterPosition = current.thumbnail.includes("200NewChip_4K.jpg") ? "50% 22%" : "50% 50%";
+  const posterPosition = current.thumbnail.includes("200NewChip_4K.jpg") ? "50% 25%" : "50% 50%";
 
   useEffect(() => {
     if (!open) return;
