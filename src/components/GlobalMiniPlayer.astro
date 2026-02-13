@@ -24,19 +24,19 @@ const initialTrack = soundcloudTracks[0] ?? fallbackTrack;
       <button
         id="global-mini-player-prev"
         type="button"
-        class="rounded-full border border-white/25 px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-white/80 hover:border-gold/60 hover:text-gold"
+        class="rounded-full border border-white/25 px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-white/80 hover:border-gold/60 hover:text-gold min-h-11"
         aria-label="Previous track"
       >&lt;</button>
       <button
         id="global-mini-player-next"
         type="button"
-        class="rounded-full border border-white/25 px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-white/80 hover:border-gold/60 hover:text-gold"
+        class="rounded-full border border-white/25 px-2 py-1 text-[10px] uppercase tracking-[0.2em] text-white/80 hover:border-gold/60 hover:text-gold min-h-11"
         aria-label="Next track"
       >&gt;</button>
       <button
         id="global-mini-player-toggle"
         type="button"
-        class="rounded-full border border-white/25 px-3 py-1 text-[10px] uppercase tracking-[0.26em] text-white/80 hover:border-gold/60 hover:text-gold"
+        class="rounded-full border border-white/25 px-3 py-1 text-[10px] uppercase tracking-[0.26em] text-white/80 hover:border-gold/60 hover:text-gold min-h-11"
         aria-controls="global-mini-player-panel"
         aria-expanded="true"
       >
@@ -99,7 +99,9 @@ const initialTrack = soundcloudTracks[0] ?? fallbackTrack;
       toggle.setAttribute("aria-expanded", String(!collapsed));
     };
 
-    const saved = localStorage.getItem(storageKey) === "true";
+    const savedRaw = localStorage.getItem(storageKey);
+    const isMobile = window.matchMedia("(max-width: 640px)").matches;
+    const saved = savedRaw === null ? isMobile : savedRaw === "true";
     setCollapsed(saved);
     syncTrack();
 

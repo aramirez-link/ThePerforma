@@ -62,6 +62,46 @@ const toolkitLinks = [
       </div>
 
       <div class="flex items-center gap-2 md:gap-3">
+        <details class="relative lg:hidden">
+          <summary class="inline-flex min-h-11 items-center justify-center rounded-full border border-white/25 px-4 py-2 text-[10px] uppercase tracking-[0.28em] text-white/80 transition hover:border-white/50 hover:text-white">
+            Menu
+          </summary>
+          <div class="absolute right-0 mt-3 w-[min(20rem,92vw)] max-h-[75vh] overflow-auto rounded-2xl border border-white/15 bg-black/90 p-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] shadow-[0_16px_60px_rgba(0,0,0,0.55)] backdrop-blur-xl">
+            <div class="mb-4 space-y-2">
+              {primaryLinks.map((link) => (
+                <a
+                  href={link.href}
+                  data-internal-nav
+                  class="flex min-h-11 items-center rounded-xl border border-white/15 bg-black/30 px-4 text-[10px] uppercase tracking-[0.28em] text-white/80 transition hover:border-white/35 hover:text-white"
+                >
+                  {link.label}
+                </a>
+              ))}
+            </div>
+            <div class="border-t border-white/10 pt-4">
+              <p class="mb-2 text-[10px] uppercase tracking-[0.3em] text-white/50">Toolkit</p>
+              <div class="grid gap-2">
+                {toolkitLinks.map((link) => (
+                  <a
+                    href={link.href}
+                    data-internal-nav
+                    data-admin-only={link.adminOnly ? "true" : "false"}
+                    class={`flex min-h-11 items-center rounded-xl border border-white/15 bg-black/30 px-4 text-[10px] uppercase tracking-[0.25em] text-white/75 transition hover:border-white/35 hover:text-white ${link.adminOnly ? "hidden" : ""}`}
+                  >
+                    {link.label}
+                  </a>
+                ))}
+              </div>
+            </div>
+            <a
+              href="/book"
+              data-internal-nav
+              class="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-full bg-ember px-4 py-2 text-[10px] uppercase tracking-[0.28em] text-ink shadow-[0_0_25px_rgba(242,84,45,0.35)] transition hover:shadow-[0_0_35px_rgba(242,84,45,0.5)]"
+            >
+              Create your Experience
+            </a>
+          </div>
+        </details>
         <a
           href="/book"
           data-internal-nav
