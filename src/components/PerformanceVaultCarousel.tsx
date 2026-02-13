@@ -24,6 +24,7 @@ export default function PerformanceVaultCarousel({ items, stageActive }: Props) 
   const [activeIndex, setActiveIndex] = useState(0);
   const [open, setOpen] = useState(false);
   const current = featured[activeIndex];
+  const posterPosition = current.thumbnail.includes("200NewChip_4K.jpg") ? "50% 22%" : "50% 50%";
 
   useEffect(() => {
     if (!open) return;
@@ -55,7 +56,12 @@ export default function PerformanceVaultCarousel({ items, stageActive }: Props) 
         className={`group relative w-full overflow-hidden rounded-[2rem] border border-white/20 bg-black/70 p-2 transition ${stageActive ? "shadow-[0_0_80px_rgba(242,84,45,0.25)]" : ""}`}
       >
         <div className="relative aspect-video overflow-hidden rounded-[1.6rem] bg-black">
-          <img src={current.thumbnail} alt={current.title} className="h-full w-full object-cover opacity-75 transition duration-500 group-hover:scale-[1.03] group-hover:opacity-95" />
+          <img
+            src={current.thumbnail}
+            alt={current.title}
+            style={{ objectPosition: posterPosition }}
+            className="h-full w-full object-cover opacity-75 transition duration-500 group-hover:scale-[1.03] group-hover:opacity-95"
+          />
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(255,255,255,0.03),rgba(0,0,0,0.72))]" />
           <div className="absolute left-4 top-4 overflow-hidden rounded-full border border-gold/40 bg-black/35 p-1.5 md:left-6 md:top-6">
             <img

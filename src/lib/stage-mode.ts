@@ -26,10 +26,27 @@ export const defaultStageMode: StageMode = {
   theme: "ember"
 };
 
+const STAGE_KEY = "the-performa-stage-mode";
+
+function normalizeStageMode(input: Partial<StageMode> | null | undefined): StageMode {
+  const merged = { ...defaultStageMode, ...(input ?? {}) };
+  return {
+    ...merged,
+    intensity: Math.min(100, Math.max(10, Number(merged.intensity) || defaultStageMode.intensity)),
+    hue: Math.min(360, Math.max(0, Number(merged.hue) || defaultStageMode.hue))
+  };
+}
+
 export function readStageMode(): StageMode {
   if (typeof window === "undefined") return defaultStageMode;
-  if (!window.__stageMode) return defaultStageMode;
-  return window.__stageMode.get();
+  if (window.__stageMode) return normalizeStageMode(window.__stageMode.get());
+  try {
+    const raw = localStorage.getItem(STAGE_KEY);
+    if (!raw) return defaultStageMode;
+    return normalizeStageMode(JSON.parse(raw) as Partial<StageMode>);
+  } catch {
+    return defaultStageMode;
+  }
 }
 
 export function writeStageMode(patch: Partial<StageMode>) {

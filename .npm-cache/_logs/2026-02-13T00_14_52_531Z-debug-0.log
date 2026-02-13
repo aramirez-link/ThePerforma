@@ -7,7 +7,7 @@
 6 silly config load:file:C:\Users\arami\AppData\Roaming\npm\etc\npmrc
 7 verbose title npm run dev
 8 verbose argv "run" "dev"
-9 verbose logfile logs-max:10 dir:C:\Projects\The-Performa\.npm-cache\_logs\2026-02-12T05_30_02_658Z-
-10 verbose logfile C:\Projects\The-Performa\.npm-cache\_logs\2026-02-12T05_30_02_658Z-debug-0.log
-11 silly logfile start cleaning logs, removing 1 files
+9 verbose logfile logs-max:10 dir:C:\Projects\The-Performa\.npm-cache\_logs\2026-02-13T00_14_52_531Z-
+10 verbose logfile C:\Projects\The-Performa\.npm-cache\_logs\2026-02-13T00_14_52_531Z-debug-0.log
+11 silly logfile start cleaning logs, removing 5 files
 12 silly logfile done cleaning log files

@@ -165,6 +165,18 @@ const partnerSchema = {
         }
       };
 
+      const resyncStageMode = () => {
+        stageMode = readStoredMode();
+        if (prefersReduced.matches) stageMode.immersive = false;
+        syncBody(stageMode);
+        listeners.forEach((cb) => cb(stageMode));
+      };
+
+      document.addEventListener("astro:after-swap", resyncStageMode);
+      window.addEventListener("storage", (event) => {
+        if (event.key === STAGE_KEY) resyncStageMode();
+      });
+
       const renderBadgeDocks = () => {
         let badges = [];
         try {
