@@ -399,7 +399,7 @@ export default function EngagementHub() {
   return (
     <aside
       id="engagement-hub"
-      className="fixed left-4 bottom-4 z-40 w-[min(92vw,360px)] max-h-[calc(100dvh-8rem)] rounded-2xl border bg-black/75 p-3 shadow-[0_12px_42px_rgba(0,0,0,0.58)] backdrop-blur-xl sm:max-h-[calc(100dvh-7rem)]"
+      className="hidden fixed left-4 bottom-4 z-40 w-[min(92vw,360px)] max-h-[calc(100dvh-8rem)] rounded-2xl border bg-black/75 p-3 shadow-[0_12px_42px_rgba(0,0,0,0.58)] backdrop-blur-xl sm:block sm:max-h-[calc(100dvh-7rem)]"
       style={{
         borderColor: "rgba(var(--accent-rgb), 0.45)",
         boxShadow: "0 12px 42px rgba(0,0,0,0.58), 0 0 36px rgba(var(--accent-rgb), 0.2)"

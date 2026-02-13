@@ -127,7 +127,7 @@ export default function StageModePortal({ vaultItems }: Props) {
 
       <StageControlDeck mode={mode} visible={deckVisible} onModePatch={onPatch} onEnterVault={onEnterVault} onBooking={() => { setDeckVisible(false); setBookingOpen(true); }} />
 
-      <div className="relative z-20 grid gap-8 pt-22 md:pt-24 md:grid-cols-[1.1fr_1fr] md:items-center">
+      <div className="relative z-20 grid gap-8 pt-32 md:pt-32 md:grid-cols-[1.1fr_1fr] md:items-center">
         <div className="space-y-5">
           <p className="text-xs uppercase tracking-[0.38em] text-haze">Lobby Mode / Stage Mode</p>
           <h1 className="font-display text-4xl leading-tight md:text-6xl">Chip Lee. Unlimited Signal.</h1>
