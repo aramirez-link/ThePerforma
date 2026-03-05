@@ -213,8 +213,23 @@ export const createLiveHandler = (deps: {
     if (createError || !created) return json(500, { error: createError?.message || "Unable to create session." });
 
     const draft = created as LiveSessionRow;
-    const input = await adapter.createLiveInput({ sessionId: draft.id, title: draft.title });
-    const ingestSecretRef = await createSecretRef(deps.supabase, input.streamKey, deps.encryptionKey);
+    let input;
+    let ingestSecretRef = "";
+    try {
+      input = await adapter.createLiveInput({ sessionId: draft.id, title: draft.title });
+      ingestSecretRef = await createSecretRef(deps.supabase, input.streamKey, deps.encryptionKey);
+    } catch (error) {
+      await deps.supabase
+        .from("live_sessions")
+        .update({
+          status: "DRAFT",
+          ingest_status: "ERROR"
+        })
+        .eq("id", draft.id);
+      return json(502, {
+        error: error instanceof Error ? error.message : "Provider input creation failed."
+      });
+    }
 
     const { data: updated, error: updateError } = await deps.supabase
       .from("live_sessions")
@@ -518,20 +533,26 @@ export const createLiveHandler = (deps: {
     if (!deps.encryptionKey) return json(500, { error: "Missing LIVE_SECRET_ENCRYPTION_KEY runtime secret." });
 
     const route = resolveRoute(new URL(req.url).pathname);
-    const rawBody = await req.text();
-    let body: Record<string, unknown> = {};
     try {
-      body = JSON.parse(rawBody || "{}") as Record<string, unknown>;
-    } catch {
-      return json(400, { error: "Invalid JSON payload." });
+      const rawBody = await req.text();
+      let body: Record<string, unknown> = {};
+      try {
+        body = JSON.parse(rawBody || "{}") as Record<string, unknown>;
+      } catch {
+        return json(400, { error: "Invalid JSON payload." });
+      }
+
+      if (route === "session.create") return routeSessionCreate(req, body);
+      if (route === "destination.upsert") return routeDestinationUpsert(req, body);
+      if (route === "session.start") return routeSessionStart(req, body);
+      if (route === "session.end") return routeSessionEnd(req, body);
+      if (route === "webhook") return routeWebhook(req, rawBody);
+
+      return json(404, { error: "Unknown live route." });
+    } catch (error) {
+      return json(500, {
+        error: error instanceof Error ? error.message : "Unhandled live function error."
+      });
     }
-
-    if (route === "session.create") return routeSessionCreate(req, body);
-    if (route === "destination.upsert") return routeDestinationUpsert(req, body);
-    if (route === "session.start") return routeSessionStart(req, body);
-    if (route === "session.end") return routeSessionEnd(req, body);
-    if (route === "webhook") return routeWebhook(req, rawBody);
-
-    return json(404, { error: "Unknown live route." });
   };
 };
