@@ -88,6 +88,85 @@ Dispatch metrics:
 - `go-live-blast` supports `GET` (token protected) for dispatch rows.
 - `track-live-engagement` logs email opens/clicks and powers health panel counts.
 
+## Performa Live multi-stream control plane (Cloudflare adapter)
+
+This repo now includes a static-safe control plane for multi-stream sessions:
+- Session lifecycle state machine: `DRAFT -> READY -> LIVE -> ENDED`
+- Destination states: `DISABLED | CONNECTING | LIVE | ERROR`
+- Encrypted stream key storage in `secret_store` (never sent back to clients)
+- Audit trails in `audit_log`
+- Health telemetry (`ingest_status`, heartbeat, webhook timestamps)
+
+Streaming/transcoding is not run on `theperforma.com`; this app only manages control state and provider API calls through Supabase Edge Functions.
+
+### Database
+
+Re-run `supabase/fan_vault_schema.sql` to create:
+- `live_sessions`
+- `live_destinations`
+- `secret_store`
+- `audit_log`
+
+Or run migration file `supabase/migrations/20260305_performa_live.sql`.
+
+### Edge Function
+
+Deploy the live control function:
+
+```bash
+supabase functions deploy live
+```
+
+### Required secrets
+
+```bash
+supabase secrets set LIVE_SECRET_ENCRYPTION_KEY=BASE64_32_BYTE_KEY
+supabase secrets set CF_STREAM_ACCOUNT_ID=your_cloudflare_account_id
+supabase secrets set CF_STREAM_API_TOKEN=your_cloudflare_stream_token
+```
+
+Optional:
+
+```bash
+supabase secrets set LIVE_WEBHOOK_SECRET=shared_hmac_secret
+```
+
+### API routes
+
+The `live` function exposes:
+- `POST /live/session.create`
+- `POST /live/destination.upsert`
+- `POST /live/session.start`
+- `POST /live/session.end`
+- `POST /live/webhook`
+
+### UI routes
+
+- `/live` creator session list + existing public live page content
+- `/live/new` create session wizard
+- `/live/[id]` go-live console deep link (resolved through static fallback redirect)
+- `/live/session?id=<session_uuid>` canonical static console route
+
+GitHub Pages deep links like `/live/<session_uuid>` are redirected to `/live/session?id=<session_uuid>` via the static `404.html` fallback.
+
+### Adding another provider adapter
+
+1. Add implementation under `supabase/functions/live/_shared/provider.<name>.ts`.
+2. Implement the adapter contract:
+   - `createLiveInput`
+   - `createOrUpdateOutput`
+   - `setOutputEnabled`
+   - `mapWebhookToStatus`
+3. Wire selection in `supabase/functions/live/_shared/provider.ts`.
+4. Add mapping tests in `supabase/functions/live/provider_test.ts`.
+
+### Security notes
+
+- Destination stream keys and ingest keys are encrypted server-side with AES-256-GCM before DB storage.
+- `secret_store` is RLS-locked (`false` policies for client roles).
+- Ownership checks are enforced on every session/destination mutation.
+- Credentials are never returned from `destination.upsert`; ingest key is one-time reveal on `session.create` only.
+
 ## Online fan store (Stripe + Supabase)
 
 This repo now includes a store storefront and admin interface:

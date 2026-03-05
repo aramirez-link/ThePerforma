@@ -3,6 +3,18 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 import Button from "../components/Button.astro";
 ---
 <BaseLayout title="404 | The Performa" description="Page not found.">
+  <script is:inline>
+    (() => {
+      const parts = window.location.pathname.split("/").filter(Boolean);
+      if (parts.length === 2 && parts[0] === "live") {
+        const candidate = parts[1];
+        if (candidate && candidate !== "new" && candidate !== "session") {
+          const next = `/live/session?id=${encodeURIComponent(candidate)}`;
+          window.location.replace(next);
+        }
+      }
+    })();
+  </script>
   <section class="mx-auto max-w-4xl px-6 py-24 text-center">
     <p class="text-xs uppercase tracking-[0.4em] text-haze">Lost in the dark</p>
     <h1 class="mt-4 font-display text-5xl">404</h1>
