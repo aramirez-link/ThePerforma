@@ -2,6 +2,7 @@ import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { createLiveHandler, resolveRoute, verifyWebhookSignature } from "./handler.ts";
 
 Deno.test("resolveRoute maps supported live subpaths", () => {
+  assertEquals(resolveRoute("/live/public.status"), "public.status");
   assertEquals(resolveRoute("/live/session.create"), "session.create");
   assertEquals(resolveRoute("/live/session.sync"), "session.sync");
   assertEquals(resolveRoute("/live/destination.upsert"), "destination.upsert");

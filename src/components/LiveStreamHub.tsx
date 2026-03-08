@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { getCurrentUser, isCloudVaultEnabled, type VaultUser } from "../lib/fanVault";
 import OperatorLiveConsole from "./OperatorLiveConsole";
+import PerformaLivePlayer from "./PerformaLivePlayer";
+import { getPublicLiveStatus, type PublicLiveStatus } from "../lib/performaLive";
 
 type Platform = "youtube" | "instagram" | "facebook" | "twitch" | "multi";
 
@@ -68,6 +70,7 @@ export default function LiveStreamHub() {
   const [notice, setNotice] = useState("");
   const [prefs, setPrefs] = useState<LiveAlertPreference>(defaultPreference);
   const [liveStatus, setLiveStatus] = useState<{ status: string; updatedAt?: string } | null>(null);
+  const [publicLive, setPublicLive] = useState<PublicLiveStatus | null>(null);
   const operatorAllowlist = useMemo(
     () =>
       String(import.meta.env.PUBLIC_OPERATOR_EMAILS || "")
@@ -146,6 +149,16 @@ export default function LiveStreamHub() {
     };
   }, []);
 
+  useEffect(() => {
+    const load = async () => {
+      const result = await getPublicLiveStatus();
+      if (result.ok) setPublicLive(result.data);
+    };
+    void load();
+    const timer = window.setInterval(() => void load(), 15000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   const canSaveCloud = useMemo(() => isCloudVaultEnabled && !!user, [user]);
 
   const persist = async (next: LiveAlertPreference) => {
@@ -191,18 +204,30 @@ export default function LiveStreamHub() {
 
       <div className="mt-6 grid gap-5 lg:grid-cols-[1.6fr_1fr]">
         <div className="overflow-hidden rounded-2xl border border-white/15 bg-black/45">
-          <div className="aspect-video w-full">
-            <iframe
-              className="h-full w-full"
-              src={streamEmbedUrl}
-              title="Chip Lee Pop-Up Fan Stream"
-              loading="lazy"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-              allowFullScreen
+          {publicLive?.playbackId ? (
+            <PerformaLivePlayer
+              playbackId={publicLive.playbackId}
+              title={publicLive.title || "Performa Live Stream"}
+              isLive={Boolean(publicLive.isLive)}
             />
-          </div>
+          ) : (
+            <div className="aspect-video w-full">
+              <iframe
+                className="h-full w-full"
+                src={streamEmbedUrl}
+                title="Chip Lee Pop-Up Fan Stream"
+                loading="lazy"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+              />
+            </div>
+          )}
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 p-3">
-            <p className="text-xs text-white/65">Set this embed to the current live URL before going on air for pop-up stream sessions.</p>
+            <p className="text-xs text-white/65">
+              {publicLive?.playbackId
+                ? "Performa Live is now routed into this command deck player."
+                : "No active Performa live feed detected. Fallback channel embed is shown."}
+            </p>
             <a href="/watch" className="inline-flex min-h-11 items-center rounded-full border border-white/25 px-3 py-2 text-[10px] uppercase tracking-[0.2em] text-white/80">
               Open Watch
             </a>

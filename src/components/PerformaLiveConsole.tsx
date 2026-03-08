@@ -13,6 +13,7 @@ import {
   type LiveDestination,
   type LiveSession
 } from "../lib/performaLive";
+import PerformaLivePlayer from "./PerformaLivePlayer";
 
 type Props = {
   sessionId?: string;
@@ -142,6 +143,12 @@ export default function PerformaLiveConsole({ sessionId }: Props) {
         <IngestCard ingestUrl={session.ingest_url} ingestType={session.ingest_type} />
         <HealthPanel session={session} destinations={destinations} />
       </div>
+
+      <PerformaLivePlayer
+        playbackId={session.provider_playback_id}
+        title={session.title}
+        isLive={session.status === "LIVE" || String(session.ingest_status || "").toUpperCase() === "LIVE"}
+      />
 
       <DestinationsPanel
         sessionId={session.id}

@@ -10,6 +10,7 @@ Control-plane endpoints for Performa Live multi-stream sessions.
 - `POST /live/session.start`
 - `POST /live/session.end`
 - `POST /live/webhook`
+- `POST /live/public.status`
 
 ## Required runtime secrets
 

@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import PerformaLivePlayer from "./PerformaLivePlayer";
+import { getPublicLiveStatus, type PublicLiveStatus } from "../lib/performaLive";
 
 type Trend = "Rising" | "Steady" | "Cooling";
 
@@ -120,6 +122,7 @@ export default function SignalCommandCenter({
   const [assistantInput, setAssistantInput] = useState("");
   const [messages, setMessages] = useState<ClaudeMessage[]>([]);
   const [dropAwardedDay, setDropAwardedDay] = useState("");
+  const [publicLive, setPublicLive] = useState<PublicLiveStatus | null>(null);
   const syncStartedAtRef = useRef<number | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -180,6 +183,16 @@ export default function SignalCommandCenter({
 
   useEffect(() => {
     const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const load = async () => {
+      const result = await getPublicLiveStatus();
+      if (result.ok) setPublicLive(result.data);
+    };
+    void load();
+    const timer = window.setInterval(() => void load(), 15000);
     return () => window.clearInterval(timer);
   }, []);
 
@@ -246,6 +259,17 @@ export default function SignalCommandCenter({
       <p className="text-[10px] uppercase tracking-[0.28em] text-gold/85">Signal Command Center</p>
 
       <section className="mt-4 rounded-2xl border border-white/15 bg-black/30 p-3">
+        <p className="text-[10px] uppercase tracking-[0.24em] text-white/60">Performa Live</p>
+        <div className="mt-2 overflow-hidden rounded-xl border border-white/10 bg-black/35">
+          <PerformaLivePlayer
+            playbackId={publicLive?.playbackId}
+            title={publicLive?.title || "Performa Live Stream"}
+            isLive={Boolean(publicLive?.isLive)}
+          />
+        </div>
+      </section>
+
+      <section className="mt-3 rounded-2xl border border-white/15 bg-black/30 p-3">
         <div className="flex items-center justify-between gap-2">
           <p className="text-[10px] uppercase tracking-[0.24em] text-white/60">Now Playing</p>
           <span className={`rounded-full border px-2 py-1 text-[9px] uppercase tracking-[0.18em] ${fanSyncEnabled ? "border-gold/55 text-gold" : "border-white/25 text-white/65"}`}>

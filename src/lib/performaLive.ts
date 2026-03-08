@@ -38,6 +38,16 @@ export type LiveDestination = {
   created_at: string;
 };
 
+export type PublicLiveStatus = {
+  sessionId: string;
+  title: string;
+  provider: LiveProvider;
+  status: LiveSessionStatus;
+  ingestStatus: string;
+  playbackId: string | null;
+  isLive: boolean;
+};
+
 type Result<T> = { ok: true; data: T } | { ok: false; error: string };
 
 const supabaseUrl = String(import.meta.env.PUBLIC_SUPABASE_URL || "").trim();
@@ -120,6 +130,23 @@ const callLiveFunction = async <T>(path: string, payload: Record<string, unknown
   return { ok: true, data: data as T };
 };
 
+const callLivePublicFunction = async <T>(path: string, payload: Record<string, unknown> = {}): Promise<Result<T>> => {
+  const projectRef = getProjectRef();
+  if (!projectRef) return { ok: false, error: "Supabase URL not configured." };
+  const response = await fetch(`https://${projectRef}.functions.supabase.co/live/${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    return { ok: false, error: String((data as any).error || "Live function call failed.") };
+  }
+  return { ok: true, data: data as T };
+};
+
 export const loadLiveSessions = async (): Promise<Result<LiveSession[]>> => {
   const client = getLiveSupabaseBrowser();
   const user = await getLiveUser();
@@ -178,3 +205,9 @@ export const endLiveSession = async (sessionId: string): Promise<Result<{ sessio
 
 export const syncLiveSession = async (sessionId: string): Promise<Result<{ session: LiveSession }>> =>
   callLiveFunction("session.sync", { sessionId });
+
+export const getPublicLiveStatus = async (): Promise<Result<PublicLiveStatus | null>> => {
+  const response = await callLivePublicFunction<{ session: PublicLiveStatus | null }>("public.status", {});
+  if (!response.ok) return response;
+  return { ok: true, data: response.data.session || null };
+};

@@ -24,6 +24,7 @@ export const json = (status: number, body: Record<string, unknown>) =>
 
 export const resolveRoute = (pathname: string) => {
   const clean = pathname.replace(/^\/+/, "");
+  if (clean.endsWith("public.status")) return "public.status";
   if (clean.endsWith("session.create")) return "session.create";
   if (clean.endsWith("session.sync")) return "session.sync";
   if (clean.endsWith("destination.upsert")) return "destination.upsert";
@@ -259,6 +260,37 @@ export const createLiveHandler = (deps: {
         url: input.ingestUrl,
         streamKey: input.streamKey,
         revealOnce: true
+      }
+    });
+  };
+
+  const routePublicStatus = async () => {
+    const { data, error } = await deps.supabase
+      .from("live_sessions")
+      .select("id,title,provider,status,ingest_status,provider_playback_id,started_at,created_at")
+      .eq("status", "LIVE")
+      .not("provider_playback_id", "is", null)
+      .order("started_at", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) return json(500, { error: error.message });
+
+    if (!data) {
+      return json(200, { ok: true, session: null });
+    }
+
+    return json(200, {
+      ok: true,
+      session: {
+        sessionId: String((data as any).id),
+        title: String((data as any).title || "Performa Live"),
+        provider: String((data as any).provider || "cloudflare_stream"),
+        status: String((data as any).status || "READY"),
+        ingestStatus: String((data as any).ingest_status || "CONNECTING"),
+        playbackId: (data as any).provider_playback_id ? String((data as any).provider_playback_id) : null,
+        isLive: String((data as any).status || "").toUpperCase() === "LIVE"
       }
     });
   };
@@ -586,6 +618,7 @@ export const createLiveHandler = (deps: {
       }
 
       if (route === "session.create") return routeSessionCreate(req, body);
+      if (route === "public.status") return routePublicStatus();
       if (route === "session.sync") return routeSessionSync(req, body);
       if (route === "destination.upsert") return routeDestinationUpsert(req, body);
       if (route === "session.start") return routeSessionStart(req, body);
