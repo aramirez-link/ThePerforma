@@ -1,6 +1,7 @@
 import type {
   DestinationRow,
   DestinationStatus,
+  IngestStatus,
   LiveProviderAdapter,
   LiveSessionRow,
   ProviderInput,
@@ -51,6 +52,16 @@ const inferDestinationStatus = (state: string | undefined): DestinationStatus =>
   if (value.includes("connected") || value === "live") return "LIVE";
   if (value.includes("error") || value.includes("failed")) return "ERROR";
   if (value.includes("disabled")) return "DISABLED";
+  return "CONNECTING";
+};
+
+const inferIngestStatus = (state: string | undefined): IngestStatus => {
+  const value = String(state || "").toLowerCase();
+  if (value.includes("connected") || value.includes("live")) return "LIVE";
+  if (value.includes("error") || value.includes("failed")) return "ERROR";
+  if (!value || value.includes("idle") || value.includes("inactive") || value.includes("disconnected")) {
+    return "CONNECTING";
+  }
   return "CONNECTING";
 };
 
@@ -149,6 +160,28 @@ export const createCloudflareAdapter = (cfg: CloudflareConfig): LiveProviderAdap
     return { ok: true as const };
   };
 
+  const getIngestStatus = async (args: { session: LiveSessionRow }) => {
+    if (!args.session.provider_input_id) {
+      return { ingestStatus: "CONNECTING" as const, heartbeatAt: null };
+    }
+    const result = await cfFetch<Record<string, unknown>>(
+      cfg,
+      `/stream/live_inputs/${encodeURIComponent(args.session.provider_input_id)}`,
+      { method: "GET" }
+    );
+    const state = String(
+      result.status ||
+      result.state ||
+      result.connectionState ||
+      result.current_state ||
+      ""
+    );
+    return {
+      ingestStatus: inferIngestStatus(state),
+      heartbeatAt: new Date().toISOString()
+    };
+  };
+
   const mapWebhookToStatus = (payload: unknown): WebhookStatusUpdate | null => {
     if (!payload || typeof payload !== "object") return null;
     const body = payload as Record<string, unknown>;
@@ -186,7 +219,7 @@ export const createCloudflareAdapter = (cfg: CloudflareConfig): LiveProviderAdap
     createLiveInput,
     createOrUpdateOutput,
     setOutputEnabled,
+    getIngestStatus,
     mapWebhookToStatus
   };
 };
-

@@ -25,6 +25,7 @@ export const json = (status: number, body: Record<string, unknown>) =>
 export const resolveRoute = (pathname: string) => {
   const clean = pathname.replace(/^\/+/, "");
   if (clean.endsWith("session.create")) return "session.create";
+  if (clean.endsWith("session.sync")) return "session.sync";
   if (clean.endsWith("destination.upsert")) return "destination.upsert";
   if (clean.endsWith("session.start")) return "session.start";
   if (clean.endsWith("session.end")) return "session.end";
@@ -367,6 +368,48 @@ export const createLiveHandler = (deps: {
     return json(200, { ok: true, destination });
   };
 
+  const routeSessionSync = async (req: Request, body: SessionMutationPayload) => {
+    const actor = await getActor(deps.supabase, req);
+    if (!actor) return json(401, { error: "Unauthorized." });
+    const sessionId = asText(body.sessionId);
+    if (!sessionId) return json(400, { error: "sessionId is required." });
+
+    const session = await loadOwnedSession(deps.supabase, sessionId, actor.id);
+    if (!session) return json(404, { error: "Session not found." });
+
+    const adapter = createProviderAdapter(session.provider);
+    if (!adapter.getIngestStatus) {
+      return json(200, { ok: true, session, idempotent: true });
+    }
+
+    try {
+      const status = await adapter.getIngestStatus({ session });
+      const patch: Record<string, unknown> = {
+        ingest_status: parseIngestStatus(status.ingestStatus),
+        ingest_last_heartbeat_at: status.heartbeatAt || now()
+      };
+      if (status.ingestStatus === "LIVE") {
+        patch.last_webhook_at = now();
+      }
+      const { data: updated, error } = await deps.supabase
+        .from("live_sessions")
+        .update(patch)
+        .eq("id", session.id)
+        .select("*")
+        .single();
+      if (error || !updated) return json(500, { error: error?.message || "Unable to sync session." });
+      return json(200, { ok: true, session: updated });
+    } catch (error) {
+      await deps.supabase
+        .from("live_sessions")
+        .update({
+          ingest_status: "ERROR"
+        })
+        .eq("id", session.id);
+      return json(502, { error: error instanceof Error ? error.message : "Provider sync failed." });
+    }
+  };
+
   const routeSessionStart = async (req: Request, body: SessionMutationPayload) => {
     const actor = await getActor(deps.supabase, req);
     if (!actor) return json(401, { error: "Unauthorized." });
@@ -543,6 +586,7 @@ export const createLiveHandler = (deps: {
       }
 
       if (route === "session.create") return routeSessionCreate(req, body);
+      if (route === "session.sync") return routeSessionSync(req, body);
       if (route === "destination.upsert") return routeDestinationUpsert(req, body);
       if (route === "session.start") return routeSessionStart(req, body);
       if (route === "session.end") return routeSessionEnd(req, body);

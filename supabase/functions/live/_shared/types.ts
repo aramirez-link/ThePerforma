@@ -80,6 +80,8 @@ export type LiveProviderAdapter = {
     destination: DestinationRow;
     enabled: boolean;
   }) => Promise<{ ok: true }>;
+  getIngestStatus?: (args: {
+    session: LiveSessionRow;
+  }) => Promise<{ ingestStatus: IngestStatus; heartbeatAt?: string | null }>;
   mapWebhookToStatus: (payload: unknown) => WebhookStatusUpdate | null;
 };
-

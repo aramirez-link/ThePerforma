@@ -7,6 +7,7 @@ import {
   endLiveSession,
   loadLiveDestinations,
   loadLiveSessionById,
+  syncLiveSession,
   startLiveSession,
   upsertLiveDestination,
   type LiveDestination,
@@ -41,6 +42,8 @@ export default function PerformaLiveConsole({ sessionId }: Props) {
       return;
     }
     setLoading(true);
+    // Poll provider ingest state (fallback when webhooks are delayed/misconfigured).
+    await syncLiveSession(effectiveSessionId);
     const [sessionResult, destinationsResult] = await Promise.all([
       loadLiveSessionById(effectiveSessionId),
       loadLiveDestinations(effectiveSessionId)

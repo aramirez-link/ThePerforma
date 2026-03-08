@@ -176,3 +176,5 @@ export const startLiveSession = async (sessionId: string): Promise<Result<{ sess
 export const endLiveSession = async (sessionId: string): Promise<Result<{ session: LiveSession }>> =>
   callLiveFunction("session.end", { sessionId });
 
+export const syncLiveSession = async (sessionId: string): Promise<Result<{ session: LiveSession }>> =>
+  callLiveFunction("session.sync", { sessionId });

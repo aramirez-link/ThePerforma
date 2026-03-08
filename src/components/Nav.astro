@@ -122,7 +122,7 @@ const toolkitLinks = [
     </div>
   </div>
 </nav>
-<script define:vars={{ supabaseUrl, supabaseAnonKey }}>
+<script type="module" define:vars={{ supabaseUrl, supabaseAnonKey }}>
   import { createClient } from "@supabase/supabase-js";
   import { getCurrentUser, logoutUser } from "../lib/fanVault";
 

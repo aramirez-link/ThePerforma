@@ -3,6 +3,7 @@ import { createLiveHandler, resolveRoute, verifyWebhookSignature } from "./handl
 
 Deno.test("resolveRoute maps supported live subpaths", () => {
   assertEquals(resolveRoute("/live/session.create"), "session.create");
+  assertEquals(resolveRoute("/live/session.sync"), "session.sync");
   assertEquals(resolveRoute("/live/destination.upsert"), "destination.upsert");
   assertEquals(resolveRoute("/live/session.start"), "session.start");
   assertEquals(resolveRoute("/live/session.end"), "session.end");

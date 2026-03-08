@@ -5,6 +5,7 @@ Control-plane endpoints for Performa Live multi-stream sessions.
 ## Routes
 
 - `POST /live/session.create`
+- `POST /live/session.sync`
 - `POST /live/destination.upsert`
 - `POST /live/session.start`
 - `POST /live/session.end`
@@ -35,4 +36,3 @@ supabase functions deploy live
 ```bash
 deno test supabase/functions/live
 ```
-
