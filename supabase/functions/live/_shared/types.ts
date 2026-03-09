@@ -1,6 +1,7 @@
 export type SessionStatus = "DRAFT" | "READY" | "LIVE" | "ENDED";
 export type IngestStatus = "IDLE" | "CONNECTING" | "LIVE" | "ERROR";
 export type DestinationStatus = "DISABLED" | "CONNECTING" | "LIVE" | "ERROR";
+export type IngestType = "rtmp" | "webrtc" | "srt";
 export type LiveProvider = "cloudflare_stream" | "livepeer_studio";
 export type DestinationProvider = "twitch" | "facebook" | "instagram_manual" | "custom_rtmp";
 
@@ -12,8 +13,12 @@ export type LiveSessionRow = {
   provider: LiveProvider;
   provider_input_id: string | null;
   provider_playback_id: string | null;
-  ingest_type: "rtmp";
+  ingest_type: IngestType;
   ingest_url: string | null;
+  webrtc_publish_url?: string | null;
+  webrtc_playback_url?: string | null;
+  srt_ingest_url?: string | null;
+  srt_stream_id?: string | null;
   ingest_stream_key_secret_ref: string | null;
   ingest_status: IngestStatus;
   last_webhook_at: string | null;
@@ -49,9 +54,13 @@ export type SecretCipherPayload = {
 export type ProviderInput = {
   inputId: string;
   playbackId?: string | null;
-  ingestType: "rtmp";
+  ingestType: IngestType;
   ingestUrl: string;
   streamKey: string;
+  webrtcPublishUrl?: string | null;
+  webrtcPlaybackUrl?: string | null;
+  srtIngestUrl?: string | null;
+  srtStreamId?: string | null;
 };
 
 export type ProviderOutput = {
@@ -70,6 +79,11 @@ export type WebhookStatusUpdate = {
 
 export type LiveProviderAdapter = {
   createLiveInput: (args: { sessionId: string; title: string }) => Promise<ProviderInput>;
+  createRealtimeInput?: (args: {
+    sessionId: string;
+    title: string;
+    ingestType: Exclude<IngestType, "rtmp">;
+  }) => Promise<ProviderInput>;
   createOrUpdateOutput: (args: {
     session: LiveSessionRow;
     destination: DestinationRow;

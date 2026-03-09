@@ -4,6 +4,7 @@ export type LiveSessionStatus = "DRAFT" | "READY" | "LIVE" | "ENDED";
 export type LiveDestinationStatus = "DISABLED" | "CONNECTING" | "LIVE" | "ERROR";
 export type LiveProvider = "cloudflare_stream" | "livepeer_studio";
 export type DestinationProvider = "twitch" | "facebook" | "instagram_manual" | "custom_rtmp";
+export type LiveIngestType = "rtmp" | "webrtc" | "srt";
 
 export type LiveSession = {
   id: string;
@@ -13,8 +14,12 @@ export type LiveSession = {
   provider: LiveProvider;
   provider_input_id: string | null;
   provider_playback_id: string | null;
-  ingest_type: "rtmp";
+  ingest_type: LiveIngestType;
   ingest_url: string | null;
+  webrtc_publish_url?: string | null;
+  webrtc_playback_url?: string | null;
+  srt_ingest_url?: string | null;
+  srt_stream_id?: string | null;
   ingest_status: string;
   created_at: string;
   started_at: string | null;

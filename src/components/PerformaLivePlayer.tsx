@@ -5,7 +5,7 @@ type Props = {
 };
 
 const toCloudflareIframe = (playbackId: string) =>
-  `https://iframe.videodelivery.net/${encodeURIComponent(playbackId)}?autoplay=true&muted=true`;
+  `https://iframe.videodelivery.net/${encodeURIComponent(playbackId)}?autoplay=true&muted=true&dvrEnabled=false`;
 
 export default function PerformaLivePlayer({ playbackId, title = "Performa Live Stream", isLive = false }: Props) {
   if (!playbackId) {
@@ -42,4 +42,3 @@ export default function PerformaLivePlayer({ playbackId, title = "Performa Live 
     </div>
   );
 }
-

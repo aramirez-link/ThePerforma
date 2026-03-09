@@ -79,7 +79,9 @@ export const createCloudflareAdapter = (cfg: CloudflareConfig): LiveProviderAdap
           session_id: args.sessionId,
           title: args.title
         },
-        recording: { mode: "off" }
+        // Cloudflare LL-HLS currently requires automatic recording mode.
+        recording: { mode: "automatic" },
+        preferLowLatency: true
       })
     });
 
