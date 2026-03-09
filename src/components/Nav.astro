@@ -122,7 +122,7 @@ const toolkitLinks = [
     </div>
   </div>
 </nav>
-<script type="module" define:vars={{ supabaseUrl, supabaseAnonKey }}>
+<script>
   import { createClient } from "@supabase/supabase-js";
   import { getCurrentUser, logoutUser } from "../lib/fanVault";
 
@@ -216,8 +216,8 @@ const toolkitLinks = [
 
     const LIVE_STATUS_KEY = "the-performa-live-status-v1";
     const ADMIN_NAV_KEY = "the-performa-admin-nav";
-    const SUPABASE_URL = supabaseUrl || "";
-    const SUPABASE_ANON_KEY = supabaseAnonKey || "";
+    const SUPABASE_URL = import.meta.env.PUBLIC_SUPABASE_URL || "";
+    const SUPABASE_ANON_KEY = import.meta.env.PUBLIC_SUPABASE_ANON_KEY || "";
     const ribbon = document.getElementById("nav-live-ribbon");
     const syncLiveRibbon = () => {
       if (!ribbon) return;
