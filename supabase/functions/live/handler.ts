@@ -268,29 +268,36 @@ export const createLiveHandler = (deps: {
     const { data, error } = await deps.supabase
       .from("live_sessions")
       .select("id,title,provider,status,ingest_status,provider_playback_id,started_at,created_at")
-      .eq("status", "LIVE")
+      .in("status", ["LIVE", "READY"])
       .not("provider_playback_id", "is", null)
-      .order("started_at", { ascending: false })
       .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .limit(10);
 
     if (error) return json(500, { error: error.message });
 
-    if (!data) {
+    const rows = Array.isArray(data) ? data : [];
+    const picked =
+      rows.find((row) => String((row as any).status || "").toUpperCase() === "LIVE") ||
+      rows.find((row) => String((row as any).ingest_status || "").toUpperCase() === "LIVE") ||
+      rows[0] ||
+      null;
+
+    if (!picked) {
       return json(200, { ok: true, session: null });
     }
 
     return json(200, {
       ok: true,
       session: {
-        sessionId: String((data as any).id),
-        title: String((data as any).title || "Performa Live"),
-        provider: String((data as any).provider || "cloudflare_stream"),
-        status: String((data as any).status || "READY"),
-        ingestStatus: String((data as any).ingest_status || "CONNECTING"),
-        playbackId: (data as any).provider_playback_id ? String((data as any).provider_playback_id) : null,
-        isLive: String((data as any).status || "").toUpperCase() === "LIVE"
+        sessionId: String((picked as any).id),
+        title: String((picked as any).title || "Performa Live"),
+        provider: String((picked as any).provider || "cloudflare_stream"),
+        status: String((picked as any).status || "READY"),
+        ingestStatus: String((picked as any).ingest_status || "CONNECTING"),
+        playbackId: (picked as any).provider_playback_id ? String((picked as any).provider_playback_id) : null,
+        isLive:
+          String((picked as any).status || "").toUpperCase() === "LIVE" ||
+          String((picked as any).ingest_status || "").toUpperCase() === "LIVE"
       }
     });
   };

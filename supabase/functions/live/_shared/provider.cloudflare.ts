@@ -79,9 +79,10 @@ export const createCloudflareAdapter = (cfg: CloudflareConfig): LiveProviderAdap
           session_id: args.sessionId,
           title: args.title
         },
-        // Cloudflare LL-HLS currently requires automatic recording mode.
-        recording: { mode: "automatic" },
-        preferLowLatency: true
+        // Keep creation payload conservative for broad account compatibility.
+        // Low-latency and WebRTC paths are scaffolded separately and should not
+        // alter baseline RTMP ingest behavior.
+        recording: { mode: "off" }
       })
     });
 
