@@ -1,13 +1,34 @@
+import { useEffect, useMemo, useState } from "react";
+
 type Props = {
   playbackId?: string | null;
   title?: string;
   isLive?: boolean;
 };
 
-const toCloudflareIframe = (playbackId: string) =>
-  `https://iframe.videodelivery.net/${encodeURIComponent(playbackId)}?autoplay=true&muted=true&dvrEnabled=false`;
+const toCloudflareIframe = (playbackId: string, cacheBust: string) =>
+  `https://iframe.videodelivery.net/${encodeURIComponent(playbackId)}?autoplay=true&muted=true&dvrEnabled=false&preload=true&cacheBust=${encodeURIComponent(cacheBust)}`;
 
 export default function PerformaLivePlayer({ playbackId, title = "Performa Live Stream", isLive = false }: Props) {
+  const [reloadTick, setReloadTick] = useState(0);
+
+  useEffect(() => {
+    setReloadTick(0);
+  }, [playbackId]);
+
+  useEffect(() => {
+    if (!isLive || !playbackId) return;
+    const timer = window.setInterval(() => {
+      setReloadTick((tick) => tick + 1);
+    }, 120000);
+    return () => window.clearInterval(timer);
+  }, [isLive, playbackId]);
+
+  const iframeSrc = useMemo(() => {
+    if (!playbackId) return "";
+    return toCloudflareIframe(playbackId, `${reloadTick}`);
+  }, [playbackId, reloadTick]);
+
   if (!playbackId) {
     return (
       <div className="overflow-hidden rounded-2xl border border-white/15 bg-black/45 p-4">
@@ -22,9 +43,10 @@ export default function PerformaLivePlayer({ playbackId, title = "Performa Live 
       <div className="aspect-video w-full">
         <iframe
           className="h-full w-full"
-          src={toCloudflareIframe(playbackId)}
+          key={`${playbackId}:${reloadTick}`}
+          src={iframeSrc}
           title={title}
-          loading="lazy"
+          loading="eager"
           allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; web-share"
           allowFullScreen
         />
@@ -38,6 +60,13 @@ export default function PerformaLivePlayer({ playbackId, title = "Performa Live 
         >
           {isLive ? "Live" : "Standby"}
         </span>
+        <button
+          type="button"
+          onClick={() => setReloadTick((tick) => tick + 1)}
+          className="inline-flex min-h-10 items-center rounded-full border border-white/25 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white/70 hover:border-gold/45 hover:text-gold"
+        >
+          Refresh Feed
+        </button>
       </div>
     </div>
   );
