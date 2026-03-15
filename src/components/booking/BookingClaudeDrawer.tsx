@@ -174,17 +174,15 @@ export default function BookingClaudeDrawer({
               </button>
             </div>
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <div className="rounded-[1.2rem] border border-white/10 bg-black/30 p-4">
-                <p className="text-[10px] uppercase tracking-[0.24em] text-white/48">Current package fit</p>
-                <p className="mt-2 text-sm text-white/88">{contextLabel}</p>
-              </div>
-              <div className="rounded-[1.2rem] border border-white/10 bg-black/30 p-4">
-                <p className="text-[10px] uppercase tracking-[0.24em] text-white/48">Preliminary range</p>
-                <p className="mt-2 text-sm text-white/88">
+            <div className="mt-4 flex flex-wrap gap-2">
+              <span className="rounded-full border border-white/12 bg-black/30 px-3 py-2 text-[10px] uppercase tracking-[0.22em] text-white/58">
+                {contextLabel}
+              </span>
+              {session.eventType && (
+                <span className="rounded-full border border-white/12 bg-black/30 px-3 py-2 text-[10px] uppercase tracking-[0.22em] text-white/58">
                   {formatCurrency(estimate.totalLow)} - {formatCurrency(estimate.totalHigh)}
-                </p>
-              </div>
+                </span>
+              )}
             </div>
           </div>
 

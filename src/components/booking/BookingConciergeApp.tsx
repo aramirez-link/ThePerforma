@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import BookingBlueprintModal from "./BookingBlueprintModal";
 import BookingChatPanel, { type StepKey } from "./BookingChatPanel";
 import BookingClaudeDrawer from "./BookingClaudeDrawer";
@@ -16,7 +16,6 @@ import { persistBookingConciergeSession } from "../../lib/bookingConcierge";
 
 const STORAGE_KEY = "the-performa-booking-concierge-v1";
 const STEP_ORDER: StepKey[] = [
-  "welcome",
   "eventType",
   "venueType",
   "location",
@@ -37,7 +36,7 @@ const getNextStep = (current: StepKey) => STEP_ORDER[Math.min(STEP_ORDER.length 
 const getPrevStep = (current: StepKey) => STEP_ORDER[Math.max(0, STEP_ORDER.indexOf(current) - 1)];
 
 const getResumeStep = (session: BookingSession): StepKey => {
-  if (!session.eventType) return "welcome";
+  if (!session.eventType) return "eventType";
   if (!session.venueType) return "venueType";
   if (!session.locationCity) return "location";
   if (!session.targetDate) return "targetDate";
@@ -50,7 +49,6 @@ const getResumeStep = (session: BookingSession): StepKey => {
   if (!session.productionNeeds.length) return "productionNeeds";
   if (!session.budgetSignal) return "budgetSignal";
   if (!session.nextStepIntent) return "nextStepIntent";
-  if (!session.contactEmail) return "contact";
   return "contact";
 };
 
@@ -65,9 +63,57 @@ const readStoredSession = (): BookingSession => {
   }
 };
 
+const hasSubmissionContact = (session: BookingSession) =>
+  Boolean(session.contactName && session.contactEmail && session.followUpConsent);
+
+const getPrimaryActionConfig = (
+  session: BookingSession,
+  recommendation: ReturnType<typeof getRecommendedPackage>,
+  progress: number
+) => {
+  if (!hasSubmissionContact(session)) {
+    if (progress >= 70) {
+      return {
+        label: "Finish Contact Details",
+        action: null as null,
+        helper: "Add contact details to submit the brief."
+      };
+    }
+    return null;
+  }
+
+  const requestedAction = session.nextStepIntent || recommendation.nextStep;
+  switch (requestedAction) {
+    case "schedule-call":
+      return {
+        label: "Request Booking Call",
+        action: "schedule-call" as const,
+        helper: "Recommended for larger or more produced events."
+      };
+    case "email-package":
+      return {
+        label: "Email My Package",
+        action: "email-package" as const,
+        helper: "Send the brief for later internal review."
+      };
+    case "save-follow-up":
+      return {
+        label: "Save for Follow-Up",
+        action: "save-follow-up" as const,
+        helper: "Hold the draft and let the team follow up."
+      };
+    default:
+      return {
+        label: "Submit for Review",
+        action: "availability-review" as const,
+        helper: "Best for availability and scope review."
+      };
+  }
+};
+
 export default function BookingConciergeApp() {
   const [session, setSession] = useState<BookingSession>(defaultBookingSession());
-  const [currentStep, setCurrentStep] = useState<StepKey>("welcome");
+  const [currentStep, setCurrentStep] = useState<StepKey>("eventType");
   const [submissionState, setSubmissionState] = useState("");
   const [autosaveTick, setAutosaveTick] = useState(0);
   const [blueprintOpen, setBlueprintOpen] = useState(false);
@@ -106,7 +152,11 @@ export default function BookingConciergeApp() {
   const estimate = getEstimateBreakdown(session);
   const aiSummary = generateAiSummary(session);
   const readinessLabel = getReadinessState(session);
-  const isWelcomeState = currentStep === "welcome";
+  const isWelcomeState = progress === 0;
+  const primaryAction = useMemo(
+    () => getPrimaryActionConfig(session, recommendation, progress),
+    [progress, recommendation, session]
+  );
 
   const updateSession = (patch: Partial<BookingSession>) => {
     const nextSession = {
@@ -122,7 +172,7 @@ export default function BookingConciergeApp() {
   const resetSession = () => {
     const fresh = defaultBookingSession();
     setSession(fresh);
-    setCurrentStep("welcome");
+    setCurrentStep("eventType");
     setSubmissionState("");
     setBlueprintOpen(false);
     if (typeof window !== "undefined") {
@@ -130,7 +180,9 @@ export default function BookingConciergeApp() {
     }
   };
 
-  const handleAction = async (action: "availability-review" | "schedule-call" | "email-package" | "save-follow-up" | "download-brief" | "copy-summary") => {
+  const handleAction = async (
+    action: "availability-review" | "schedule-call" | "email-package" | "save-follow-up" | "download-brief" | "copy-summary"
+  ) => {
     if (action === "download-brief") {
       window.open("/media/press-kit.pdf", "_blank", "noopener,noreferrer");
       return;
@@ -139,13 +191,13 @@ export default function BookingConciergeApp() {
     if (action === "copy-summary") {
       const summary = `${aiSummary}\nEstimated range: ${formatCurrency(estimate.totalLow)} - ${formatCurrency(estimate.totalHigh)}`;
       await navigator.clipboard.writeText(summary);
-      setSubmissionState("Event summary copied for your team.");
+      setSubmissionState("Event summary copied.");
       return;
     }
 
-    if (!session.contactName || !session.contactEmail || !session.followUpConsent) {
+    if (!hasSubmissionContact(session)) {
       setCurrentStep("contact");
-      setSubmissionState("Add your contact details and follow-up permission so I can prepare the next step.");
+      setSubmissionState("Add contact details and permission so the team can review the brief.");
       return;
     }
 
@@ -175,53 +227,71 @@ export default function BookingConciergeApp() {
 
     setSubmissionState(
       action === "schedule-call"
-        ? "Your booking call request is prepared for human review. Final scheduling depends on availability and team confirmation."
+        ? "Booking call request prepared for human review."
         : action === "email-package"
-          ? "Your package request has been logged for follow-up. The team can review and send the summary manually."
+          ? "Package request logged for follow-up."
           : action === "save-follow-up"
-            ? "Your blueprint has been saved for follow-up. A human review is still required before any booking path advances."
-            : "Your availability review request is submitted for human review. Final booking is subject to availability, approval, and contract."
+            ? "Brief saved for follow-up."
+            : "Availability review request submitted for human review."
     );
   };
 
   return (
     <>
-      <section className="mx-auto max-w-6xl px-4 pb-20 sm:px-6">
-        <div className="sticky top-20 z-20 rounded-[1.7rem] border border-white/12 bg-black/55 p-4 backdrop-blur-xl">
-          <div className="grid gap-3 xl:grid-cols-[0.95fr_0.95fr_1.1fr_auto] xl:items-center">
-            <WorkspaceCard
-              label="Conversation Status"
-              value={readinessLabel}
-              detail={`${progress}% of the booking brief mapped`}
-            />
-            <WorkspaceCard
-              label="Package Fit"
-              value={recommendation.label}
-              detail={recommendation.rationale}
-            />
-            <WorkspaceCard
-              label="Preliminary Range"
-              value={`${formatCurrency(estimate.totalLow)} - ${formatCurrency(estimate.totalHigh)}`}
-              detail="Preliminary only. Final review, availability, scope, and contract still apply."
-            />
+      <section className="mx-auto max-w-5xl px-4 pb-20 sm:px-6">
+        <div className="rounded-[1.7rem] border border-white/12 bg-black/40 p-4">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.28em] text-gold/85">Straightforward Booking Flow</p>
+              <p className="mt-2 text-sm leading-relaxed text-white/68">
+                One AI-guided brief, one live event draft, one clean handoff to human review.
+              </p>
+            </div>
 
-            <div className="flex flex-wrap items-center gap-3 xl:justify-end">
+            <div className="flex flex-wrap items-center gap-3">
               <button
                 type="button"
                 onClick={() => setClaudeOpen(true)}
-                className="rounded-full border border-gold/35 px-5 py-3 text-[11px] uppercase tracking-[0.26em] text-gold transition hover:border-gold/55"
+                className="rounded-full border border-gold/35 px-4 py-3 text-[11px] uppercase tracking-[0.24em] text-gold"
               >
                 Ask Claude
               </button>
               <button
                 type="button"
                 onClick={() => setBlueprintOpen(true)}
-                className="rounded-full bg-ember px-5 py-3 text-[11px] uppercase tracking-[0.26em] text-ink"
+                className="rounded-full border border-white/15 px-4 py-3 text-[11px] uppercase tracking-[0.24em] text-white/76"
               >
-                Open Event Blueprint
+                View Brief
               </button>
+              {primaryAction && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (primaryAction.action) {
+                      void handleAction(primaryAction.action);
+                    } else {
+                      setCurrentStep("contact");
+                    }
+                  }}
+                  className="rounded-full bg-ember px-5 py-3 text-[11px] uppercase tracking-[0.26em] text-ink"
+                >
+                  {primaryAction.label}
+                </button>
+              )}
             </div>
           </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            <StatusPill label={readinessLabel} />
+            {session.eventType && <StatusPill label={recommendation.label} />}
+            {progress > 0 && <StatusPill label={`${progress}% mapped`} />}
+            {progress >= 35 && <StatusPill label={`${formatCurrency(estimate.totalLow)} - ${formatCurrency(estimate.totalHigh)}`} />}
+          </div>
+
+          {primaryAction?.helper && (
+            <p className="mt-3 text-xs text-white/52">{primaryAction.helper}</p>
+          )}
+          {submissionState && <p className="mt-3 text-sm text-gold">{submissionState}</p>}
         </div>
 
         <div className="mt-6">
@@ -236,8 +306,6 @@ export default function BookingConciergeApp() {
             onOpenBlueprint={() => setBlueprintOpen(true)}
             onOpenClaude={() => setClaudeOpen(true)}
             progress={progress}
-            readinessLabel={readinessLabel}
-            aiSummary={aiSummary}
           />
         </div>
       </section>
@@ -267,12 +335,10 @@ export default function BookingConciergeApp() {
   );
 }
 
-function WorkspaceCard({ label, value, detail }: { label: string; value: string; detail: string }) {
+function StatusPill({ label }: { label: string }) {
   return (
-    <article className="rounded-[1.25rem] border border-white/10 bg-black/26 p-4">
-      <p className="text-[10px] uppercase tracking-[0.24em] text-white/48">{label}</p>
-      <p className="mt-2 text-sm text-white/90">{value}</p>
-      <p className="mt-2 text-xs leading-relaxed text-white/56">{detail}</p>
-    </article>
+    <span className="rounded-full border border-white/10 bg-black/35 px-3 py-2 text-[10px] uppercase tracking-[0.22em] text-white/60">
+      {label}
+    </span>
   );
 }

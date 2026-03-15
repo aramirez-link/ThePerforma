@@ -17,6 +17,7 @@ const {
 
 const normalizedPath = Astro.url.pathname.replace(/\/+$/, "") || "/";
 const isFeedRoute = normalizedPath === "/feed";
+const hideFloatingOverlays = isFeedRoute || normalizedPath === "/book";
 const enablePartnerCredit = import.meta.env.PUBLIC_ENABLE_PARTNER_CREDIT !== "false";
 const partnerSchema = {
   "@context": "https://schema.org",
@@ -63,8 +64,8 @@ const partnerSchema = {
     <main id="main-content" tabindex="-1">
       <slot />
     </main>
-    {!isFeedRoute && <GlobalMiniPlayer />}
-    {!isFeedRoute && (
+    {!hideFloatingOverlays && <GlobalMiniPlayer />}
+    {!hideFloatingOverlays && (
       <div transition:name="engagement-hub" transition:persist>
         <EngagementHub client:only="react" />
       </div>

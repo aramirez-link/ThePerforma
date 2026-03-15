@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import type { BookingSession, BudgetSignal, ContactPreference, NextStepIntent, ProductionAmbition, TicketingModel } from "./bookingEngine";
 import {
   AMBITION_OPTIONS,
@@ -14,7 +13,6 @@ import {
 } from "./bookingEngine";
 
 export type StepKey =
-  | "welcome"
   | "eventType"
   | "venueType"
   | "location"
@@ -41,12 +39,9 @@ type Props = {
   onOpenBlueprint: () => void;
   onOpenClaude: () => void;
   progress: number;
-  readinessLabel: string;
-  aiSummary: string;
 };
 
-const stepOrder: StepKey[] = [
-  "welcome",
+const STEP_ORDER: StepKey[] = [
   "eventType",
   "venueType",
   "location",
@@ -63,65 +58,67 @@ const stepOrder: StepKey[] = [
   "contact"
 ];
 
-const sectionTitle = {
-  welcome: "Welcome",
-  eventType: "Event Type",
-  venueType: "Venue Type",
+const sectionTitle: Record<StepKey, string> = {
+  eventType: "Event type",
+  venueType: "Venue",
   location: "Location",
-  targetDate: "Target Date",
-  attendeeCount: "Attendance",
+  targetDate: "Date",
+  attendeeCount: "Guests",
   ticketingModel: "Ticketing",
   audienceDescription: "Audience",
   vibeProfile: "Vibe",
-  productionAmbition: "Production Ambition",
-  liveElements: "Live Elements",
-  productionNeeds: "Production Support",
-  budgetSignal: "Budget Signal",
-  nextStepIntent: "Preferred Next Step",
-  contact: "Contact + Consent"
-} as const;
-
-const questionCopy: Record<StepKey, string> = {
-  welcome:
-    "I'm your Performa Booking Concierge. I'll shape the event brief with you, build a live blueprint in the background, and then recommend the strongest next move for human review.",
-  eventType: "What kind of event are we designing?",
-  venueType: "What kind of room or venue are we working with?",
-  location: "Where is this event happening?",
-  targetDate: "What date are you aiming for?",
-  attendeeCount: "How many guests are you expecting?",
-  ticketingModel: "How is the event being sold or managed?",
-  audienceDescription: "Tell me about the audience and the atmosphere you want the room to carry.",
-  vibeProfile: "What should the experience feel like?",
-  productionAmbition: "How ambitious should the production feel?",
-  liveElements: "Which live elements should be part of the show?",
-  productionNeeds: "Which production or support layers should I account for?",
-  budgetSignal: "What budget range feels realistic right now?",
-  nextStepIntent: "When the blueprint is ready, what would be most useful?",
-  contact: "Where should I send this, and how should the team follow up if there is a fit?"
+  productionAmbition: "Scale",
+  liveElements: "Live elements",
+  productionNeeds: "Production",
+  budgetSignal: "Budget",
+  nextStepIntent: "Best next step",
+  contact: "Contact"
 };
 
-const conversationChapters = [
-  { label: "Event Brief", caption: "Map the event type, room, audience, and location." },
-  { label: "Experience Design", caption: "Layer in live elements, production ambition, and vibe." },
-  { label: "Review + Handoff", caption: "Prepare the blueprint for human review and follow-up." }
+const questionCopy: Record<StepKey, string> = {
+  eventType: "What kind of event are you planning?",
+  venueType: "What kind of room is it?",
+  location: "Where will this happen?",
+  targetDate: "When are you aiming to host it?",
+  attendeeCount: "How many guests are you expecting?",
+  ticketingModel: "How is the event being handled?",
+  audienceDescription: "What should the room feel like?",
+  vibeProfile: "Which vibe fits best?",
+  productionAmbition: "How big should this feel?",
+  liveElements: "What live elements matter most?",
+  productionNeeds: "What extra support should I plan for?",
+  budgetSignal: "What budget range feels realistic?",
+  nextStepIntent: "What would help most after the brief is built?",
+  contact: "Where should I send the brief?"
+};
+
+const helperCopy: Partial<Record<StepKey, string>> = {
+  audienceDescription: "One or two lines is enough.",
+  liveElements: "Pick any that matter. Skip the rest for now.",
+  productionNeeds: "Choose only what you know you need.",
+  budgetSignal: "Rough is fine. This stays preliminary.",
+  contact: "Add the basics so the team can review and follow up."
+};
+
+const manualContinueSteps: StepKey[] = [
+  "location",
+  "targetDate",
+  "attendeeCount",
+  "audienceDescription",
+  "liveElements",
+  "productionNeeds",
+  "contact"
 ];
 
-const introCards = [
-  {
-    title: "What this does",
-    copy: "Builds a preliminary booking blueprint, package recommendation, and investment range in real time."
-  },
-  {
-    title: "Where to look",
-    copy: "Stay in the conversation here. Open the floating Event Blueprint whenever you want the full model."
-  },
-  {
-    title: "Important",
-    copy: "Nothing here confirms a booking. Final availability, scope, pricing, approval, and contract all require human review."
-  }
+const summarySteps: StepKey[] = [
+  "eventType",
+  "venueType",
+  "location",
+  "targetDate",
+  "attendeeCount",
+  "productionAmbition",
+  "budgetSignal"
 ];
-
-const bubbleClass = "max-w-[88%] rounded-[1.6rem] px-4 py-4 shadow-[0_10px_34px_rgba(0,0,0,0.18)]";
 
 const chipClass = (active: boolean) =>
   `rounded-full border px-4 py-3 text-sm transition ${
@@ -139,7 +136,7 @@ const renderAnswer = (session: BookingSession, step: StepKey) => {
     case "targetDate":
       return session.targetDate || "";
     case "attendeeCount":
-      return session.attendeeCount ? `${session.attendeeCount.toLocaleString()} guests expected` : "";
+      return session.attendeeCount ? `${session.attendeeCount.toLocaleString()} guests` : "";
     case "ticketingModel":
       return TICKETING_OPTIONS.find((item) => item.value === session.ticketingModel)?.label || "";
     case "audienceDescription":
@@ -151,26 +148,28 @@ const renderAnswer = (session: BookingSession, step: StepKey) => {
     case "liveElements":
       return session.liveElements.join(", ");
     case "productionNeeds":
-      return [
-        session.productionNeeds.join(", "),
-        session.wantsBrandIntegration === true ? "Brand integration: yes" : session.wantsBrandIntegration === false ? "Brand integration: no" : "",
-        session.wantsHostMoments === true ? "Host / MC moments: yes" : session.wantsHostMoments === false ? "Host / MC moments: no" : "",
-        session.languageConsiderations ? `Notes: ${session.languageConsiderations}` : ""
-      ]
-        .filter(Boolean)
-        .join(" | ");
+      return session.productionNeeds.join(", ");
     case "budgetSignal":
       return BUDGET_OPTIONS.find((item) => item.value === session.budgetSignal)?.label || "";
     case "nextStepIntent":
       return NEXT_STEP_OPTIONS.find((item) => item.value === session.nextStepIntent)?.label || "";
     case "contact":
-      return [session.contactName, session.contactEmail, session.organization, session.contactPreference].filter(Boolean).join(" | ");
+      return [session.contactName, session.contactEmail].filter(Boolean).join(" / ");
     default:
       return "";
   }
 };
 
 const stepAnswered = (session: BookingSession, step: StepKey) => Boolean(renderAnswer(session, step));
+
+const getSummaryItems = (session: BookingSession) =>
+  summarySteps
+    .map((step) => ({
+      step,
+      label: sectionTitle[step],
+      value: renderAnswer(session, step)
+    }))
+    .filter((item) => item.value);
 
 export default function BookingChatPanel({
   session,
@@ -182,205 +181,162 @@ export default function BookingChatPanel({
   onReset,
   onOpenBlueprint,
   onOpenClaude,
-  progress,
-  readinessLabel,
-  aiSummary
+  progress
 }: Props) {
-  const isWelcome = currentStep === "welcome";
-  const answeredSteps = stepOrder.filter((step) => step !== "welcome" && stepAnswered(session, step));
-  const currentStepIndex = stepOrder.indexOf(currentStep);
+  const promptIndex = STEP_ORDER.indexOf(currentStep) + 1;
+  const previousStep = STEP_ORDER[Math.max(0, STEP_ORDER.indexOf(currentStep) - 1)];
+  const lastAnswer = STEP_ORDER.indexOf(currentStep) > 0 ? renderAnswer(session, previousStep) : "";
+  const summaryItems = getSummaryItems(session);
+  const canSkip = currentStep !== "eventType" && currentStep !== "contact";
+  const needsManualContinue = manualContinueSteps.includes(currentStep);
 
   return (
-    <section className="rounded-[2rem] border border-white/15 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-4 md:p-5">
-      <div className="rounded-[1.6rem] border border-white/12 bg-black/35 px-4 py-4">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="flex items-start gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-full border border-gold/30 bg-[radial-gradient(circle,rgba(243,211,139,0.22),rgba(7,7,11,0.2))] text-sm uppercase tracking-[0.28em] text-gold">
-              AI
-            </div>
+    <section className="rounded-[2rem] border border-white/15 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-4 md:p-6">
+      <div className="mx-auto max-w-3xl">
+        <div className="rounded-[1.6rem] border border-white/12 bg-black/35 p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-[10px] uppercase tracking-[0.28em] text-gold/85">Performa Booking Concierge</p>
-              <h2 className="mt-2 font-display text-2xl text-white">Producer-level guidance, one answer at a time</h2>
-              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/68">
-                Stay in the conversation here. Open the blueprint when you want the full event model, or ask Claude
-                direct questions about The Performa and your booking fit.
+              <p className="text-[10px] uppercase tracking-[0.28em] text-gold/85">AI Booking Brief</p>
+              <h2 className="mt-2 font-display text-3xl text-white">Tell me what you&apos;re planning.</h2>
+              <p className="mt-2 text-sm leading-relaxed text-white/66">
+                About 3 minutes. I&apos;ll shape the event, estimate the range, and prep it for review.
               </p>
             </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={onOpenClaude}
-              className="rounded-full border border-gold/30 px-4 py-2 text-[10px] uppercase tracking-[0.24em] text-gold transition hover:border-gold/55"
-            >
-              Ask Claude
-            </button>
-            <button
-              type="button"
-              onClick={onOpenBlueprint}
-              className="rounded-full border border-white/15 px-4 py-2 text-[10px] uppercase tracking-[0.24em] text-white/78 transition hover:border-white/28 hover:text-white"
-            >
-              Open Blueprint
-            </button>
-            <button
-              type="button"
-              onClick={onReset}
-              className="rounded-full border border-white/15 px-4 py-2 text-[10px] uppercase tracking-[0.24em] text-white/62 transition hover:border-white/28 hover:text-white"
-            >
-              Reset
-            </button>
-          </div>
-        </div>
-
-        <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_auto] lg:items-center">
-          <div className="grid gap-3 md:grid-cols-3">
-            {conversationChapters.map((chapter, index) => (
-              <article key={chapter.label} className="rounded-[1.2rem] border border-white/10 bg-black/25 p-4">
-                <p className="text-[10px] uppercase tracking-[0.24em] text-white/48">{`0${index + 1}`}</p>
-                <p className="mt-2 text-sm text-white/88">{chapter.label}</p>
-                <p className="mt-2 text-xs leading-relaxed text-white/56">{chapter.caption}</p>
-              </article>
-            ))}
-          </div>
-
-          <div className="rounded-[1.2rem] border border-white/10 bg-black/25 px-4 py-4 lg:min-w-[13rem]">
-            <p className="text-[10px] uppercase tracking-[0.22em] text-white/48">Readiness</p>
-            <p className="mt-2 text-sm text-white/88">{readinessLabel}</p>
-            <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
-              <div className="h-full rounded-full bg-[rgb(var(--accent-rgb))] transition-[width] duration-300" style={{ width: `${progress}%` }} />
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={onOpenClaude}
+                className="rounded-full border border-gold/30 px-4 py-2 text-[10px] uppercase tracking-[0.24em] text-gold"
+              >
+                Ask Claude
+              </button>
+              <button
+                type="button"
+                onClick={onOpenBlueprint}
+                className="rounded-full border border-white/15 px-4 py-2 text-[10px] uppercase tracking-[0.24em] text-white/74"
+              >
+                View Brief
+              </button>
+              <button
+                type="button"
+                onClick={onReset}
+                className="rounded-full border border-white/15 px-4 py-2 text-[10px] uppercase tracking-[0.24em] text-white/58"
+              >
+                Reset
+              </button>
             </div>
-            <p className="mt-2 text-[11px] text-white/48">{progress}% of the booking brief mapped</p>
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <span className="rounded-full border border-white/10 bg-black/35 px-3 py-2 text-[10px] uppercase tracking-[0.22em] text-white/58">
+              Prompt {promptIndex} / {STEP_ORDER.length}
+            </span>
+            <span className="rounded-full border border-white/10 bg-black/35 px-3 py-2 text-[10px] uppercase tracking-[0.22em] text-white/58">
+              {progress}% complete
+            </span>
+            <span className="rounded-full border border-white/10 bg-black/35 px-3 py-2 text-[10px] uppercase tracking-[0.22em] text-white/58">
+              Human review before confirmation
+            </span>
           </div>
         </div>
-      </div>
 
-      <div className="mt-4 rounded-[1.8rem] border border-white/12 bg-black/28 p-4">
-        <div className="max-h-[70vh] space-y-4 overflow-y-auto pr-1">
-          {isWelcome && (
-            <>
-              <AssistantBubble title="Start here">
-                {questionCopy.welcome}
-              </AssistantBubble>
-
-              <div className="grid gap-3 md:grid-cols-3">
-                {introCards.map((card) => (
-                  <article key={card.title} className="rounded-[1.3rem] border border-white/10 bg-black/22 p-4">
-                    <p className="text-[10px] uppercase tracking-[0.24em] text-gold/80">{card.title}</p>
-                    <p className="mt-2 text-sm leading-relaxed text-white/68">{card.copy}</p>
-                  </article>
-                ))}
-              </div>
-
-              <div className="flex flex-wrap justify-end gap-3">
+        {summaryItems.length > 0 && (
+          <div className="mt-4 rounded-[1.5rem] border border-white/12 bg-black/28 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[10px] uppercase tracking-[0.24em] text-gold/80">Brief so far</p>
+              <button
+                type="button"
+                onClick={onOpenBlueprint}
+                className="text-[10px] uppercase tracking-[0.22em] text-white/56 transition hover:text-white"
+              >
+                Open full brief
+              </button>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {summaryItems.map((item) => (
                 <button
+                  key={item.step}
                   type="button"
-                  onClick={onOpenClaude}
-                  className="rounded-full border border-white/18 px-5 py-3 text-xs uppercase tracking-[0.24em] text-white/76"
+                  onClick={() => onStepChange(item.step)}
+                  className="rounded-full border border-white/12 bg-white/[0.03] px-3 py-2 text-[11px] text-white/72 transition hover:border-white/26"
                 >
-                  Ask Claude First
+                  <span className="text-white/45">{item.label}: </span>
+                  {item.value}
                 </button>
-                <button
-                  type="button"
-                  onClick={onContinue}
-                  className="rounded-full bg-ember px-6 py-3 text-xs uppercase tracking-[0.26em] text-ink"
-                >
-                  Start the Booking Brief
-                </button>
-              </div>
-            </>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="mt-4 space-y-4">
+          {lastAnswer && (
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => onStepChange(previousStep)}
+                className="max-w-[80%] rounded-[1.5rem] bg-[linear-gradient(135deg,rgba(242,84,45,0.94),rgba(255,123,48,0.96))] px-4 py-4 text-left text-ink shadow-[0_12px_34px_rgba(0,0,0,0.18)] transition hover:opacity-95"
+              >
+                <p className="text-[10px] uppercase tracking-[0.22em] text-ink/70">You said</p>
+                <p className="mt-2 text-sm leading-relaxed">{lastAnswer}</p>
+              </button>
+            </div>
           )}
 
-          {!isWelcome &&
-            answeredSteps.map((step) => (
-              <div key={step} className="space-y-2">
-                <AssistantBubble title={sectionTitle[step]}>{questionCopy[step]}</AssistantBubble>
-                <div className="flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() => onStepChange(step)}
-                    className={`${bubbleClass} bg-[linear-gradient(135deg,rgba(242,84,45,0.94),rgba(255,123,48,0.96))] text-left text-ink transition hover:opacity-95`}
-                  >
-                    <p className="text-[10px] uppercase tracking-[0.24em] text-ink/70">You answered</p>
-                    <p className="mt-2 text-sm leading-relaxed">{renderAnswer(session, step)}</p>
-                    <p className="mt-3 text-[10px] uppercase tracking-[0.22em] text-ink/65">Tap to edit</p>
-                  </button>
-                </div>
+          <div className="max-w-[84%] rounded-[1.6rem] border border-white/12 bg-black/34 px-4 py-4 text-white/86 shadow-[0_10px_34px_rgba(0,0,0,0.18)]">
+            <p className="text-[10px] uppercase tracking-[0.24em] text-gold/80">{sectionTitle[currentStep]}</p>
+            <p className="mt-2 text-sm leading-relaxed">{questionCopy[currentStep]}</p>
+          </div>
+
+          <div className="rounded-[1.6rem] border border-gold/18 bg-[linear-gradient(180deg,rgba(242,84,45,0.08),rgba(255,255,255,0.02))] p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.24em] text-gold/80">Respond</p>
+                <p className="mt-2 text-sm text-white/60">{helperCopy[currentStep] || "Choose the closest fit. You can edit anything later."}</p>
               </div>
-            ))}
+              <button
+                type="button"
+                onClick={onOpenClaude}
+                className="rounded-full border border-white/15 px-4 py-2 text-[10px] uppercase tracking-[0.24em] text-white/72"
+              >
+                Need Help?
+              </button>
+            </div>
 
-          {!isWelcome && (
-            <>
-              <AssistantBubble title={`Current Prompt / ${sectionTitle[currentStep]}`}>
-                {questionCopy[currentStep]}
-              </AssistantBubble>
+            <div className="mt-4">{renderComposer({ currentStep, session, onUpdate, onContinue })}</div>
 
-              <div className="rounded-[1.6rem] border border-gold/20 bg-[linear-gradient(180deg,rgba(242,84,45,0.08),rgba(255,255,255,0.02))] p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-[10px] uppercase tracking-[0.24em] text-gold/80">Response Composer</p>
-                    <p className="mt-2 text-sm text-white/62">
-                      Step {currentStepIndex} of {stepOrder.length - 1}. The blueprint keeps building in the background.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={onOpenBlueprint}
-                    className="rounded-full border border-white/15 px-4 py-2 text-[10px] uppercase tracking-[0.24em] text-white/74 transition hover:border-white/28 hover:text-white"
-                  >
-                    View Blueprint
-                  </button>
-                </div>
-
-                <div className="mt-4">{renderComposer({ currentStep, session, onUpdate, onContinue })}</div>
-
-                {["location", "targetDate", "attendeeCount", "audienceDescription", "liveElements", "productionNeeds", "contact"].includes(currentStep) && (
-                  <div className="mt-4 flex items-center justify-between gap-3">
+            {needsManualContinue && (
+              <div className="mt-4 flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={onBack}
+                  className="rounded-full border border-white/20 px-5 py-3 text-xs uppercase tracking-[0.24em] text-white/76"
+                >
+                  Back
+                </button>
+                <div className="flex items-center gap-3">
+                  {canSkip && (
                     <button
                       type="button"
-                      onClick={onBack}
-                      className="rounded-full border border-white/20 px-5 py-3 text-xs uppercase tracking-[0.24em] text-white/76"
+                      onClick={onContinue}
+                      className="rounded-full border border-white/20 px-5 py-3 text-xs uppercase tracking-[0.24em] text-white/70"
                     >
-                      Back
+                      Skip for now
                     </button>
-                    <div className="flex items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={onOpenClaude}
-                        className="rounded-full border border-gold/30 px-5 py-3 text-xs uppercase tracking-[0.24em] text-gold"
-                      >
-                        Ask Claude
-                      </button>
-                      <button
-                        type="button"
-                        onClick={onContinue}
-                        className="rounded-full bg-ember px-6 py-3 text-xs uppercase tracking-[0.28em] text-ink"
-                      >
-                        Continue
-                      </button>
-                    </div>
-                  </div>
-                )}
+                  )}
+                  <button
+                    type="button"
+                    onClick={onContinue}
+                    className="rounded-full bg-ember px-6 py-3 text-xs uppercase tracking-[0.28em] text-ink"
+                  >
+                    {currentStep === "contact" ? "Finish Brief" : "Continue"}
+                  </button>
+                </div>
               </div>
-
-              <div className="rounded-[1.4rem] border border-white/10 bg-black/22 p-4">
-                <p className="text-[10px] uppercase tracking-[0.24em] text-gold/80">Concierge Readback</p>
-                <p className="mt-2 text-sm leading-relaxed text-white/68">{aiSummary}</p>
-              </div>
-            </>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </section>
-  );
-}
-
-function AssistantBubble({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div className={`${bubbleClass} border border-white/12 bg-black/34 text-white/86`}>
-      <p className="text-[10px] uppercase tracking-[0.24em] text-gold/80">{title}</p>
-      <p className="mt-2 text-sm leading-relaxed">{children}</p>
-    </div>
   );
 }
 
@@ -449,8 +405,8 @@ function renderComposer({
         <input
           value={session.locationState}
           onChange={(event) => onUpdate({ locationState: event.target.value })}
-          placeholder="State / Province"
-          aria-label="State or province"
+          placeholder="State"
+          aria-label="State"
           className="min-h-12 rounded-2xl border border-white/15 bg-black/35 px-4 py-3 text-white placeholder:text-white/35"
         />
         <input
@@ -496,7 +452,7 @@ function renderComposer({
           min={50}
           value={session.attendeeCount || ""}
           onChange={(event) => onUpdate({ attendeeCount: Math.max(50, Number(event.target.value || 0)) })}
-          placeholder="Or enter expected attendance"
+          placeholder="Or type guest count"
           aria-label="Expected attendance"
           className="min-h-12 w-full rounded-2xl border border-white/15 bg-black/35 px-4 py-3 text-white placeholder:text-white/35"
         />
@@ -530,7 +486,7 @@ function renderComposer({
         value={session.audienceDescription}
         onChange={(event) => onUpdate({ audienceDescription: event.target.value })}
         rows={4}
-        placeholder="Describe the audience, room energy, and what success should feel like."
+        placeholder="Example: editorial rooftop crowd, luxury feel, high energy without losing polish."
         aria-label="Audience description"
         className="w-full rounded-[1.4rem] border border-white/15 bg-black/35 px-4 py-3 text-white placeholder:text-white/35"
       />
@@ -612,14 +568,6 @@ function renderComposer({
             </select>
           </label>
         </div>
-        <textarea
-          value={session.languageConsiderations}
-          onChange={(event) => onUpdate({ languageConsiderations: event.target.value })}
-          rows={3}
-          placeholder="Language, cultural, or audience-diversity considerations"
-          aria-label="Language, cultural, or audience considerations"
-          className="w-full rounded-[1.2rem] border border-white/12 bg-black/25 px-4 py-3 text-white placeholder:text-white/35"
-        />
       </div>
     );
   }
@@ -718,11 +666,11 @@ function renderComposer({
         </select>
         <label className="md:col-span-2 flex items-center gap-3 rounded-2xl border border-white/12 bg-black/25 px-4 py-3 text-sm text-white/78">
           <input type="checkbox" checked={session.followUpConsent} onChange={(event) => onUpdate({ followUpConsent: event.target.checked })} />
-          The team can follow up about this booking blueprint and availability review.
+          The team can follow up about this event brief and availability review.
         </label>
         <label className="md:col-span-2 flex items-center gap-3 rounded-2xl border border-white/12 bg-black/25 px-4 py-3 text-sm text-white/78">
           <input type="checkbox" checked={session.outreachConsent} onChange={(event) => onUpdate({ outreachConsent: event.target.checked })} />
-          I am open to receiving related Performa booking and event updates.
+          I am open to related booking and event updates.
         </label>
       </div>
     );

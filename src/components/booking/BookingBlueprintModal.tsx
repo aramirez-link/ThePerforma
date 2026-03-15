@@ -46,17 +46,15 @@ export default function BookingBlueprintModal({
       aria-labelledby="booking-blueprint-title"
       onClick={onClose}
     >
-      <div className="mx-auto flex h-full max-w-5xl items-start justify-end">
+      <div className="mx-auto flex h-full max-w-5xl items-start justify-center">
         <div
-          className="flex max-h-[calc(100vh-2rem)] w-full flex-col overflow-hidden rounded-[2rem] border border-white/15 bg-[#08080d] shadow-[0_28px_120px_rgba(0,0,0,0.55)] md:max-h-[calc(100vh-3rem)] md:max-w-3xl"
+          className="flex max-h-[calc(100vh-2rem)] w-full flex-col overflow-hidden rounded-[2rem] border border-white/15 bg-[#08080d] shadow-[0_28px_120px_rgba(0,0,0,0.55)] md:max-h-[calc(100vh-3rem)] md:max-w-4xl"
           onClick={(event) => event.stopPropagation()}
         >
           <div className="flex items-center justify-between gap-4 border-b border-white/10 px-5 py-4">
             <div>
-              <p className="text-[10px] uppercase tracking-[0.28em] text-gold/80">Floating Workspace</p>
-              <h2 id="booking-blueprint-title" className="mt-2 font-display text-2xl text-white">
-                Event Blueprint
-              </h2>
+              <p className="text-[10px] uppercase tracking-[0.28em] text-gold/80">Live Event Brief</p>
+              <h2 id="booking-blueprint-title" className="mt-2 font-display text-2xl text-white">Booking Draft</h2>
             </div>
             <button
               type="button"
