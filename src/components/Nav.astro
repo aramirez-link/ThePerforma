@@ -1,7 +1,4 @@
 ---
-const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL || "";
-const supabaseAnonKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY || "";
-
 const primaryLinks = [
   { label: "Stage", href: "/" },
   { label: "Watch", href: "/watch" },
@@ -202,36 +199,50 @@ const adminLinks = [
       }
     });
 
-    const resourcesToggle = document.querySelector("[data-resources-toggle]");
-    const resourcesPanel = document.getElementById("resources-panel");
     let supabaseClient = null;
     let fanAuthBound = false;
     let fanLoggedIn = false;
     let fanAuthSub = null;
+    const getResourcesToggle = () => document.querySelector("[data-resources-toggle]");
+    const getResourcesPanel = () => document.getElementById("resources-panel");
     const closeResources = () => {
+      const resourcesToggle = getResourcesToggle();
+      const resourcesPanel = getResourcesPanel();
       if (!resourcesToggle || !resourcesPanel) return;
       resourcesToggle.setAttribute("aria-expanded", "false");
       resourcesPanel.classList.remove("is-open");
     };
 
     const toggleResources = (forceOpen) => {
+      const resourcesToggle = getResourcesToggle();
+      const resourcesPanel = getResourcesPanel();
       if (!resourcesToggle || !resourcesPanel) return;
       const open = typeof forceOpen === "boolean" ? forceOpen : !resourcesPanel.classList.contains("is-open");
       resourcesPanel.classList.toggle("is-open", open);
       resourcesToggle.setAttribute("aria-expanded", open ? "true" : "false");
     };
 
-    if (resourcesToggle && resourcesPanel) {
-      resourcesToggle.addEventListener("click", (event) => {
+    document.addEventListener("click", (event) => {
+      const target = event.target;
+      const targetElement =
+        target instanceof Element
+          ? target
+          : target instanceof Node
+            ? target.parentElement
+            : null;
+      const resourcesToggle = getResourcesToggle();
+      const resourcesPanel = getResourcesPanel();
+      const toggleTrigger = targetElement ? targetElement.closest("[data-resources-toggle]") : null;
+
+      if (toggleTrigger) {
         event.preventDefault();
         toggleResources();
-      });
-    }
+        return;
+      }
 
-    document.addEventListener("click", (event) => {
       if (resourcesToggle && resourcesPanel) {
-        const clickedToggle = resourcesToggle.contains(event.target);
-        const clickedPanel = resourcesPanel.contains(event.target);
+        const clickedToggle = target instanceof Node ? resourcesToggle.contains(target) : false;
+        const clickedPanel = target instanceof Node ? resourcesPanel.contains(target) : false;
         if (!clickedToggle && !clickedPanel) closeResources();
       }
     });
@@ -243,8 +254,8 @@ const adminLinks = [
 
     const LIVE_STATUS_KEY = "the-performa-live-status-v1";
     const ADMIN_NAV_KEY = "the-performa-admin-nav";
-    const ribbon = document.getElementById("nav-live-ribbon");
     const syncLiveRibbon = () => {
+      const ribbon = document.getElementById("nav-live-ribbon");
       if (!ribbon) return;
       try {
         const raw = localStorage.getItem(LIVE_STATUS_KEY);
