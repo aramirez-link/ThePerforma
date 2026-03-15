@@ -36,6 +36,7 @@ type Props = {
   onUpdate: (patch: Partial<BookingSession>) => void;
   onBack: () => void;
   onContinue: () => void;
+  onReset: () => void;
   progress: number;
   readinessLabel: string;
   aiSummary: string;
@@ -176,6 +177,7 @@ export default function BookingChatPanel({
   onUpdate,
   onBack,
   onContinue,
+  onReset,
   progress,
   readinessLabel,
   aiSummary
@@ -188,19 +190,28 @@ export default function BookingChatPanel({
     <section className="rounded-[2rem] border border-white/15 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-4 md:p-5 lg:sticky lg:top-24 lg:flex lg:h-[calc(100vh-7rem)] lg:flex-col lg:overflow-hidden">
       <div className="rounded-[1.6rem] border border-white/12 bg-black/35 px-4 py-4">
         <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-full border border-gold/30 bg-[radial-gradient(circle,rgba(243,211,139,0.22),rgba(7,7,11,0.2))] text-sm uppercase tracking-[0.28em] text-gold">
-              AI
-            </div>
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-full border border-gold/30 bg-[radial-gradient(circle,rgba(243,211,139,0.22),rgba(7,7,11,0.2))] text-sm uppercase tracking-[0.28em] text-gold">
+            AI
+          </div>
             <div>
               <p className="text-[10px] uppercase tracking-[0.28em] text-gold/85">Performa Booking Concierge</p>
               <p className="mt-1 text-sm text-white/72">Producer-grade pre-sales guidance</p>
             </div>
-          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onReset}
+            className="rounded-full border border-white/12 bg-black/30 px-3 py-2 text-[10px] uppercase tracking-[0.22em] text-white/60 transition hover:border-white/28 hover:text-white"
+          >
+            Reset
+          </button>
           <div className="rounded-full border border-white/12 bg-black/30 px-3 py-2 text-[10px] uppercase tracking-[0.22em] text-white/55">
             {readinessLabel}
           </div>
         </div>
+      </div>
 
         <div className="mt-4 rounded-full border border-white/10 bg-black/25 px-3 py-3">
           <div className="flex items-center justify-between gap-3 text-[10px] uppercase tracking-[0.22em] text-white/52">

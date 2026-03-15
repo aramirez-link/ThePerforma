@@ -85,6 +85,16 @@ export default function BookingConciergeApp() {
     setSession(nextSession);
   };
 
+  const resetSession = () => {
+    const fresh = defaultBookingSession();
+    setSession(fresh);
+    setCurrentStep("welcome");
+    setSubmissionState("");
+    if (typeof window !== "undefined") {
+      localStorage.removeItem(STORAGE_KEY);
+    }
+  };
+
   const handleAction = async (action: "availability-review" | "schedule-call" | "email-package" | "save-follow-up" | "download-brief" | "copy-summary") => {
     if (action === "download-brief") {
       window.open("/media/press-kit.pdf", "_blank", "noopener,noreferrer");
@@ -149,6 +159,7 @@ export default function BookingConciergeApp() {
           onUpdate={updateSession}
           onBack={() => setCurrentStep(getPrevStep(currentStep))}
           onContinue={() => setCurrentStep(getNextStep(currentStep))}
+          onReset={resetSession}
           progress={progress}
           readinessLabel={readinessLabel}
           aiSummary={aiSummary}
