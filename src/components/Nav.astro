@@ -14,6 +14,7 @@ const resourceLinks = [
 ];
 
 const adminLinks = [
+  { label: "Store", href: "/admin/store" },
   { label: "Streaming", href: "/live/new" },
   { label: "Moderation", href: "/admin/moderation" },
   { label: "Trivia", href: "/admin/trivia" }
@@ -275,7 +276,7 @@ const adminLinks = [
     syncLiveRibbon();
 
     const syncAdminLinks = () => {
-      const isAdmin = localStorage.getItem(ADMIN_NAV_KEY) === "true";
+      const isAdmin = fanLoggedIn && localStorage.getItem(ADMIN_NAV_KEY) === "true";
       const adminLinks = Array.from(document.querySelectorAll("[data-admin-only='true']"));
       adminLinks.forEach((node) => {
         node.classList.toggle("hidden", !isAdmin);
@@ -446,6 +447,9 @@ const adminLinks = [
     void bindAuthButton();
     void bindAuthState();
     fanLoggedIn = getPersistedFanLoginState();
+    if (!fanLoggedIn) {
+      localStorage.removeItem(ADMIN_NAV_KEY);
+    }
     syncAuthButtonLabel();
     void syncAdminFlagFromSupabase();
     syncAdminLinks();
