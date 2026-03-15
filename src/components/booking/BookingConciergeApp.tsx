@@ -140,7 +140,7 @@ export default function BookingConciergeApp() {
 
   return (
     <section className="mx-auto max-w-6xl px-4 pb-16 sm:px-6">
-      <div className="grid gap-6 lg:grid-cols-[1.04fr_0.96fr]">
+      <div className="grid gap-6 lg:grid-cols-[1.04fr_0.96fr] lg:items-start">
         <BookingChatPanel
           session={session}
           currentStep={currentStep}

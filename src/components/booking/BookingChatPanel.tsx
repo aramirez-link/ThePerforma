@@ -148,8 +148,10 @@ export default function BookingChatPanel({
   readinessLabel,
   aiSummary
 }: Props) {
+  const answeredSteps = stepOrder.filter((step) => !["welcome", "contact"].includes(step) && isAnswered(session, step)).slice(-3);
+
   return (
-    <section className="rounded-[2rem] border border-white/15 bg-black/45 p-5 md:p-6">
+    <section className="rounded-[2rem] border border-white/15 bg-black/45 p-5 md:p-6 lg:sticky lg:top-24 lg:flex lg:h-[calc(100vh-7rem)] lg:flex-col lg:overflow-hidden">
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-[10px] uppercase tracking-[0.32em] text-gold/85">Performa Booking Concierge</p>
@@ -173,17 +175,19 @@ export default function BookingChatPanel({
         </div>
       </div>
 
-      <div className="mt-5 space-y-4">
+      <div className="mt-5 space-y-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1">
         <article className="rounded-[1.5rem] border border-white/12 bg-black/30 p-4">
           <p className="text-[10px] uppercase tracking-[0.3em] text-gold/85">{sectionTitle[currentStep]}</p>
           <p className="mt-3 text-base leading-relaxed text-white/86">{questionCopy[currentStep]}</p>
         </article>
 
-        {stepOrder.filter((step) => !["welcome", "contact"].includes(step) && isAnswered(session, step)).length > 0 && (
+        {answeredSteps.length > 0 && (
           <div className="space-y-3">
-            {stepOrder
-              .filter((step) => !["welcome", "contact"].includes(step) && isAnswered(session, step))
-              .map((step) => (
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[10px] uppercase tracking-[0.24em] text-white/46">Recent answers</p>
+              <p className="text-[10px] uppercase tracking-[0.24em] text-white/38">Blueprint updates live</p>
+            </div>
+            {answeredSteps.map((step) => (
                 <button
                   key={step}
                   type="button"
@@ -193,7 +197,7 @@ export default function BookingChatPanel({
                   <p className="text-[10px] uppercase tracking-[0.24em] text-white/46">{sectionTitle[step]}</p>
                   <p className="mt-2 text-sm leading-relaxed text-white/80">{renderUserAnswer(session, step)}</p>
                 </button>
-              ))}
+            ))}
           </div>
         )}
 
