@@ -265,6 +265,10 @@ export default function SignalCommandCenter({
             playbackId={publicLive?.playbackId}
             title={publicLive?.title || "Performa Live Stream"}
             isLive={Boolean(publicLive?.isLive)}
+            ingestType={publicLive?.ingestType}
+            latencyMode={publicLive?.latencyMode}
+            health={publicLive?.health}
+            ingestHeartbeatAt={publicLive?.ingestHeartbeatAt}
           />
         </div>
       </section>

@@ -79,10 +79,11 @@ export const createCloudflareAdapter = (cfg: CloudflareConfig): LiveProviderAdap
           session_id: args.sessionId,
           title: args.title
         },
-        // Keep creation payload conservative for broad account compatibility.
-        // Low-latency and WebRTC paths are scaffolded separately and should not
-        // alter baseline RTMP ingest behavior.
-        recording: { mode: "off" }
+        // Keep live playback and recording available from the same input, and
+        // prefer Cloudflare's LL-HLS path when the account supports it.
+        recording: { mode: "automatic" },
+        preferLowLatency: true,
+        timeoutSeconds: 30
       })
     });
 

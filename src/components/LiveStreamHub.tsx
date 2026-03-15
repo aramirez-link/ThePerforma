@@ -209,6 +209,10 @@ export default function LiveStreamHub() {
               playbackId={publicLive.playbackId}
               title={publicLive.title || "Performa Live Stream"}
               isLive={Boolean(publicLive.isLive)}
+              ingestType={publicLive.ingestType}
+              latencyMode={publicLive.latencyMode}
+              health={publicLive.health}
+              ingestHeartbeatAt={publicLive.ingestHeartbeatAt}
             />
           ) : (
             <div className="aspect-video w-full">
@@ -228,6 +232,9 @@ export default function LiveStreamHub() {
                 ? "Performa Live is now routed into this command deck player."
                 : "No active Performa live feed detected. Fallback channel embed is shown."}
             </p>
+            {publicLive?.health === "stale" && (
+              <p className="text-[11px] text-rose-300">Feed is up but the live heartbeat looks stale. Refresh or check origin upload.</p>
+            )}
             <a href="/watch" className="inline-flex min-h-11 items-center rounded-full border border-white/25 px-3 py-2 text-[10px] uppercase tracking-[0.2em] text-white/80">
               Open Watch
             </a>

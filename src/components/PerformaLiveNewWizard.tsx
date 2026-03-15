@@ -61,6 +61,12 @@ export default function PerformaLiveNewWizard() {
           </label>
         </div>
 
+        <div className="mt-4 rounded-xl border border-emerald-400/20 bg-emerald-500/5 p-4 text-xs text-white/72">
+          <p className="text-[10px] uppercase tracking-[0.22em] text-emerald-300">Launch Preset</p>
+          <p className="mt-2">Start with OBS at 1080p30, H.264 + AAC, CBR 4500-6000 kbps, 2s keyframes, and wired upload if possible.</p>
+          <p className="mt-1 text-white/55">This profile is the safest baseline for smooth Cloudflare ingest and lower-latency playback.</p>
+        </div>
+
         <button
           type="button"
           onClick={() => void runCreate()}

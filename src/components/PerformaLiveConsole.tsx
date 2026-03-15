@@ -148,6 +148,16 @@ export default function PerformaLiveConsole({ sessionId }: Props) {
         playbackId={session.provider_playback_id}
         title={session.title}
         isLive={session.status === "LIVE" || String(session.ingest_status || "").toUpperCase() === "LIVE"}
+        ingestType={session.ingest_type}
+        latencyMode={session.ingest_type === "rtmp" ? "ll-hls" : "standard"}
+        health={
+          !session.ingest_last_heartbeat_at
+            ? "starting"
+            : Date.now() - new Date(session.ingest_last_heartbeat_at).getTime() <= 90_000
+            ? "healthy"
+            : "stale"
+        }
+        ingestHeartbeatAt={session.ingest_last_heartbeat_at}
       />
 
       <DestinationsPanel

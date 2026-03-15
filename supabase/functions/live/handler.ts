@@ -267,7 +267,7 @@ export const createLiveHandler = (deps: {
   const routePublicStatus = async () => {
     const { data, error } = await deps.supabase
       .from("live_sessions")
-      .select("id,title,provider,status,ingest_status,provider_playback_id,started_at,created_at")
+      .select("id,title,provider,status,ingest_status,ingest_type,provider_playback_id,last_webhook_at,ingest_last_heartbeat_at,started_at,created_at")
       .in("status", ["LIVE", "READY"])
       .not("provider_playback_id", "is", null)
       .order("created_at", { ascending: false })
@@ -286,18 +286,35 @@ export const createLiveHandler = (deps: {
       return json(200, { ok: true, session: null });
     }
 
+    const heartbeatAt = (picked as any).ingest_last_heartbeat_at
+      ? String((picked as any).ingest_last_heartbeat_at)
+      : null;
+    const heartbeatAgeMs = heartbeatAt ? Date.now() - new Date(heartbeatAt).getTime() : Number.POSITIVE_INFINITY;
+    const ingestStatus = String((picked as any).ingest_status || "CONNECTING");
+    const sessionStatus = String((picked as any).status || "READY").toUpperCase();
+    const isLive = sessionStatus === "LIVE" || ingestStatus.toUpperCase() === "LIVE";
+    const health =
+      !isLive
+        ? "starting"
+        : heartbeatAgeMs <= 90_000
+        ? "healthy"
+        : "stale";
+
     return json(200, {
       ok: true,
       session: {
         sessionId: String((picked as any).id),
         title: String((picked as any).title || "Performa Live"),
         provider: String((picked as any).provider || "cloudflare_stream"),
-        status: String((picked as any).status || "READY"),
-        ingestStatus: String((picked as any).ingest_status || "CONNECTING"),
+        status: sessionStatus,
+        ingestStatus,
+        ingestType: String((picked as any).ingest_type || "rtmp"),
         playbackId: (picked as any).provider_playback_id ? String((picked as any).provider_playback_id) : null,
-        isLive:
-          String((picked as any).status || "").toUpperCase() === "LIVE" ||
-          String((picked as any).ingest_status || "").toUpperCase() === "LIVE"
+        isLive,
+        health,
+        latencyMode: String((picked as any).ingest_type || "rtmp").toLowerCase() === "rtmp" ? "ll-hls" : "standard",
+        lastWebhookAt: (picked as any).last_webhook_at ? String((picked as any).last_webhook_at) : null,
+        ingestHeartbeatAt: heartbeatAt
       }
     });
   };

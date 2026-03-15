@@ -49,8 +49,13 @@ export type PublicLiveStatus = {
   provider: LiveProvider;
   status: LiveSessionStatus;
   ingestStatus: string;
+  ingestType: LiveIngestType;
   playbackId: string | null;
   isLive: boolean;
+  health: "healthy" | "starting" | "stale";
+  latencyMode: "ll-hls" | "standard";
+  lastWebhookAt: string | null;
+  ingestHeartbeatAt: string | null;
 };
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string };
