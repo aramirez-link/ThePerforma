@@ -68,32 +68,32 @@ export const pressKitIdea = {
 
 export const chapters = [
   {
-    eyebrow: "Chapter I",
+    eyebrow: "Phase I",
     index: "01",
-    title: "Exodus",
-    descriptor: "Arrival / Pressure / First contact",
+    title: "Connection",
+    descriptor: "Music / Movement / Shared rhythm",
     copy:
-      "The room darkens, the silhouette lands, and the first transition establishes that this is a live property with intention behind every move.",
+      "Music and movement open the room and establish the shared rhythm between performer and audience.",
     href: "/story/exodus",
     image: "/assets/img/010ChipLee_CF2024_4K.jpg"
   },
   {
-    eyebrow: "Chapter II",
+    eyebrow: "Phase II",
     index: "02",
-    title: "Journey",
-    descriptor: "Momentum / Scale / Lift",
+    title: "Elevation",
+    descriptor: "Live instruments / Choreography / Global sounds",
     copy:
-      "Tempo architecture, blend design, and emotional expansion turn the middle act into a controlled rise rather than a loose run of tracks.",
+      "Live instruments, choreography, and global sounds build momentum as energy rises across the crowd. The room transforms from spectators to participants.",
     href: "/story/journey",
     image: "/assets/img/096NewChip_4K.jpg"
   },
   {
-    eyebrow: "Chapter III",
+    eyebrow: "Phase III",
     index: "03",
-    title: "Return",
-    descriptor: "Release / Signal / Memory",
+    title: "Impact",
+    descriptor: "Peak / Release / Memory",
     copy:
-      "The final chapter opens the room, lands the hook, and leaves the audience with a finish that feels authored, cinematic, and repeatable in memory.",
+      "The performance lands its strongest moments, the collective peak where sound, motion, and crowd energy converge into a moment the audience remembers long after the night ends.",
     href: "/story/return",
     image: "/assets/img/137NewChip_4K.jpg"
   }
@@ -264,3 +264,4 @@ export const pressKitSchema = {
     }
   ]
 };
+

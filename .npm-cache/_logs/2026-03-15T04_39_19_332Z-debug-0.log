@@ -5,15 +5,15 @@
 4 silly config load:file:C:\Projects\The-Performa\.npmrc
 5 silly config load:file:C:\Users\arami\.npmrc
 6 silly config load:file:C:\Users\arami\AppData\Roaming\npm\etc\npmrc
-7 verbose title npm run build
-8 verbose argv "run" "build"
-9 verbose logfile logs-max:10 dir:C:\Projects\The-Performa\.npm-cache\_logs\2026-03-10T23_55_49_951Z-
-10 verbose logfile C:\Projects\The-Performa\.npm-cache\_logs\2026-03-10T23_55_49_951Z-debug-0.log
+7 verbose title npm run build:press-kit
+8 verbose argv "run" "build:press-kit"
+9 verbose logfile logs-max:10 dir:C:\Projects\The-Performa\.npm-cache\_logs\2026-03-15T04_39_19_332Z-
+10 verbose logfile C:\Projects\The-Performa\.npm-cache\_logs\2026-03-15T04_39_19_332Z-debug-0.log
 11 silly logfile start cleaning logs, removing 1 files
 12 silly logfile done cleaning log files
 13 verbose cwd C:\Projects\The-Performa
 14 verbose os Windows_NT 10.0.26200
 15 verbose node v25.6.1
 16 verbose npm  v11.9.0
-17 verbose exit 1
-18 verbose code 1
+17 verbose exit 0
+18 info ok

@@ -40,14 +40,17 @@ try {
     throw "Local preview server did not become ready at $url"
   }
 
-  & $chromePath `
-    "--headless=new" `
-    "--disable-gpu" `
-    "--run-all-compositor-stages-before-draw" `
-    "--virtual-time-budget=4000" `
-    "--no-pdf-header-footer" `
-    "--print-to-pdf=$outputPath" `
+  $chrome = Start-Process -FilePath $chromePath -ArgumentList @(
+    "--headless=new",
+    "--disable-gpu",
+    "--run-all-compositor-stages-before-draw",
+    "--virtual-time-budget=4000",
+    "--no-pdf-header-footer",
+    "--print-to-pdf=$outputPath",
     $url
+  ) -PassThru -WindowStyle Hidden
+
+  Wait-Process -Id $chrome.Id
 
   if (-not (Test-Path $outputPath)) {
     throw "PDF export did not produce $outputPath"
