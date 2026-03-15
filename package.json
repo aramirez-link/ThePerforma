@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
-    "preview": "astro preview"
+    "preview": "astro preview",
+    "build:press-kit": "powershell -ExecutionPolicy Bypass -File scripts/generate-press-kit.ps1"
   },
   "dependencies": {
     "@astrojs/mdx": "^3.1.0",

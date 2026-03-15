@@ -1,0 +1,664 @@
+---
+import {
+  chapters,
+  editorialHooks,
+  gallery,
+  marketBlocks,
+  performancePillars,
+  pressKitBookingSnapshot,
+  pressKitContacts,
+  pressKitHero,
+  pressKitIdea,
+  pressKitShortBio,
+  quickFacts
+} from "../../content/pressKit";
+
+const generatedDate = new Intl.DateTimeFormat("en-US", {
+  month: "long",
+  day: "numeric",
+  year: "numeric"
+}).format(new Date());
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>The Performa Press Kit</title>
+    <style is:global>
+      :root {
+        color-scheme: dark;
+        --ink: #120f12;
+        --paper: #f4efe6;
+        --paper-strong: #fbf7f1;
+        --gold: #d1b06d;
+        --gold-soft: rgba(209, 176, 109, 0.2);
+        --ember: #e85e35;
+        --smoke: rgba(255, 248, 236, 0.74);
+        --line: rgba(255, 248, 236, 0.14);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      @page {
+        size: Letter;
+        margin: 0.32in;
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: #0d0a0d;
+        color: var(--paper);
+        font-family: "Aptos", "Segoe UI", sans-serif;
+      }
+
+      body {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      img {
+        display: block;
+        max-width: 100%;
+      }
+
+      .press-book {
+        width: 100%;
+      }
+
+      .page {
+        position: relative;
+        min-height: 10.35in;
+        overflow: hidden;
+        page-break-after: always;
+        break-after: page;
+        border: 1px solid rgba(255, 248, 236, 0.08);
+        background:
+          radial-gradient(circle at top left, rgba(232, 94, 53, 0.22), transparent 28%),
+          radial-gradient(circle at top right, rgba(209, 176, 109, 0.12), transparent 24%),
+          linear-gradient(180deg, #141014 0%, #0b090d 100%);
+      }
+
+      .page:last-child {
+        page-break-after: auto;
+        break-after: auto;
+      }
+
+      .page-inner {
+        position: relative;
+        min-height: 10.35in;
+        padding: 0.52in;
+      }
+
+      .page-number {
+        position: absolute;
+        right: 0.52in;
+        bottom: 0.32in;
+        font-size: 10px;
+        letter-spacing: 0.26em;
+        text-transform: uppercase;
+        color: rgba(255, 248, 236, 0.55);
+      }
+
+      .topbar,
+      .footerbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .topbar {
+        margin-bottom: 28px;
+      }
+
+      .footerbar {
+        margin-top: 26px;
+        padding-top: 16px;
+        border-top: 1px solid var(--line);
+        font-size: 11px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: rgba(255, 248, 236, 0.55);
+      }
+
+      .eyebrow {
+        font-size: 10px;
+        letter-spacing: 0.34em;
+        text-transform: uppercase;
+        color: var(--gold);
+      }
+
+      .headline {
+        margin: 14px 0 0;
+        font-family: "Bodoni MT", "Didot", "Times New Roman", serif;
+        font-size: 52px;
+        line-height: 0.92;
+        font-weight: 700;
+        letter-spacing: -0.03em;
+      }
+
+      .subheadline {
+        margin: 18px 0 0;
+        font-size: 15px;
+        line-height: 1.7;
+        color: var(--smoke);
+      }
+
+      .hero-grid,
+      .story-grid,
+      .gallery-grid,
+      .resource-grid,
+      .closing-grid {
+        display: grid;
+        gap: 18px;
+      }
+
+      .hero-grid {
+        grid-template-columns: 1.2fr 0.9fr;
+        align-items: end;
+      }
+
+      .story-grid {
+        grid-template-columns: 0.94fr 1.06fr;
+      }
+
+      .gallery-grid,
+      .resource-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .closing-grid {
+        grid-template-columns: 1.15fr 0.85fr;
+        align-items: stretch;
+      }
+
+      .card,
+      .image-card,
+      .metric-card,
+      .fact-card,
+      .hook-card,
+      .resource-card {
+        border: 1px solid var(--line);
+        background: linear-gradient(180deg, rgba(255, 248, 236, 0.06), rgba(255, 248, 236, 0.02));
+        backdrop-filter: blur(10px);
+      }
+
+      .card,
+      .metric-card,
+      .fact-card,
+      .hook-card,
+      .resource-card {
+        border-radius: 24px;
+        padding: 18px;
+      }
+
+      .image-card {
+        border-radius: 28px;
+        overflow: hidden;
+        background: #09070a;
+      }
+
+      .image-card img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 248, 236, 0.15);
+        padding: 8px 12px;
+        font-size: 10px;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: rgba(255, 248, 236, 0.72);
+      }
+
+      .section-title {
+        margin: 0;
+        font-family: "Bodoni MT", "Didot", "Times New Roman", serif;
+        font-size: 30px;
+        line-height: 1;
+        font-weight: 700;
+      }
+
+      .section-copy,
+      .body-copy {
+        margin: 0;
+        font-size: 14px;
+        line-height: 1.7;
+        color: var(--smoke);
+      }
+
+      .fact-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+        margin-top: 18px;
+      }
+
+      .fact-card h3,
+      .metric-card h3,
+      .resource-card h3 {
+        margin: 8px 0 0;
+        font-size: 20px;
+        line-height: 1.15;
+        font-weight: 600;
+        color: var(--paper-strong);
+      }
+
+      .fact-card p,
+      .metric-card p,
+      .resource-card p,
+      .hook-card p {
+        margin: 10px 0 0;
+        font-size: 13px;
+        line-height: 1.6;
+        color: rgba(255, 248, 236, 0.7);
+      }
+
+      .metric-stack {
+        display: grid;
+        gap: 12px;
+      }
+
+      .story-copy {
+        display: grid;
+        gap: 16px;
+      }
+
+      .chapter-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+        margin-top: 18px;
+      }
+
+      .chapter-card {
+        position: relative;
+        min-height: 260px;
+        overflow: hidden;
+        border-radius: 24px;
+        border: 1px solid var(--line);
+        background: #09070a;
+      }
+
+      .chapter-card img {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        opacity: 0.4;
+      }
+
+      .chapter-overlay {
+        position: absolute;
+        inset: 0;
+        background:
+          linear-gradient(180deg, rgba(10, 8, 11, 0.1), rgba(10, 8, 11, 0.9) 58%, rgba(10, 8, 11, 0.98)),
+          radial-gradient(circle at top left, rgba(209, 176, 109, 0.18), transparent 32%);
+      }
+
+      .chapter-content {
+        position: relative;
+        display: flex;
+        min-height: 260px;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 18px;
+      }
+
+      .chapter-title {
+        margin: 10px 0 0;
+        font-family: "Bodoni MT", "Didot", "Times New Roman", serif;
+        font-size: 34px;
+        line-height: 0.95;
+      }
+
+      .pillar-grid,
+      .hooks-grid {
+        display: grid;
+        gap: 12px;
+      }
+
+      .pillar-grid {
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        margin-top: 14px;
+      }
+
+      .hooks-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        margin-top: 18px;
+      }
+
+      .pill-title,
+      .resource-label {
+        font-size: 10px;
+        letter-spacing: 0.26em;
+        text-transform: uppercase;
+        color: rgba(255, 248, 236, 0.5);
+      }
+
+      .gallery-tile {
+        position: relative;
+        min-height: 220px;
+        overflow: hidden;
+        border-radius: 24px;
+        border: 1px solid var(--line);
+        background: #09070a;
+      }
+
+      .gallery-tile img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .gallery-tile .label {
+        position: absolute;
+        left: 14px;
+        bottom: 14px;
+        border-radius: 999px;
+        background: rgba(9, 7, 10, 0.78);
+        padding: 8px 12px;
+        font-size: 10px;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+      }
+
+      .resource-grid {
+        margin-top: 18px;
+      }
+
+      .resource-card strong {
+        display: block;
+        margin-top: 16px;
+        font-size: 11px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--gold);
+      }
+
+      .logo-mark {
+        width: 190px;
+        object-fit: contain;
+        filter: drop-shadow(0 20px 40px rgba(0, 0, 0, 0.25));
+      }
+
+      .accent-panel {
+        border-radius: 28px;
+        border: 1px solid rgba(209, 176, 109, 0.24);
+        background:
+          radial-gradient(circle at top left, rgba(209, 176, 109, 0.18), transparent 32%),
+          linear-gradient(180deg, rgba(255, 248, 236, 0.06), rgba(255, 248, 236, 0.02));
+        padding: 24px;
+      }
+
+      .contact-list {
+        display: grid;
+        gap: 12px;
+        margin-top: 18px;
+      }
+
+      .contact-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 18px;
+        border-bottom: 1px solid var(--line);
+        padding-bottom: 10px;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .contact-row span:first-child {
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: rgba(255, 248, 236, 0.48);
+      }
+
+      .muted {
+        color: rgba(255, 248, 236, 0.64);
+      }
+    </style>
+  </head>
+  <body>
+    <main class="press-book">
+      <section class="page">
+        <div class="page-inner">
+          <div class="topbar">
+            <span class="badge">The Performa Press Kit</span>
+            <span class="badge">2026 Edition</span>
+          </div>
+          <div class="hero-grid">
+            <div>
+              <p class="eyebrow">{pressKitHero.eyebrow}</p>
+              <h1 class="headline">{pressKitHero.title}</h1>
+              <p class="subheadline">{pressKitHero.intro}</p>
+              <p class="subheadline">{pressKitHero.detail}</p>
+            </div>
+            <div class="accent-panel">
+              <p class="eyebrow">Booking Snapshot</p>
+              <div class="metric-stack">
+                <article class="metric-card">
+                  <span class="pill-title">Format</span>
+                  <h3>{pressKitBookingSnapshot.format}</h3>
+                </article>
+                <article class="metric-card">
+                  <span class="pill-title">Based In / Availability</span>
+                  <h3>{pressKitBookingSnapshot.basedInAvailability}</h3>
+                </article>
+                <article class="metric-card">
+                  <span class="pill-title">Commercial Value</span>
+                  <p>{pressKitBookingSnapshot.commercialValue}</p>
+                </article>
+              </div>
+            </div>
+          </div>
+          <div class="fact-grid">
+            {quickFacts.map((fact) => (
+              <article class="fact-card">
+                <span class="pill-title">{fact.label}</span>
+                <h3>{fact.value}</h3>
+                <p>{fact.detail}</p>
+              </article>
+            ))}
+          </div>
+          <div class="footerbar">
+            <span>{pressKitContacts.site}</span>
+            <span>{pressKitContacts.bookingEmail}</span>
+          </div>
+          <span class="page-number">Page 1</span>
+        </div>
+      </section>
+
+      <section class="page">
+        <div class="page-inner">
+          <div class="story-grid">
+            <div class="image-card">
+              <img src="/assets/img/201NewChip_4K.jpg" alt="Chip Lee portrait for The Performa press kit" />
+            </div>
+            <div class="story-copy">
+              <article class="card">
+                <p class="eyebrow">Short Press Bio</p>
+                <h2 class="section-title">A premium performance identity with commercial clarity.</h2>
+                <p class="section-copy" style="margin-top: 14px;">{pressKitShortBio}</p>
+              </article>
+              <article class="card">
+                <p class="eyebrow">Artist Narrative</p>
+                <h2 class="section-title">{pressKitIdea.title}</h2>
+                {pressKitIdea.paragraphs.map((paragraph) => (
+                  <p class="body-copy">{paragraph}</p>
+                ))}
+              </article>
+            </div>
+          </div>
+          <div class="footerbar">
+            <span>Atlanta, Georgia</span>
+            <span>Worldwide Availability</span>
+            <span>{pressKitContacts.site}</span>
+          </div>
+          <span class="page-number">Page 2</span>
+        </div>
+      </section>
+
+      <section class="page">
+        <div class="page-inner">
+          <p class="eyebrow">Show Architecture</p>
+          <h2 class="section-title" style="font-size: 38px; margin-top: 10px;">Three chapters built for escalation, memory, and room control.</h2>
+          <p class="section-copy" style="margin-top: 14px;">
+            The Performa is designed as a multi-dimensional live performance where music, live instrumentation, movement, technology, and audience connection converge into a single shared environment.
+          </p>
+          <div class="chapter-grid">
+            {chapters.map((chapter) => (
+              <article class="chapter-card">
+                <img src={chapter.image} alt="" />
+                <div class="chapter-overlay"></div>
+                <div class="chapter-content">
+                  <div>
+                    <span class="badge">{chapter.eyebrow}</span>
+                    <h3 class="chapter-title">{chapter.title}</h3>
+                  </div>
+                  <div>
+                    <p class="pill-title">{chapter.descriptor}</p>
+                    <p class="body-copy" style="margin-top: 10px;">{chapter.copy}</p>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+          <div class="pillar-grid">
+            {performancePillars.map((pillar) => (
+              <article class="fact-card" style="padding: 14px;">
+                <span class="pill-title">{pillar.title}</span>
+                <p>{pillar.copy}</p>
+              </article>
+            ))}
+          </div>
+          <div class="footerbar">
+            <span>Exodus</span>
+            <span>Journey</span>
+            <span>Return</span>
+          </div>
+          <span class="page-number">Page 3</span>
+        </div>
+      </section>
+
+      <section class="page">
+        <div class="page-inner">
+          <div class="story-grid">
+            <article class="card">
+              <p class="eyebrow">Why It Books</p>
+              <h2 class="section-title">A live property designed to move the room.</h2>
+              <p class="section-copy" style="margin-top: 14px;">
+                The Performa offers event producers and promoters something more dynamic than a traditional DJ booking: a performance experience that engages audiences visually, musically, and physically.
+              </p>
+              <div class="metric-stack" style="margin-top: 18px;">
+                {marketBlocks.map((block) => (
+                  <article class="metric-card">
+                    <span class="pill-title">Market Differentiation</span>
+                    <h3>{block.title}</h3>
+                    <p>{block.copy}</p>
+                  </article>
+                ))}
+              </div>
+            </article>
+            <article class="card">
+              <p class="eyebrow">Editorial Hooks</p>
+              <h2 class="section-title">Story angles for editors, interviewers, and culture media.</h2>
+              <div class="hooks-grid">
+                {editorialHooks.map((hook) => (
+                  <article class="hook-card">
+                    <p>{hook}</p>
+                  </article>
+                ))}
+              </div>
+            </article>
+          </div>
+          <div class="footerbar">
+            <span>Promoter Ready</span>
+            <span>Interview Worthy</span>
+            <span>Brand Compatible</span>
+          </div>
+          <span class="page-number">Page 4</span>
+        </div>
+      </section>
+
+      <section class="page">
+        <div class="page-inner">
+          <div class="gallery-grid">
+            {gallery.map((item) => (
+              <article class="gallery-tile">
+                <img src={item.src} alt={item.alt} />
+                <span class="label">{item.label}</span>
+              </article>
+            ))}
+          </div>
+          <div class="closing-grid" style="margin-top: 18px;">
+            <article class="accent-panel">
+              <p class="eyebrow">Resources</p>
+              <h2 class="section-title">A premium media package built for immediate use.</h2>
+              <div class="resource-grid">
+                <article class="resource-card">
+                  <span class="resource-label">Press Kit</span>
+                  <h3>PDF Download</h3>
+                  <p>High-resolution leave-behind with positioning, show architecture, visuals, and booking context.</p>
+                  <strong>{pressKitContacts.site}/media/press-kit.pdf</strong>
+                </article>
+                <article class="resource-card">
+                  <span class="resource-label">Visual Assets</span>
+                  <h3>Photos + Logo</h3>
+                  <p>Portraits, performance stills, and brand marks suitable for editorial, flyering, decks, and press outreach.</p>
+                  <strong>{pressKitContacts.site}/assets/img</strong>
+                </article>
+              </div>
+            </article>
+            <article class="card">
+              <img class="logo-mark" src="/assets/img/CHIPLEE_LOGO_Clear.png" alt="Chip Lee logo" />
+              <div class="contact-list">
+                <div class="contact-row">
+                  <span>Site</span>
+                  <span>{pressKitContacts.site}</span>
+                </div>
+                <div class="contact-row">
+                  <span>Email</span>
+                  <span>{pressKitContacts.bookingEmail}</span>
+                </div>
+                <div class="contact-row">
+                  <span>YouTube</span>
+                  <span class="muted">@chipleetheperforma</span>
+                </div>
+                <div class="contact-row">
+                  <span>SoundCloud</span>
+                  <span class="muted">/chipleetheperforma</span>
+                </div>
+                <div class="contact-row">
+                  <span>Generated</span>
+                  <span>{generatedDate}</span>
+                </div>
+              </div>
+            </article>
+          </div>
+          <div class="footerbar">
+            <span>Press-ready visuals</span>
+            <span>Booking-ready narrative</span>
+            <span>Premium presentation</span>
+          </div>
+          <span class="page-number">Page 5</span>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
