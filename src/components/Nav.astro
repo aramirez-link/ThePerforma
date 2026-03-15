@@ -9,14 +9,17 @@ const primaryLinks = [
   { label: "Link Up", href: "/feed" }
 ];
 
-const toolkitLinks = [
+const resourceLinks = [
   { label: "Store", href: "/store" },
   { label: "Fan Vault", href: "/fan-club" },
   { label: "Story", href: "/story" },
-  { label: "Live", href: "/live" },
-  { label: "Gallery", href: "/gallery" },
-  { label: "Moderation", href: "/admin/moderation", adminOnly: true },
-  { label: "Trivia", href: "/admin/trivia", adminOnly: true }
+  { label: "Gallery", href: "/gallery" }
+];
+
+const adminLinks = [
+  { label: "Streaming", href: "/live/new" },
+  { label: "Moderation", href: "/admin/moderation" },
+  { label: "Trivia", href: "/admin/trivia" }
 ];
 
 ---
@@ -44,19 +47,29 @@ const toolkitLinks = [
         <div class="group relative">
           <button
             type="button"
-            aria-controls="toolkit-panel"
+            aria-controls="resources-panel"
             aria-expanded="false"
-            data-toolkit-toggle
+            data-resources-toggle
             class="text-white/70 transition hover:text-white group-hover:text-white"
           >
-            TOOLKIT
+            RESOURCES
           </button>
-          <div id="toolkit-panel" class="toolkit-panel invisible absolute left-1/2 top-8 z-10 w-44 -translate-x-1/2 rounded-xl border border-white/15 bg-black/90 p-2 opacity-0 backdrop-blur-xl transition duration-150 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
-            {toolkitLinks.map((link) => (
-              <a href={link.href} data-internal-nav data-admin-only={link.adminOnly ? "true" : "false"} class={`block rounded-lg px-3 py-2 text-[10px] uppercase tracking-[0.24em] text-white/75 transition hover:bg-white/10 hover:text-white ${link.adminOnly ? "hidden" : ""}`}>
+          <div id="resources-panel" class="toolkit-panel invisible absolute left-1/2 top-8 z-10 w-56 -translate-x-1/2 rounded-xl border border-white/15 bg-black/90 p-2 opacity-0 backdrop-blur-xl transition duration-150 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
+            {resourceLinks.map((link) => (
+              <a href={link.href} data-internal-nav class="block rounded-lg px-3 py-2 text-[10px] uppercase tracking-[0.24em] text-white/75 transition hover:bg-white/10 hover:text-white">
                 {link.label}
               </a>
             ))}
+            <div data-admin-group="true" class="hidden border-t border-white/10 px-3 pb-1 pt-3">
+              <p class="text-[10px] uppercase tracking-[0.24em] text-gold/80">Admin</p>
+              <div class="mt-2 space-y-1">
+                {adminLinks.map((link) => (
+                  <a href={link.href} data-internal-nav data-admin-only="true" class="block rounded-lg px-0 py-2 text-[10px] uppercase tracking-[0.24em] text-white/75 transition hover:text-white">
+                    {link.label}
+                  </a>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -79,18 +92,32 @@ const toolkitLinks = [
               ))}
             </div>
             <div class="border-t border-white/10 pt-4">
-              <p class="mb-2 text-[10px] uppercase tracking-[0.3em] text-white/50">Toolkit</p>
+              <p class="mb-2 text-[10px] uppercase tracking-[0.3em] text-white/50">Resources</p>
               <div class="grid gap-2">
-                {toolkitLinks.map((link) => (
+                {resourceLinks.map((link) => (
                   <a
                     href={link.href}
                     data-internal-nav
-                    data-admin-only={link.adminOnly ? "true" : "false"}
-                    class={`flex min-h-11 items-center rounded-xl border border-white/15 bg-black/30 px-4 text-[10px] uppercase tracking-[0.25em] text-white/75 transition hover:border-white/35 hover:text-white ${link.adminOnly ? "hidden" : ""}`}
+                    class="flex min-h-11 items-center rounded-xl border border-white/15 bg-black/30 px-4 text-[10px] uppercase tracking-[0.25em] text-white/75 transition hover:border-white/35 hover:text-white"
                   >
                     {link.label}
                   </a>
                 ))}
+              </div>
+              <div data-admin-group="true" class="mt-4 hidden border-t border-white/10 pt-4">
+                <p class="mb-2 text-[10px] uppercase tracking-[0.3em] text-gold/80">Admin</p>
+                <div class="grid gap-2">
+                  {adminLinks.map((link) => (
+                    <a
+                      href={link.href}
+                      data-internal-nav
+                      data-admin-only="true"
+                      class="flex min-h-11 items-center rounded-xl border border-white/15 bg-black/30 px-4 text-[10px] uppercase tracking-[0.25em] text-white/75 transition hover:border-white/35 hover:text-white"
+                    >
+                      {link.label}
+                    </a>
+                  ))}
+                </div>
               </div>
             </div>
             <a
@@ -175,43 +202,43 @@ const toolkitLinks = [
       }
     });
 
-    const toolkitToggle = document.querySelector("[data-toolkit-toggle]");
-    const toolkitPanel = document.getElementById("toolkit-panel");
+    const resourcesToggle = document.querySelector("[data-resources-toggle]");
+    const resourcesPanel = document.getElementById("resources-panel");
     let supabaseClient = null;
     let fanAuthBound = false;
     let fanLoggedIn = false;
     let fanAuthSub = null;
-    const closeToolkit = () => {
-      if (!toolkitToggle || !toolkitPanel) return;
-      toolkitToggle.setAttribute("aria-expanded", "false");
-      toolkitPanel.classList.remove("is-open");
+    const closeResources = () => {
+      if (!resourcesToggle || !resourcesPanel) return;
+      resourcesToggle.setAttribute("aria-expanded", "false");
+      resourcesPanel.classList.remove("is-open");
     };
 
-    const toggleToolkit = (forceOpen) => {
-      if (!toolkitToggle || !toolkitPanel) return;
-      const open = typeof forceOpen === "boolean" ? forceOpen : !toolkitPanel.classList.contains("is-open");
-      toolkitPanel.classList.toggle("is-open", open);
-      toolkitToggle.setAttribute("aria-expanded", open ? "true" : "false");
+    const toggleResources = (forceOpen) => {
+      if (!resourcesToggle || !resourcesPanel) return;
+      const open = typeof forceOpen === "boolean" ? forceOpen : !resourcesPanel.classList.contains("is-open");
+      resourcesPanel.classList.toggle("is-open", open);
+      resourcesToggle.setAttribute("aria-expanded", open ? "true" : "false");
     };
 
-    if (toolkitToggle && toolkitPanel) {
-      toolkitToggle.addEventListener("click", (event) => {
+    if (resourcesToggle && resourcesPanel) {
+      resourcesToggle.addEventListener("click", (event) => {
         event.preventDefault();
-        toggleToolkit();
+        toggleResources();
       });
     }
 
     document.addEventListener("click", (event) => {
-      if (toolkitToggle && toolkitPanel) {
-        const clickedToggle = toolkitToggle.contains(event.target);
-        const clickedPanel = toolkitPanel.contains(event.target);
-        if (!clickedToggle && !clickedPanel) closeToolkit();
+      if (resourcesToggle && resourcesPanel) {
+        const clickedToggle = resourcesToggle.contains(event.target);
+        const clickedPanel = resourcesPanel.contains(event.target);
+        if (!clickedToggle && !clickedPanel) closeResources();
       }
     });
 
     document.addEventListener("keydown", (event) => {
       if (event.key !== "Escape") return;
-      closeToolkit();
+      closeResources();
     });
 
     const LIVE_STATUS_KEY = "the-performa-live-status-v1";
@@ -240,6 +267,10 @@ const toolkitLinks = [
       const isAdmin = localStorage.getItem(ADMIN_NAV_KEY) === "true";
       const adminLinks = Array.from(document.querySelectorAll("[data-admin-only='true']"));
       adminLinks.forEach((node) => {
+        node.classList.toggle("hidden", !isAdmin);
+      });
+      const adminGroups = Array.from(document.querySelectorAll("[data-admin-group='true']"));
+      adminGroups.forEach((node) => {
         node.classList.toggle("hidden", !isAdmin);
       });
     };
