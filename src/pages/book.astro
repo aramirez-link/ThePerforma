@@ -1,7 +1,6 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
 import Section from "../components/Section.astro";
-import Card from "../components/Card.astro";
 import Button from "../components/Button.astro";
 import BookingConciergeEntry from "../components/BookingConciergeEntry";
 import PerformaConciergeWizardV2 from "../components/PerformaConciergeWizardV2";
@@ -24,14 +23,9 @@ const enablePartnerCredit = import.meta.env.PUBLIC_ENABLE_PARTNER_CREDIT !== "fa
   </section>
   <Section
     eyebrow="EPK"
-    title="Promoter Cockpit"
+    title="Booking & Promotions"
     subtitle="Fast facts, tech rider snapshot, press assets, and a direct inquiry flow for booking Chip Lee."
   >
-    <div class="grid gap-6 md:grid-cols-3">
-      <Card title="Set Formats" subtitle="60-90 minute headline set. Festival-ready flow. Built for mainstage impact." />
-      <Card title="Tech Rider" subtitle="Stage plot, I/O, and lighting notes available upon request. Streamlined for fast load-in." />
-      <Card title="Press Assets" subtitle="Download high-res photos, logos, and approved press copy for Chip Lee - The Performa." />
-    </div>
     <div class="mt-10 flex flex-wrap gap-4 items-center">
       <Button href="/media/press-kit.pdf" variant="primary">Download Press Kit</Button>
       <BookingConciergeEntry client:load />
