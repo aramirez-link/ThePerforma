@@ -1,24 +1,81 @@
-﻿---
+---
 import BaseLayout from "./BaseLayout.astro";
+
 const { frontmatter } = Astro.props;
+const heroImage = frontmatter.heroImage || "/assets/img/069NewChip_4K.jpg";
+const gallery = Array.isArray(frontmatter.gallery) ? frontmatter.gallery : [];
+const palette = Array.isArray(frontmatter.palette) ? frontmatter.palette : [];
+const cue = frontmatter.cue || "";
 ---
 <BaseLayout title={frontmatter.title} description={frontmatter.description}>
   <section class="mx-auto max-w-6xl px-6 pt-8">
-    <div class="relative overflow-hidden rounded-[2rem] border border-white/15">
-      <img src="/assets/img/069NewChip_4K.jpg" alt="" aria-hidden="true" class="h-[38vh] w-full object-cover opacity-40" />
-      <div class="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,7,11,0.28),rgba(7,7,11,0.9))]"></div>
+    <div class="relative overflow-hidden rounded-[2rem] border border-white/15 bg-black/55">
+      <img src={heroImage} alt="" aria-hidden="true" class="h-[42vh] w-full object-cover opacity-45" />
+      <div class="absolute inset-0 bg-[linear-gradient(135deg,rgba(242,84,45,0.18),rgba(7,7,11,0.52)_36%,rgba(7,7,11,0.96))]"></div>
+      <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(243,211,139,0.18),transparent_34%)]"></div>
       <div class="absolute inset-0 flex items-end p-8">
-        <div>
+        <div class="max-w-3xl">
           <p class="text-xs uppercase tracking-[0.34em] text-gold/90">{frontmatter.eyebrow}</p>
-          <h1 class="mt-3 font-display text-4xl md:text-5xl">{frontmatter.title}</h1>
+          <h1 class="mt-3 font-display text-4xl md:text-6xl">{frontmatter.title}</h1>
           <p class="mt-3 max-w-2xl text-sm text-white/75 md:text-base">{frontmatter.description}</p>
+          {cue && <p class="mt-4 inline-flex rounded-full border border-gold/35 bg-black/35 px-4 py-2 text-[10px] uppercase tracking-[0.28em] text-gold/90">{cue}</p>}
         </div>
       </div>
     </div>
   </section>
+
+  {(palette.length > 0 || gallery.length > 0) && (
+    <section class="mx-auto max-w-6xl px-6 pt-6">
+      <div class="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
+        <div class="rounded-[1.6rem] border border-white/15 bg-black/45 p-6">
+          <p class="text-[10px] uppercase tracking-[0.3em] text-white/50">Visual Language</p>
+          <div class="mt-4 flex flex-wrap gap-3">
+            {palette.map((item: string) => (
+              <span class="rounded-full border border-white/15 bg-black/40 px-4 py-2 text-[10px] uppercase tracking-[0.24em] text-white/78">
+                {item}
+              </span>
+            ))}
+          </div>
+        </div>
+        {gallery.length > 0 && (
+          <div class="grid gap-4 sm:grid-cols-3">
+            {gallery.map((image: { src: string; alt: string }) => (
+              <div class="overflow-hidden rounded-[1.4rem] border border-white/15 bg-black/45">
+                <img src={image.src} alt={image.alt} class="h-44 w-full object-cover" loading="lazy" />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  )}
+
   <section class="mx-auto max-w-4xl px-6 py-16">
-    <article class="rounded-[1.6rem] border border-white/15 bg-black/50 p-6 md:p-8 mt-2 space-y-6 text-base leading-relaxed text-white/80 shadow-[0_0_70px_rgba(243,211,139,0.08)]">
+    <article class="mt-2 space-y-6 rounded-[1.6rem] border border-white/15 bg-black/50 p-6 text-base leading-relaxed text-white/80 shadow-[0_0_70px_rgba(243,211,139,0.08)] md:p-8">
       <slot />
     </article>
+  </section>
+
+  <section class="mx-auto max-w-6xl px-6 pb-16">
+    <div class="rounded-[1.8rem] border border-white/15 bg-[linear-gradient(135deg,rgba(242,84,45,0.08),rgba(7,7,11,0.86))] p-6 md:p-8">
+      <p class="text-[10px] uppercase tracking-[0.3em] text-gold/85">Performa Story Arc</p>
+      <div class="mt-4 grid gap-4 md:grid-cols-3">
+        <a href="/story/exodus" class={`rounded-[1.3rem] border px-4 py-4 transition ${frontmatter.title === "Exodus" ? "border-gold/45 bg-gold/10" : "border-white/12 bg-black/30 hover:border-gold/30"}`}>
+          <p class="text-[10px] uppercase tracking-[0.22em] text-white/55">Chapter I</p>
+          <p class="mt-2 font-display text-2xl">Exodus</p>
+          <p class="mt-2 text-sm text-white/65">The arrival. Pressure, silhouette, and first contact with the room.</p>
+        </a>
+        <a href="/story/journey" class={`rounded-[1.3rem] border px-4 py-4 transition ${frontmatter.title === "Journey" ? "border-gold/45 bg-gold/10" : "border-white/12 bg-black/30 hover:border-gold/30"}`}>
+          <p class="text-[10px] uppercase tracking-[0.22em] text-white/55">Chapter II</p>
+          <p class="mt-2 font-display text-2xl">Journey</p>
+          <p class="mt-2 text-sm text-white/65">The stretch. Motion, blend architecture, and city-sized tempo shifts.</p>
+        </a>
+        <a href="/story/return" class={`rounded-[1.3rem] border px-4 py-4 transition ${frontmatter.title === "Return" ? "border-gold/45 bg-gold/10" : "border-white/12 bg-black/30 hover:border-gold/30"}`}>
+          <p class="text-[10px] uppercase tracking-[0.22em] text-white/55">Chapter III</p>
+          <p class="mt-2 font-display text-2xl">Return</p>
+          <p class="mt-2 text-sm text-white/65">The release. Voice, crowd lift, and the final hook that sends the room home changed.</p>
+        </a>
+      </div>
+    </div>
   </section>
 </BaseLayout>

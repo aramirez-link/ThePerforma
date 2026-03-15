@@ -1,74 +1,101 @@
-﻿---
+---
 import BaseLayout from "../../layouts/BaseLayout.astro";
-import Section from "../../components/Section.astro";
-import Timeline from "../../components/Timeline.astro";
 import MotionReveal from "../../components/MotionReveal";
 
-const timeline = [
+const chapters = [
   {
     eyebrow: "Chapter I",
     title: "Exodus",
-    copy: "The moment the persona steps into the light.",
-    href: "/story/exodus"
+    copy: "The controlled arrival. Darkness, pressure, and the first real shift in the room.",
+    href: "/story/exodus",
+    image: "/assets/img/010ChipLee_CF2024_4K.jpg"
   },
   {
     eyebrow: "Chapter II",
     title: "Journey",
-    copy: "A moving city of sound and tempo shifts.",
-    href: "/story/journey"
+    copy: "The long-form stretch. Motion, blend architecture, and a bigger sense of scale.",
+    href: "/story/journey",
+    image: "/assets/img/096NewChip_4K.jpg"
   },
   {
     eyebrow: "Chapter III",
     title: "Return",
-    copy: "Finale built for release and encore.",
-    href: "/story/return"
+    copy: "The release. Brighter hooks, wider beams, and the crowd as part of the instrument.",
+    href: "/story/return",
+    image: "/assets/img/137NewChip_4K.jpg"
   }
 ];
 ---
-<BaseLayout title="Story | The Performa" description="Explore the narrative chapters of the live show.">
+<BaseLayout title="Story | The Performa" description="Explore the narrative chapters behind The Performa live experience.">
   <section class="mx-auto max-w-6xl px-6 pt-8">
-    <div class="relative overflow-hidden rounded-[2rem] border border-white/15">
-      <img src="/assets/img/0030ChipFiesta_4K.jpg" alt="" aria-hidden="true" class="h-[40vh] w-full object-cover opacity-40" />
-      <div class="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,7,11,0.28),rgba(7,7,11,0.9))]"></div>
-      <div class="absolute inset-0 flex items-end p-8">
-        <div>
-          <p class="text-xs uppercase tracking-[0.34em] text-gold/90">Story Vault</p>
-          <h1 class="mt-3 font-display text-4xl md:text-5xl">Act Structure Narrative</h1>
-          <p class="mt-3 max-w-2xl text-sm text-white/75 md:text-base">Three cinematic chapters shaping the emotional arc from ignition to release.</p>
+    <div class="relative overflow-hidden rounded-[2rem] border border-white/15 bg-black/55">
+      <img src="/assets/img/0032ChipFiesta_4K.jpg" alt="" aria-hidden="true" class="h-[46vh] w-full object-cover opacity-45" />
+      <div class="absolute inset-0 bg-[linear-gradient(135deg,rgba(242,84,45,0.24),rgba(7,7,11,0.58)_38%,rgba(7,7,11,0.97))]"></div>
+      <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(243,211,139,0.22),transparent_32%)]"></div>
+      <div class="absolute inset-0 flex items-end p-8 md:p-10">
+        <div class="max-w-3xl">
+          <p class="text-xs uppercase tracking-[0.34em] text-gold/90">Performa Storyworld</p>
+          <h1 class="mt-3 font-display text-4xl md:text-6xl">Three chapters. One controlled rise.</h1>
+          <p class="mt-4 max-w-2xl text-sm text-white/76 md:text-base">
+            The Performa show is built like a cinematic night arc: arrival, movement, and release. Each chapter carries its own visual language, emotional job, and crowd response.
+          </p>
         </div>
       </div>
     </div>
   </section>
-  <Section
-    eyebrow="Story Hub"
-    title="The narrative behind the show"
-    subtitle="Three chapters built for cinematic pacing, audience participation, and signature transitions."
-  >
-    <Timeline items={timeline} />
-  </Section>
-  <Section
-    eyebrow="Scrollytelling"
-    title="Chapter visuals"
-    subtitle="Each act unfolds with a distinct visual language."
-  >
+
+  <section class="mx-auto max-w-6xl px-6 py-8">
+    <div class="grid gap-4 md:grid-cols-3">
+      <div class="rounded-[1.5rem] border border-white/15 bg-black/45 p-5">
+        <p class="text-[10px] uppercase tracking-[0.28em] text-white/50">Act Design</p>
+        <p class="mt-3 text-sm text-white/72">The story pages map how the set controls tension, movement, and release instead of treating the night like one long undifferentiated mix.</p>
+      </div>
+      <div class="rounded-[1.5rem] border border-white/15 bg-black/45 p-5">
+        <p class="text-[10px] uppercase tracking-[0.28em] text-white/50">Visual Direction</p>
+        <p class="mt-3 text-sm text-white/72">Every chapter uses distinct image language so the brand feels authored: silhouette pressure, kinetic motion, then brighter uplift.</p>
+      </div>
+      <div class="rounded-[1.5rem] border border-white/15 bg-black/45 p-5">
+        <p class="text-[10px] uppercase tracking-[0.28em] text-white/50">Audience Result</p>
+        <p class="mt-3 text-sm text-white/72">The goal is not just a sequence of songs. The goal is to make the audience feel a full arc and remember where the night changed.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="mx-auto max-w-6xl px-6 pb-8">
     <MotionReveal client:visible>
-      <div class="grid gap-6 md:grid-cols-3">
-        <div class="rounded-3xl border border-white/15 bg-black/50 p-4 shadow-[0_0_60px_rgba(242,84,45,0.08)]">
-          <img src="/assets/img/0030ChipFiesta_4K.jpg" alt="Exodus visuals" class="rounded-2xl" loading="lazy" />
-          <h3 class="mt-4 text-lg font-semibold">Exodus</h3>
-          <p class="mt-2 text-sm text-white/70">Silhouettes, tension, and first pulse.</p>
-        </div>
-        <div class="rounded-3xl border border-white/15 bg-black/50 p-4 shadow-[0_0_60px_rgba(242,84,45,0.08)]">
-          <img src="/assets/img/096NewChip_4K.jpg" alt="Journey visuals" class="rounded-2xl" loading="lazy" />
-          <h3 class="mt-4 text-lg font-semibold">Journey</h3>
-          <p class="mt-2 text-sm text-white/70">Traveling light beams and kinetic motion.</p>
-        </div>
-        <div class="rounded-3xl border border-white/15 bg-black/50 p-4 shadow-[0_0_60px_rgba(242,84,45,0.08)]">
-          <img src="/assets/img/137NewChip_4K.jpg" alt="Return visuals" class="rounded-2xl" loading="lazy" />
-          <h3 class="mt-4 text-lg font-semibold">Return</h3>
-          <p class="mt-2 text-sm text-white/70">Gold halos and crowd release.</p>
-        </div>
+      <div class="grid gap-6 lg:grid-cols-3">
+        {chapters.map((chapter) => (
+          <a href={chapter.href} class="group overflow-hidden rounded-[1.8rem] border border-white/15 bg-black/45 transition hover:border-gold/35 hover:shadow-[0_0_60px_rgba(242,84,45,0.12)]">
+            <div class="relative">
+              <img src={chapter.image} alt={`${chapter.title} chapter artwork`} class="h-72 w-full object-cover transition duration-500 group-hover:scale-[1.03]" loading="lazy" />
+              <div class="absolute inset-0 bg-[linear-gradient(180deg,transparent,rgba(7,7,11,0.86))]"></div>
+              <div class="absolute inset-x-0 bottom-0 p-5">
+                <p class="text-[10px] uppercase tracking-[0.28em] text-gold/90">{chapter.eyebrow}</p>
+                <h2 class="mt-2 font-display text-3xl">{chapter.title}</h2>
+              </div>
+            </div>
+            <div class="p-5">
+              <p class="text-sm text-white/72">{chapter.copy}</p>
+              <span class="mt-4 inline-flex text-[10px] uppercase tracking-[0.24em] text-gold/90">Open Chapter</span>
+            </div>
+          </a>
+        ))}
       </div>
     </MotionReveal>
-  </Section>
+  </section>
+
+  <section class="mx-auto max-w-6xl px-6 pb-16">
+    <div class="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+      <div class="rounded-[1.8rem] border border-white/15 bg-black/45 p-6 md:p-8">
+        <p class="text-[10px] uppercase tracking-[0.3em] text-gold/90">Performa Blueprint</p>
+        <h2 class="mt-3 font-display text-3xl md:text-4xl">Built for venues that want more than a playlist.</h2>
+        <p class="mt-4 text-sm leading-relaxed text-white/72">
+          These chapters are not just editorial language. They shape programming, lighting, pacing, and how the audience experiences the night. Exodus establishes authority. Journey expands the world. Return makes the room feel rewarded for staying all the way in.
+        </p>
+      </div>
+      <div class="overflow-hidden rounded-[1.8rem] border border-white/15 bg-black/45">
+        <img src="/assets/img/201NewChip_4K.jpg" alt="The Performa portrait for story hub" class="h-full w-full object-cover" loading="lazy" />
+      </div>
+    </div>
+  </section>
 </BaseLayout>
