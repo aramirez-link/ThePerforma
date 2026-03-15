@@ -123,8 +123,8 @@ const toolkitLinks = [
   </div>
 </nav>
 <script>
-  import { createClient } from "@supabase/supabase-js";
   import { getCurrentUser, logoutUser } from "../lib/fanVault";
+  import { getBrowserSupabaseClient } from "../lib/supabaseBrowser";
 
   (() => {
     if (window.__performaNavBound) return;
@@ -216,8 +216,6 @@ const toolkitLinks = [
 
     const LIVE_STATUS_KEY = "the-performa-live-status-v1";
     const ADMIN_NAV_KEY = "the-performa-admin-nav";
-    const SUPABASE_URL = import.meta.env.PUBLIC_SUPABASE_URL || "";
-    const SUPABASE_ANON_KEY = import.meta.env.PUBLIC_SUPABASE_ANON_KEY || "";
     const ribbon = document.getElementById("nav-live-ribbon");
     const syncLiveRibbon = () => {
       if (!ribbon) return;
@@ -292,14 +290,7 @@ const toolkitLinks = [
 
     const getSupabaseClient = async () => {
       if (supabaseClient) return supabaseClient;
-      if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return null;
-      supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        auth: {
-          persistSession: true,
-          autoRefreshToken: true,
-          detectSessionInUrl: true
-        }
-      });
+      supabaseClient = getBrowserSupabaseClient();
       return supabaseClient;
     };
 

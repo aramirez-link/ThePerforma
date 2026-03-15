@@ -1,4 +1,5 @@
-import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
+import type { SupabaseClient, User } from "@supabase/supabase-js";
+import { getBrowserSupabaseClient } from "./supabaseBrowser";
 import { defaultProfileBadgeId } from "./profileBadges";
 
 export type FavoriteType = "gallery" | "watch" | "listen";
@@ -263,13 +264,8 @@ const resolveAuthEmail = (authUser: User): string => {
 const getSupabase = () => {
   if (!isCloudVaultEnabled || !url || !anonKey) return null;
   if (supabaseClient) return supabaseClient;
-  supabaseClient = createClient(url, anonKey, {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true
-    }
-  });
+  supabaseClient = getBrowserSupabaseClient();
+  if (!supabaseClient) return null;
   if (typeof window !== "undefined" && !authListenerBound) {
     supabaseClient.auth.onAuthStateChange(() => {
       emitChange();

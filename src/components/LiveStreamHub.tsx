@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
 import { getCurrentUser, isCloudVaultEnabled, type VaultUser } from "../lib/fanVault";
+import { getBrowserSupabaseClient } from "../lib/supabaseBrowser";
 import OperatorLiveConsole from "./OperatorLiveConsole";
 import PerformaLivePlayer from "./PerformaLivePlayer";
 import { getPublicLiveStatus, type PublicLiveStatus } from "../lib/performaLive";
@@ -35,19 +35,6 @@ const streamPlatforms = [
 ];
 
 const streamEmbedUrl = "https://www.youtube.com/embed/PvrXChRa7LI?rel=0";
-
-const getSupabase = () => {
-  const url = import.meta.env.PUBLIC_SUPABASE_URL;
-  const anonKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !anonKey) return null;
-  return createClient(url, anonKey, {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true
-    }
-  });
-};
 
 const readLocalPreference = (userId: string): LiveAlertPreference => {
   try {
@@ -98,7 +85,7 @@ export default function LiveStreamHub() {
       setPrefs(local);
 
       if (isCloudVaultEnabled) {
-        const supabase = getSupabase();
+        const supabase = getBrowserSupabaseClient();
         if (supabase) {
           const { data } = await supabase
             .from("fan_live_subscriptions")
@@ -168,7 +155,7 @@ export default function LiveStreamHub() {
     setSaving(true);
 
     if (canSaveCloud) {
-      const supabase = getSupabase();
+      const supabase = getBrowserSupabaseClient();
       if (supabase) {
         await supabase.from("fan_live_subscriptions").upsert(
           {

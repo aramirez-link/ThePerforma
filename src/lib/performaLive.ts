@@ -1,4 +1,5 @@
-import { createClient, type Session, type SupabaseClient } from "@supabase/supabase-js";
+import type { Session, SupabaseClient } from "@supabase/supabase-js";
+import { getBrowserSupabaseClient } from "./supabaseBrowser";
 
 export type LiveSessionStatus = "DRAFT" | "READY" | "LIVE" | "ENDED";
 export type LiveDestinationStatus = "DISABLED" | "CONNECTING" | "LIVE" | "ERROR";
@@ -68,13 +69,7 @@ let supabase: SupabaseClient | null = null;
 export const getLiveSupabaseBrowser = () => {
   if (!isPerformaLiveCloudEnabled || !supabaseUrl || !supabaseAnonKey) return null;
   if (supabase) return supabase;
-  supabase = createClient(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true
-    }
-  });
+  supabase = getBrowserSupabaseClient();
   return supabase;
 };
 

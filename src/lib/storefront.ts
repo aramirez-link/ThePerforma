@@ -1,4 +1,5 @@
-import { createClient, type Session, type SupabaseClient } from "@supabase/supabase-js";
+import type { Session, SupabaseClient } from "@supabase/supabase-js";
+import { getBrowserSupabaseClient } from "./supabaseBrowser";
 
 export type StoreProductType = "physical" | "digital_tool" | "digital_download" | "subscription" | "bundle";
 export type StoreProductStatus = "draft" | "active" | "archived";
@@ -121,13 +122,7 @@ let supabaseClient: SupabaseClient | null = null;
 export const getSupabaseBrowser = () => {
   if (!isStoreCloudEnabled || !url || !anonKey) return null;
   if (supabaseClient) return supabaseClient;
-  supabaseClient = createClient(url, anonKey, {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true
-    }
-  });
+  supabaseClient = getBrowserSupabaseClient();
   return supabaseClient;
 };
 
