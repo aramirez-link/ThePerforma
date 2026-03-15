@@ -7,6 +7,7 @@ type Props = {
   estimate: EstimateBreakdown;
   aiSummary: string;
   readinessLabel: string;
+  isWelcomeState: boolean;
   onAction: (action: "availability-review" | "schedule-call" | "email-package" | "save-follow-up" | "download-brief" | "copy-summary") => void;
   submissionState: string;
 };
@@ -17,6 +18,7 @@ export default function BookingBlueprintPanel({
   estimate,
   aiSummary,
   readinessLabel,
+  isWelcomeState,
   onAction,
   submissionState
 }: Props) {
@@ -40,7 +42,32 @@ export default function BookingBlueprintPanel({
         </span>
       </div>
 
-      <div className="mt-5 grid gap-4">
+      <div className="mt-5 rounded-[1.4rem] border border-white/12 bg-black/28 p-4">
+        <p className="text-[10px] uppercase tracking-[0.28em] text-gold/85">What You’re Seeing</p>
+        {isWelcomeState ? (
+          <div className="mt-3 space-y-3">
+            <p className="text-sm leading-relaxed text-white/70">
+              Once you start the interview, this panel will turn into your live event blueprint.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-[1.2rem] border border-white/10 bg-black/24 p-4">
+                <p className="text-[10px] uppercase tracking-[0.24em] text-white/48">Will Build Live</p>
+                <p className="mt-2 text-sm leading-relaxed text-white/72">Event profile, package recommendation, investment range, and next-step path.</p>
+              </div>
+              <div className="rounded-[1.2rem] border border-white/10 bg-black/24 p-4">
+                <p className="text-[10px] uppercase tracking-[0.24em] text-white/48">Important</p>
+                <p className="mt-2 text-sm leading-relaxed text-white/72">Everything here is preliminary until the team reviews availability, scope, and contract terms.</p>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <p className="mt-2 text-sm leading-relaxed text-white/70">
+            This panel updates in real time as the concierge captures your event details. It shows the current event model, package fit, preliminary investment range, and the next action the team would recommend.
+          </p>
+        )}
+      </div>
+
+      <div className={`mt-5 grid gap-4 ${isWelcomeState ? "opacity-55" : ""}`}>
         <Panel title="Event Summary">
           <InfoLine label="Event type" value={session.eventType || "In progress"} />
           <InfoLine label="Venue" value={session.venueType || "In progress"} />

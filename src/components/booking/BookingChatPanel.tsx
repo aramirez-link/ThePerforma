@@ -149,6 +149,8 @@ export default function BookingChatPanel({
   aiSummary
 }: Props) {
   const answeredSteps = stepOrder.filter((step) => !["welcome", "contact"].includes(step) && isAnswered(session, step)).slice(-3);
+  const currentStepIndex = stepOrder.indexOf(currentStep);
+  const isWelcomeState = currentStep === "welcome";
 
   return (
     <section className="rounded-[2rem] border border-white/15 bg-black/45 p-5 md:p-6 lg:sticky lg:top-24 lg:flex lg:h-[calc(100vh-7rem)] lg:flex-col lg:overflow-hidden">
@@ -165,23 +167,70 @@ export default function BookingChatPanel({
         </div>
       </div>
 
-      <div className="mt-5 rounded-[1.5rem] border border-white/12 bg-black/30 p-4">
-        <div className="flex items-center justify-between gap-3 text-[11px] uppercase tracking-[0.24em] text-white/58">
-          <span>Interview Progress</span>
-          <span>{progress}%</span>
-        </div>
-        <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
-          <div className="h-full rounded-full bg-[rgb(var(--accent-rgb))] transition-[width] duration-300" style={{ width: `${progress}%` }} />
+      <div className="mt-5 rounded-[1.5rem] border border-gold/20 bg-[linear-gradient(135deg,rgba(243,211,139,0.08),rgba(255,255,255,0.02))] p-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.28em] text-gold/90">Start Here</p>
+            <h3 className="mt-2 text-xl font-semibold text-white">
+              {isWelcomeState ? "Start the concierge interview to build your event blueprint." : "Answer the prompt below. The blueprint on the right updates as you go."}
+            </h3>
+            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/68">
+              You’re in a guided booking interview. First we define the event, then shape the experience, then prepare the next step for review.
+            </p>
+          </div>
+          <div className="grid gap-2 text-[11px] uppercase tracking-[0.22em] text-white/62 sm:grid-cols-3">
+            <div className="rounded-full border border-white/12 bg-black/25 px-4 py-2 text-center">1. Event Brief</div>
+            <div className="rounded-full border border-white/12 bg-black/25 px-4 py-2 text-center">2. Experience Design</div>
+            <div className="rounded-full border border-white/12 bg-black/25 px-4 py-2 text-center">3. Review + Submit</div>
+          </div>
         </div>
       </div>
 
-      <div className="mt-5 space-y-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1">
-        <article className="rounded-[1.5rem] border border-white/12 bg-black/30 p-4">
-          <p className="text-[10px] uppercase tracking-[0.3em] text-gold/85">{sectionTitle[currentStep]}</p>
-          <p className="mt-3 text-base leading-relaxed text-white/86">{questionCopy[currentStep]}</p>
-        </article>
+      {!isWelcomeState && (
+        <div className="mt-5 rounded-[1.5rem] border border-white/12 bg-black/30 p-4">
+          <div className="flex items-center justify-between gap-3 text-[11px] uppercase tracking-[0.24em] text-white/58">
+            <span>Interview Progress</span>
+            <span>{progress}%</span>
+          </div>
+          <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/10">
+            <div className="h-full rounded-full bg-[rgb(var(--accent-rgb))] transition-[width] duration-300" style={{ width: `${progress}%` }} />
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {stepOrder.filter((step) => step !== "welcome").map((step, index) => (
+              <button
+                key={step}
+                type="button"
+                onClick={() => onStepChange(step)}
+                className={`rounded-full border px-3 py-2 text-[10px] uppercase tracking-[0.22em] transition ${
+                  currentStep === step
+                    ? "border-gold/55 bg-gold/10 text-gold"
+                    : index < currentStepIndex - 1
+                      ? "border-white/12 bg-black/20 text-white/60"
+                      : "border-white/10 bg-black/20 text-white/38"
+                }`}
+              >
+                {sectionTitle[step]}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
-        {answeredSteps.length > 0 && (
+      <div className="mt-5 space-y-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1">
+        {!isWelcomeState && (
+          <article className="rounded-[1.5rem] border border-gold/20 bg-[linear-gradient(180deg,rgba(242,84,45,0.08),rgba(255,255,255,0.02))] p-4 shadow-[0_0_32px_rgba(242,84,45,0.08)]">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[10px] uppercase tracking-[0.3em] text-gold/85">Current Prompt</p>
+              <p className="text-[10px] uppercase tracking-[0.24em] text-white/46">
+                Step {Math.max(1, currentStepIndex + 1)} of {stepOrder.length}
+              </p>
+            </div>
+            <h3 className="mt-3 text-lg font-semibold text-white">{sectionTitle[currentStep]}</h3>
+            <p className="mt-3 text-base leading-relaxed text-white/86">{questionCopy[currentStep]}</p>
+          </article>
+        )}
+
+        {!isWelcomeState && answeredSteps.length > 0 && (
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-3">
               <p className="text-[10px] uppercase tracking-[0.24em] text-white/46">Recent answers</p>
@@ -203,12 +252,34 @@ export default function BookingChatPanel({
 
         <div className="rounded-[1.5rem] border border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-4">
           {currentStep === "welcome" && (
-            <div className="space-y-4">
+            <div className="space-y-5">
               <p className="text-sm leading-relaxed text-white/74">
-                I’ll interview you in a producer-friendly sequence, then I’ll recommend the strongest package fit, a preliminary investment range, and the smartest next step.
+                I’ll guide you through the event brief, build the booking blueprint live, and then recommend whether the right next move is an availability review, a call, or an emailed package.
               </p>
+              <div className="rounded-[1.2rem] border border-white/12 bg-black/25 p-4 text-sm leading-relaxed text-white/70">
+                What’s happening here:
+                <div className="mt-2 space-y-1 text-white/62">
+                  <p>1. You answer one prompt at a time.</p>
+                  <p>2. The right panel updates with package fit, estimate, and assumptions.</p>
+                  <p>3. When the brief is strong enough, you can submit it for human review.</p>
+                </div>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-[1.2rem] border border-white/12 bg-black/25 p-4">
+                  <p className="text-[10px] uppercase tracking-[0.24em] text-gold/85">What You’ll Answer</p>
+                  <p className="mt-2 text-sm leading-relaxed text-white/68">Event type, venue, city, attendance, audience vibe, and production ambition.</p>
+                </div>
+                <div className="rounded-[1.2rem] border border-white/12 bg-black/25 p-4">
+                  <p className="text-[10px] uppercase tracking-[0.24em] text-gold/85">What You’ll Get</p>
+                  <p className="mt-2 text-sm leading-relaxed text-white/68">A live booking blueprint, package recommendation, and preliminary investment range.</p>
+                </div>
+                <div className="rounded-[1.2rem] border border-white/12 bg-black/25 p-4">
+                  <p className="text-[10px] uppercase tracking-[0.24em] text-gold/85">What Happens Next</p>
+                  <p className="mt-2 text-sm leading-relaxed text-white/68">You can request review, ask for a call, or have the package prepared for follow-up.</p>
+                </div>
+              </div>
               <button type="button" onClick={onContinue} className="rounded-full bg-ember px-6 py-3 text-xs uppercase tracking-[0.28em] text-ink">
-                Design My Event
+                Start Designing
               </button>
             </div>
           )}

@@ -72,6 +72,7 @@ export default function BookingConciergeApp() {
   const estimate = getEstimateBreakdown(session);
   const aiSummary = generateAiSummary(session);
   const readinessLabel = getReadinessState(session);
+  const isWelcomeState = currentStep === "welcome";
 
   const updateSession = (patch: Partial<BookingSession>) => {
     const nextSession = {
@@ -158,6 +159,7 @@ export default function BookingConciergeApp() {
           estimate={estimate}
           aiSummary={aiSummary}
           readinessLabel={readinessLabel}
+          isWelcomeState={isWelcomeState}
           onAction={handleAction}
           submissionState={submissionState}
         />
