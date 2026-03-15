@@ -15,7 +15,8 @@ const {
   schema = null
 } = Astro.props;
 
-const isFeedRoute = Astro.url.pathname === "/feed";
+const normalizedPath = Astro.url.pathname.replace(/\/+$/, "") || "/";
+const isFeedRoute = normalizedPath === "/feed";
 const enablePartnerCredit = import.meta.env.PUBLIC_ENABLE_PARTNER_CREDIT !== "false";
 const partnerSchema = {
   "@context": "https://schema.org",
