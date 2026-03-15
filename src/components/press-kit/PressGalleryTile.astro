@@ -1,0 +1,17 @@
+---
+const { src, alt, label, href = "" } = Astro.props;
+const target = href || src;
+---
+<a
+  href={target}
+  target="_blank"
+  rel="noreferrer"
+  class="group relative block overflow-hidden rounded-[1.5rem] border border-white/12 bg-black/55 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-gold"
+>
+  <img src={src} alt={alt} loading="lazy" class="h-72 w-full object-cover transition duration-500 group-hover:scale-[1.03] group-hover:opacity-90" />
+  <div class="absolute inset-0 bg-[linear-gradient(180deg,transparent,rgba(7,7,11,0.84))]"></div>
+  <div class="absolute inset-x-0 bottom-0 p-4">
+    <p class="text-[10px] uppercase tracking-[0.28em] text-gold/90">{label}</p>
+    <p class="mt-2 text-sm text-white/78">Open full asset</p>
+  </div>
+</a>

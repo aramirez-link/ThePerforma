@@ -1,186 +1,440 @@
 ---
 import BaseLayout from "../../layouts/BaseLayout.astro";
-import MotionReveal from "../../components/MotionReveal";
 import Button from "../../components/Button.astro";
+import PressFactCard from "../../components/press-kit/PressFactCard.astro";
+import PressChapterCard from "../../components/press-kit/PressChapterCard.astro";
+import PressResourceCard from "../../components/press-kit/PressResourceCard.astro";
+import PressGalleryTile from "../../components/press-kit/PressGalleryTile.astro";
+
+const canonical = "https://theperforma.com/story/";
+const socialImage = "/assets/img/0032ChipFiesta_4K.jpg";
+
+const quickFacts = [
+  {
+    label: "Based In",
+    value: "Atlanta, GA",
+    detail: "A city-bred performance identity with late-night authority, crossover polish, and editorial edge."
+  },
+  {
+    label: "Availability",
+    value: "Nationwide / Worldwide",
+    detail: "Built for destination rooms, festival routes, private luxury events, and globally positioned cultural activations."
+  },
+  {
+    label: "Format",
+    value: "Cinematic live DJ / performance experience",
+    detail: "A designed show arc that treats pacing, crowd psychology, and reveal as part of the performance itself."
+  },
+  {
+    label: "Best For",
+    value: "Luxury nightlife, festivals, private events, branded experiences",
+    detail: "Ideal for environments that need atmosphere, visual identity, and room transformation instead of background programming."
+  },
+  {
+    label: "Distinct Value",
+    value: "Atmosphere, identity, room transformation",
+    detail: "The Performa gives promoters and brands a stronger story to sell, shoot, and remember."
+  }
+];
 
 const chapters = [
   {
     eyebrow: "Chapter I",
+    index: "01",
     title: "Exodus",
-    copy: "The controlled arrival. Darkness, pressure, and the first real shift in the room.",
+    descriptor: "Arrival / Pressure / First contact",
+    copy: "The room darkens, the silhouette lands, and the first transition establishes that this is a live property with intention behind every move.",
     href: "/story/exodus",
     image: "/assets/img/010ChipLee_CF2024_4K.jpg"
   },
   {
     eyebrow: "Chapter II",
+    index: "02",
     title: "Journey",
-    copy: "The long-form stretch. Motion, blend architecture, and a bigger sense of scale.",
+    descriptor: "Momentum / Scale / Lift",
+    copy: "Tempo architecture, blend design, and emotional expansion turn the middle act into a controlled rise rather than a loose run of tracks.",
     href: "/story/journey",
     image: "/assets/img/096NewChip_4K.jpg"
   },
   {
     eyebrow: "Chapter III",
+    index: "03",
     title: "Return",
-    copy: "The release. Brighter hooks, wider beams, and the crowd as part of the instrument.",
+    descriptor: "Release / Signal / Memory",
+    copy: "The final chapter opens the room, lands the hook, and leaves the audience with a finish that feels authored, cinematic, and repeatable in memory.",
     href: "/story/return",
     image: "/assets/img/137NewChip_4K.jpg"
   }
 ];
 
-const proofCards = [
+const marketBlocks = [
   {
     title: "Luxury Energy",
-    copy: "The Performa sits where nightlife authority, cinematic pacing, and brand-grade presentation intersect."
+    copy: "The Performa is built for rooms where image, pacing, and atmosphere are part of the product. It reads elevated from first visual contact through final release."
   },
   {
     title: "Promoter Ready",
-    copy: "Built to sell rooms, elevate flyers, sharpen sponsor decks, and give media a clearer story than a generic DJ booking."
+    copy: "The act gives promoters sharper language for decks, stronger visual assets for flyers, and a concept that helps sell the room before doors open."
   },
   {
     title: "Interview Worthy",
-    copy: "The visual world, act structure, and comeback narrative create a profile that feels editorial before the first question is asked."
+    copy: "There is a real story to ask about: return, authorship, crowd psychology, performance design, and how an artist turns curation into a full live identity."
+  },
+  {
+    title: "Brand Compatible",
+    copy: "The visual world is polished enough for premium partnerships while keeping cultural credibility intact for nightlife, editorial, and experiential programs."
   }
 ];
 
-const mediaAngles = [
-  "The return of Chip Lee through a fully authored performance identity",
-  "Why The Performa reads like a live property, not just a DJ set",
-  "How cinematic act design changes crowd behavior and promoter value",
-  "A screening conversation around taste, staging, and next-era nightlife"
+const editorialHooks = [
+  "The return of Chip Lee through a fully authored live performance identity",
+  "Why thePerforma is designed as a live property rather than a standard DJ booking",
+  "How cinematic pacing changes room psychology, energy retention, and crowd memory",
+  "Performance as authorship: building atmosphere, identity, and transformation in real time",
+  "Why premium nightlife now demands stronger story architecture than genre tagging alone",
+  "How Atlanta influence translates into a globally bookable electronic performance experience"
 ];
+
+const gallery = [
+  {
+    src: "/assets/img/201NewChip_4K.jpg",
+    alt: "Chip Lee portrait for The Performa press materials",
+    label: "Portrait"
+  },
+  {
+    src: "/assets/img/134NewChip_4K.jpg",
+    alt: "The Performa live performance still with strong stage presence",
+    label: "Live Performance"
+  },
+  {
+    src: "/assets/img/0030ChipFiesta_4K.jpg",
+    alt: "Cinematic promotional image for The Performa",
+    label: "Promotional Visual"
+  },
+  {
+    src: "/assets/img/CHIPLEE_LOGO_Clear.png",
+    alt: "Chip Lee brand mark on transparent background",
+    label: "Brand Mark"
+  }
+];
+
+const resources = [
+  {
+    eyebrow: "Download",
+    title: "Press Kit PDF",
+    copy: "A direct leave-behind for editors, promoters, curators, and luxury event stakeholders.",
+    href: "/media/press-kit.pdf",
+    external: true,
+    available: true
+  },
+  {
+    eyebrow: "Assets",
+    title: "Promo Photos",
+    copy: "High-resolution portrait and performance stills suitable for editorial features, listings, and event decks.",
+    href: "/assets/img/201NewChip_4K.jpg",
+    external: true,
+    available: true
+  },
+  {
+    eyebrow: "Assets",
+    title: "Logo Pack",
+    copy: "Clear-mark access for branded placements, digital flyers, pitch decks, and sponsor collateral.",
+    href: "/assets/img/CHIPLEE_LOGO_Clear.png",
+    external: true,
+    available: true
+  },
+  {
+    eyebrow: "Contact",
+    title: "Interview Requests",
+    copy: "For screening conversations, features, podcasts, cultural editorial, and premium press opportunities.",
+    href: "/book",
+    available: true
+  },
+  {
+    eyebrow: "Visuals",
+    title: "Signature Reels",
+    copy: "Review the performance language, live pacing, and visual identity through the current reel library.",
+    href: "/watch",
+    available: true
+  }
+];
+
+const schema = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "ProfilePage",
+      "@id": `${canonical}#page`,
+      url: canonical,
+      name: "The Performa Press Kit",
+      description:
+        "Premium press kit and electronic press page for The Performa, the live electronic performance identity of Chip Lee.",
+      about: {
+        "@id": "https://theperforma.com/#artist"
+      }
+    },
+    {
+      "@type": "MusicGroup",
+      "@id": "https://theperforma.com/#artist",
+      name: "The Performa",
+      alternateName: "Chip Lee - The Performa",
+      description:
+        "The live electronic performance identity of Chip Lee, built as a cinematic DJ and performance experience structured across Exodus, Journey, and Return.",
+      genre: ["Electronic", "Live performance", "Cinematic DJ experience"],
+      homeLocation: {
+        "@type": "City",
+        name: "Atlanta, GA"
+      },
+      sameAs: [
+        "https://www.youtube.com/@chipleetheperforma",
+        "https://soundcloud.com/chipleetheperforma"
+      ]
+    }
+  ]
+};
 ---
-<BaseLayout title="Press Kit | The Performa" description="A promoter and media-facing press kit for The Performa: positioning, visual language, story arc, and screening interview request.">
-  <section class="mx-auto max-w-6xl px-6 pt-8">
-    <div class="relative overflow-hidden rounded-[2.3rem] border border-white/15 bg-black/60">
-      <img src="/assets/img/0032ChipFiesta_4K.jpg" alt="" aria-hidden="true" class="h-[56vh] w-full object-cover opacity-45" />
-      <div class="absolute inset-0 bg-[linear-gradient(135deg,rgba(242,84,45,0.32),rgba(7,7,11,0.44)_32%,rgba(7,7,11,0.96))]"></div>
-      <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(243,211,139,0.24),transparent_30%)]"></div>
+<BaseLayout
+  title="The Performa Press Kit | Cinematic Live Electronic Performance Experience"
+  description="Media-ready electronic press kit for The Performa, the cinematic live performance identity of Atlanta artist Chip Lee. Built for promoters, editors, festival buyers, luxury nightlife, and branded experiences."
+  canonical={canonical}
+  image={socialImage}
+  schema={schema}
+>
+  <section class="mx-auto max-w-6xl px-4 pt-8 sm:px-6">
+    <div class="relative overflow-hidden rounded-[2.4rem] border border-white/15 bg-black/60" data-reveal>
+      <img src="/assets/img/0032ChipFiesta_4K.jpg" alt="" aria-hidden="true" class="h-[72vh] min-h-[34rem] w-full object-cover object-center opacity-40" />
+      <div class="absolute inset-0 bg-[linear-gradient(130deg,rgba(242,84,45,0.28),rgba(7,7,11,0.2)_24%,rgba(7,7,11,0.86)_62%,rgba(7,7,11,0.98))]"></div>
+      <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(243,211,139,0.2),transparent_28%)]"></div>
+      <div class="absolute inset-0 bg-[linear-gradient(180deg,transparent,rgba(7,7,11,0.26)_35%,rgba(7,7,11,0.9))]"></div>
       <div class="absolute inset-0 flex items-end">
-        <div class="grid w-full gap-8 p-8 md:grid-cols-[1.15fr_0.85fr] md:p-10">
+        <div class="grid w-full gap-8 p-6 md:grid-cols-[1.15fr_0.85fr] md:p-10 lg:p-12">
           <div class="max-w-3xl self-end">
-            <p class="text-xs uppercase tracking-[0.36em] text-gold/90">Press Kit</p>
-            <h1 class="mt-4 font-display text-5xl leading-[0.95] md:text-7xl">The Performa is not a booking. It is a reveal.</h1>
-            <p class="mt-5 max-w-2xl text-base leading-relaxed text-white/78">
-              Chip Lee returns as The Performa: a cinematic, high-authority live identity built for promoters who need a sharper sell, media who need a stronger story, and rooms that want to feel transformed instead of simply programmed.
+            <p class="text-xs uppercase tracking-[0.38em] text-gold/90">Press Kit / Electronic Press Page</p>
+            <h1 class="mt-5 max-w-4xl font-display text-5xl leading-[0.92] md:text-7xl">The Performa turns a DJ set into a fully designed room experience.</h1>
+            <p class="mt-5 max-w-2xl text-base leading-relaxed text-white/80 md:text-lg">
+              The Performa is the live electronic performance identity of Chip Lee: an Atlanta-born act built around cinematic pacing, authored transitions, and a three-chapter arc that gives promoters, editors, and brand partners more than a booking to talk about.
             </p>
-            <div class="mt-7 flex flex-wrap gap-3">
+            <p class="mt-4 max-w-2xl text-sm leading-relaxed text-white/66 md:text-base">
+              This is a performance property for rooms, audiences, and cultural moments that demand more than background music. Each set moves through Exodus, Journey, and Return, turning atmosphere into authorship and identity into impact.
+            </p>
+            <div class="mt-8 flex flex-wrap gap-3">
               <Button href="/book" variant="primary">Request Screening Interview</Button>
               <Button href="/watch" variant="ghost">Watch Signature Reels</Button>
+              <a
+                href="/media/press-kit.pdf"
+                target="_blank"
+                rel="noreferrer"
+                class="inline-flex min-h-11 items-center justify-center rounded-full border border-white/20 px-5 py-3 text-xs font-semibold uppercase tracking-[0.22em] text-white/82 transition hover:border-gold/35 hover:text-gold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-gold"
+              >
+                Download Press Kit PDF
+              </a>
             </div>
           </div>
 
-          <div class="self-end rounded-[1.8rem] border border-white/15 bg-black/40 p-5 backdrop-blur-md">
-            <p class="text-[10px] uppercase tracking-[0.28em] text-gold/85">Positioning Snapshot</p>
-            <div class="mt-4 space-y-4">
-              <div class="rounded-[1.2rem] border border-white/10 bg-black/35 p-4">
-                <p class="text-[10px] uppercase tracking-[0.22em] text-white/48">Based In</p>
-                <p class="mt-2 text-lg text-white/90">Atlanta, GA</p>
+          <aside class="self-end rounded-[1.9rem] border border-white/12 bg-[linear-gradient(180deg,rgba(0,0,0,0.42),rgba(255,255,255,0.03))] p-5 backdrop-blur-md md:p-6">
+            <p class="text-[10px] uppercase tracking-[0.3em] text-gold/85">Booking Snapshot</p>
+            <div class="mt-5 space-y-4">
+              <div class="rounded-[1.35rem] border border-white/12 bg-black/30 p-4">
+                <p class="text-[10px] uppercase tracking-[0.24em] text-white/45">Format</p>
+                <p class="mt-2 text-lg leading-snug text-white/90">Cinematic live DJ / performance experience</p>
               </div>
-              <div class="rounded-[1.2rem] border border-white/10 bg-black/35 p-4">
-                <p class="text-[10px] uppercase tracking-[0.22em] text-white/48">Built For</p>
-                <p class="mt-2 text-lg text-white/90">Luxury nightlife, festivals, private events, and editorial-facing cultural moments</p>
+              <div class="rounded-[1.35rem] border border-white/12 bg-black/30 p-4">
+                <p class="text-[10px] uppercase tracking-[0.24em] text-white/45">Best For</p>
+                <p class="mt-2 text-lg leading-snug text-white/90">Luxury nightlife, festivals, private events, branded experiences</p>
               </div>
-              <div class="rounded-[1.2rem] border border-white/10 bg-black/35 p-4">
-                <p class="text-[10px] uppercase tracking-[0.22em] text-white/48">Why It Books</p>
-                <p class="mt-2 text-lg text-white/90">Because the concept sells atmosphere, identity, and press value before doors even open</p>
+              <div class="rounded-[1.35rem] border border-white/12 bg-black/30 p-4">
+                <p class="text-[10px] uppercase tracking-[0.24em] text-white/45">Commercial Value</p>
+                <p class="mt-2 text-lg leading-snug text-white/90">Atmosphere, identity, editorial value, and room transformation</p>
               </div>
             </div>
-          </div>
+          </aside>
         </div>
       </div>
     </div>
   </section>
 
-  <section class="mx-auto max-w-6xl px-6 py-8">
-    <div class="grid gap-4 md:grid-cols-3">
-      {proofCards.map((card) => (
-        <div class="rounded-[1.6rem] border border-white/15 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))] p-6">
-          <p class="text-[10px] uppercase tracking-[0.28em] text-white/45">Why It Pops</p>
-          <h2 class="mt-3 font-display text-3xl">{card.title}</h2>
-          <p class="mt-3 text-sm leading-relaxed text-white/72">{card.copy}</p>
-        </div>
-      ))}
-    </div>
-  </section>
-
-  <section class="mx-auto max-w-6xl px-6 pb-8">
-    <div class="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-      <div class="overflow-hidden rounded-[1.9rem] border border-white/15 bg-black/45">
-        <img src="/assets/img/201NewChip_4K.jpg" alt="Chip Lee as The Performa portrait" class="h-full w-full object-cover" loading="lazy" />
-      </div>
-      <div class="rounded-[1.9rem] border border-white/15 bg-black/45 p-6 md:p-8">
-        <p class="text-[10px] uppercase tracking-[0.3em] text-gold/85">For Promoters And Editors</p>
-        <h2 class="mt-3 font-display text-3xl md:text-5xl">A one-of-one angle in a market full of interchangeable flyers.</h2>
-        <p class="mt-4 text-sm leading-relaxed text-white/74">
-          The Performa gives decision-makers more to work with than a name, a genre tag, and an availability request. It gives them a visual system, an act structure, a return narrative, and a performer who can sit inside nightlife, culture coverage, branded experiences, and premium event decks without losing edge.
-        </p>
-        <p class="mt-4 text-sm leading-relaxed text-white/74">
-          This is what makes the project interview-worthy. There is a real frame to discuss: transformation, stage psychology, room control, visual authorship, and why the next era of performance should feel bigger than the playlist economy it replaces.
-        </p>
-        <div class="mt-6 flex flex-wrap gap-3">
-          <Button href="/book" variant="gold">Book A Screening Conversation</Button>
-          <a href="/media/press-kit.pdf" target="_blank" rel="noreferrer" class="inline-flex min-h-11 items-center rounded-full border border-white/25 px-5 py-3 text-xs uppercase tracking-[0.28em] text-white/78 transition hover:border-gold/35 hover:text-gold">Download PDF</a>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section class="mx-auto max-w-6xl px-6 pb-8">
-    <div class="rounded-[2rem] border border-white/15 bg-[linear-gradient(135deg,rgba(242,84,45,0.09),rgba(7,7,11,0.88))] p-6 md:p-8">
-      <div class="grid gap-6 lg:grid-cols-[0.85fr_1.15fr]">
+  <section class="mx-auto max-w-6xl px-4 py-8 sm:px-6 md:py-10">
+    <div class="rounded-[2rem] border border-white/12 bg-[linear-gradient(135deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))] p-5 md:p-8" data-reveal>
+      <div class="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <p class="text-[10px] uppercase tracking-[0.3em] text-gold/85">Editorial Hooks</p>
-          <h2 class="mt-3 font-display text-3xl md:text-4xl">Reasons to ask for the interview instead of just the assets.</h2>
+          <p class="text-[10px] uppercase tracking-[0.32em] text-gold/85">Quick Facts</p>
+          <h2 class="mt-3 font-display text-3xl md:text-5xl">A premium booking snapshot for buyers, media, and brand teams.</h2>
         </div>
-        <div class="grid gap-3 md:grid-cols-2">
-          {mediaAngles.map((angle) => (
-            <div class="rounded-[1.25rem] border border-white/12 bg-black/30 px-4 py-4 text-sm leading-relaxed text-white/76">
-              {angle}
-            </div>
-          ))}
-        </div>
+        <p class="max-w-xl text-sm leading-relaxed text-white/66 md:text-right">
+          Designed to be scanned in seconds and remembered long after. This is the short-form view of what thePerforma is, where it plays, and why it stands apart.
+        </p>
       </div>
-    </div>
-  </section>
-
-  <section class="mx-auto max-w-6xl px-6 pb-8">
-    <MotionReveal client:visible>
-      <div class="grid gap-6 lg:grid-cols-3">
-        {chapters.map((chapter) => (
-          <a href={chapter.href} class="group overflow-hidden rounded-[1.8rem] border border-white/15 bg-black/45 transition hover:border-gold/35 hover:shadow-[0_0_60px_rgba(242,84,45,0.12)]">
-            <div class="relative">
-              <img src={chapter.image} alt={`${chapter.title} chapter artwork`} class="h-72 w-full object-cover transition duration-500 group-hover:scale-[1.03]" loading="lazy" />
-              <div class="absolute inset-0 bg-[linear-gradient(180deg,transparent,rgba(7,7,11,0.9))]"></div>
-              <div class="absolute inset-x-0 bottom-0 p-5">
-                <p class="text-[10px] uppercase tracking-[0.28em] text-gold/90">{chapter.eyebrow}</p>
-                <h2 class="mt-2 font-display text-3xl">{chapter.title}</h2>
-              </div>
-            </div>
-            <div class="p-5">
-              <p class="text-sm text-white/72">{chapter.copy}</p>
-              <span class="mt-4 inline-flex text-[10px] uppercase tracking-[0.24em] text-gold/90">Open Narrative</span>
-            </div>
-          </a>
+      <div class="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        {quickFacts.map((fact) => (
+          <PressFactCard {...fact} />
         ))}
       </div>
-    </MotionReveal>
+    </div>
   </section>
 
-  <section class="mx-auto max-w-6xl px-6 pb-16">
-    <div class="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-      <div class="rounded-[2rem] border border-gold/25 bg-[radial-gradient(circle_at_top_left,rgba(243,211,139,0.08),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))] p-6 md:p-8">
-        <p class="text-[10px] uppercase tracking-[0.3em] text-gold/85">Screening Request</p>
-        <h2 class="mt-3 font-display text-3xl md:text-5xl">If the room matters, the conversation should too.</h2>
-        <p class="mt-4 max-w-2xl text-sm leading-relaxed text-white/74">
-          Media outlets, promoters, curators, and brand teams looking for the next distinctive performance property should request a screening interview now. The Performa is built to headline attention before it headlines the night.
+  <section class="mx-auto max-w-6xl px-4 pb-8 sm:px-6 md:pb-10">
+    <div class="grid gap-6 lg:grid-cols-[0.88fr_1.12fr]" data-reveal>
+      <div class="overflow-hidden rounded-[2rem] border border-white/15 bg-black/45">
+        <img src="/assets/img/201NewChip_4K.jpg" alt="Chip Lee portrait for The Performa press kit" class="h-full min-h-[24rem] w-full object-cover" loading="lazy" />
+      </div>
+      <div class="grid gap-6">
+        <article class="rounded-[2rem] border border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))] p-6 md:p-8">
+          <p class="text-[10px] uppercase tracking-[0.32em] text-gold/85">Short Press Bio</p>
+          <h2 class="mt-3 font-display text-3xl md:text-4xl">A press-ready summary that can travel cleanly into listings, features, and introductions.</h2>
+          <p class="mt-4 text-base leading-relaxed text-white/78">
+            The Performa is the live electronic performance identity of Atlanta artist Chip Lee. Built as a cinematic DJ and performance experience, the act unfolds across three authored chapters, Exodus, Journey, and Return, using pacing, transition design, and atmosphere to command the room like a live property rather than a conventional set.
+          </p>
+        </article>
+        <article class="rounded-[2rem] border border-white/12 bg-black/45 p-6 md:p-8">
+          <p class="text-[10px] uppercase tracking-[0.32em] text-gold/85">Expanded Artist Story</p>
+          <h2 class="mt-3 font-display text-3xl md:text-4xl">Chip Lee built thePerforma for rooms that deserve authorship, not autopilot.</h2>
+          <div class="mt-4 space-y-4 text-sm leading-relaxed text-white/74 md:text-base">
+            <p>
+              The Performa establishes a clear idea: music should not simply fill a room, it should shape one. Chip Lee approaches live performance as a designed arc, where timing, pressure, lift, and release are treated as compositional tools rather than byproducts of a playlist.
+            </p>
+            <p>
+              That distinction is what makes the act useful to promoters, editors, curators, and brand teams. There is a visible architecture to discuss, document, and market. The performance carries a point of view, a story language, and a room psychology that gives coverage more texture and gives bookings more commercial identity.
+            </p>
+            <p>
+              The result is a festival-ready, nightlife-literate, luxury-aware performance experience that can live inside club culture, premium private events, branded activations, and editorial-facing moments without flattening into something generic. The Performa is not presented as background entertainment. It is staged as a reveal.
+            </p>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="mx-auto max-w-6xl px-4 pb-8 sm:px-6 md:pb-10">
+    <div class="rounded-[2.2rem] border border-white/15 bg-[linear-gradient(135deg,rgba(242,84,45,0.12),rgba(7,7,11,0.86))] p-6 md:p-8 lg:p-10" data-reveal>
+      <div class="max-w-3xl">
+        <p class="text-[10px] uppercase tracking-[0.32em] text-gold/85">The Performa Experience</p>
+        <h2 class="mt-3 font-display text-3xl md:text-5xl">A three-chapter show architecture designed for escalation, memory, and room control.</h2>
+        <p class="mt-4 text-sm leading-relaxed text-white/70 md:text-base">
+          The Performa is structured as a deliberate emotional progression. Each chapter serves a distinct purpose, giving the show an internal logic that audiences feel and decision-makers can immediately understand.
         </p>
-        <div class="mt-7 flex flex-wrap gap-3">
-          <Button href="/book" variant="primary">Request Screening Interview</Button>
-          <Button href="/watch" variant="ghost">Review Visuals</Button>
+      </div>
+      <div class="mt-8 grid gap-6 lg:grid-cols-3">
+        {chapters.map((chapter) => (
+          <PressChapterCard {...chapter} />
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="mx-auto max-w-6xl px-4 pb-8 sm:px-6 md:pb-10">
+    <div class="grid gap-6 lg:grid-cols-[0.82fr_1.18fr]" data-reveal>
+      <div class="rounded-[2rem] border border-white/12 bg-black/45 p-6 md:p-8">
+        <p class="text-[10px] uppercase tracking-[0.32em] text-gold/85">Why It Books</p>
+        <h2 class="mt-3 font-display text-3xl md:text-5xl">A differentiated live property in a market crowded with interchangeable bookings.</h2>
+        <p class="mt-4 text-sm leading-relaxed text-white/72 md:text-base">
+          The Performa gives decision-makers something more commercially useful than genre shorthand. It delivers atmosphere, visual identity, and a stronger editorial story, making it easier to sell premium rooms, justify premium positioning, and support coverage that feels culturally relevant.
+        </p>
+      </div>
+      <div class="grid gap-4 md:grid-cols-2">
+        {marketBlocks.map((block) => (
+          <article class="rounded-[1.6rem] border border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))] p-6">
+            <p class="text-[10px] uppercase tracking-[0.28em] text-white/45">Market Differentiation</p>
+            <h3 class="mt-3 text-2xl font-semibold text-white/92">{block.title}</h3>
+            <p class="mt-3 text-sm leading-relaxed text-white/68">{block.copy}</p>
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="mx-auto max-w-6xl px-4 pb-8 sm:px-6 md:pb-10">
+    <div class="rounded-[2rem] border border-white/12 bg-black/45 p-6 md:p-8" data-reveal>
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p class="text-[10px] uppercase tracking-[0.32em] text-gold/85">Editorial Hooks</p>
+          <h2 class="mt-3 font-display text-3xl md:text-5xl">Useful story angles for editors, interviewers, podcasters, and culture media.</h2>
+        </div>
+        <p class="max-w-xl text-sm leading-relaxed text-white/66">
+          These are written as entry points for coverage, not filler. Each angle points back to authorship, transformation, and why thePerforma lands differently in premium environments.
+        </p>
+      </div>
+      <div class="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {editorialHooks.map((hook) => (
+          <article class="rounded-[1.4rem] border border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))] p-5">
+            <p class="text-sm leading-relaxed text-white/76">{hook}</p>
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="mx-auto max-w-6xl px-4 pb-8 sm:px-6 md:pb-10">
+    <div class="grid gap-6 lg:grid-cols-[0.78fr_1.22fr]" data-reveal>
+      <div class="rounded-[2rem] border border-white/12 bg-[linear-gradient(135deg,rgba(243,211,139,0.06),rgba(255,255,255,0.02))] p-6 md:p-8">
+        <p class="text-[10px] uppercase tracking-[0.32em] text-gold/85">Media Gallery</p>
+        <h2 class="mt-3 font-display text-3xl md:text-5xl">Curated visuals built to support a premium editorial read.</h2>
+        <p class="mt-4 text-sm leading-relaxed text-white/72 md:text-base">
+          Portraits, performance stills, promotional imagery, and brand marks are presented here as a clean media layer for decks, features, social announcements, and partner-facing material.
+        </p>
+      </div>
+      <div class="grid gap-4 md:grid-cols-2">
+        {gallery.map((item) => (
+          <PressGalleryTile {...item} />
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="mx-auto max-w-6xl px-4 pb-8 sm:px-6 md:pb-10">
+    <div class="grid gap-6 lg:grid-cols-[1fr_0.92fr]" data-reveal>
+      <div class="rounded-[2rem] border border-white/12 bg-black/45 p-6 md:p-8">
+        <p class="text-[10px] uppercase tracking-[0.32em] text-gold/85">Sound / Embedded Audio</p>
+        <h2 class="mt-3 font-display text-3xl md:text-5xl">Hear the tone before the room ever opens.</h2>
+        <p class="mt-4 max-w-2xl text-sm leading-relaxed text-white/72 md:text-base">
+          The SoundCloud stream offers a direct line into thePerforma sound world: curation, pacing instincts, and the texture behind the live identity. It is a useful preview for editors, buyers, and brand partners who want a faster sense of taste and atmosphere.
+        </p>
+      </div>
+      <div class="overflow-hidden rounded-[2rem] border border-white/12 bg-black/50 shadow-[0_0_50px_rgba(242,84,45,0.08)]">
+        <iframe
+          src="https://w.soundcloud.com/player/?url=https%3A//soundcloud.com/chipleetheperforma"
+          title="The Performa SoundCloud stream"
+          class="h-[360px] w-full"
+          allow="autoplay"
+          loading="lazy"
+        ></iframe>
+      </div>
+    </div>
+  </section>
+
+  <section class="mx-auto max-w-6xl px-4 pb-8 sm:px-6 md:pb-10">
+    <div class="rounded-[2rem] border border-white/12 bg-[linear-gradient(135deg,rgba(255,255,255,0.05),rgba(255,255,255,0.01))] p-6 md:p-8" data-reveal>
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p class="text-[10px] uppercase tracking-[0.32em] text-gold/85">Press Resources</p>
+          <h2 class="mt-3 font-display text-3xl md:text-5xl">A media portal built for immediate use.</h2>
+        </div>
+        <p class="max-w-xl text-sm leading-relaxed text-white/66">
+          Downloadable assets and direct paths for interview, visuals, and evaluation are organized here so media teams and promoters can move without friction.
+        </p>
+      </div>
+      <div class="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {resources.map((resource) => (
+          <PressResourceCard {...resource} />
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="mx-auto max-w-6xl px-4 pb-16 sm:px-6">
+    <div class="grid gap-6 lg:grid-cols-[1.06fr_0.94fr]" data-reveal>
+      <div class="rounded-[2.2rem] border border-gold/20 bg-[radial-gradient(circle_at_top_left,rgba(243,211,139,0.12),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))] p-6 md:p-8 lg:p-10">
+        <p class="text-[10px] uppercase tracking-[0.32em] text-gold/85">Booking / Screening CTA</p>
+        <h2 class="mt-3 font-display text-3xl md:text-5xl">If the room, the story, and the audience matter, the next step should be a screening conversation.</h2>
+        <p class="mt-4 max-w-2xl text-sm leading-relaxed text-white/74 md:text-base">
+          The Performa is for buyers, curators, editors, luxury event planners, and brand teams looking for a distinctive performance identity with real visual and commercial gravity. Start the conversation with intent.
+        </p>
+        <div class="mt-8 flex flex-wrap gap-3">
+          <Button href="/book" variant="primary">Request Booking Conversation</Button>
+          <Button href="/watch" variant="ghost">Review Visual Reels</Button>
         </div>
       </div>
-      <div class="overflow-hidden rounded-[2rem] border border-white/15 bg-black/45">
-        <img src="/assets/img/134NewChip_4K.jpg" alt="The Performa performance image for press kit" class="h-full w-full object-cover" loading="lazy" />
+      <div class="overflow-hidden rounded-[2.2rem] border border-white/15 bg-black/45">
+        <img src="/assets/img/134NewChip_4K.jpg" alt="The Performa performance image showing stage presence and cinematic lighting" class="h-full min-h-[24rem] w-full object-cover" loading="lazy" />
       </div>
     </div>
   </section>

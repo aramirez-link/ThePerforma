@@ -1,0 +1,31 @@
+---
+const { eyebrow = "Resource", title, copy, href = "", external = false, available = true } = Astro.props;
+
+const baseClasses =
+  "group flex h-full flex-col justify-between rounded-[1.5rem] border border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))] p-5 shadow-[0_0_36px_rgba(0,0,0,0.2)] transition";
+const activeClasses = "hover:border-gold/35 hover:shadow-[0_0_60px_rgba(242,84,45,0.1)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-gold";
+---
+{available && href ? (
+  <a href={href} target={external ? "_blank" : undefined} rel={external ? "noreferrer" : undefined} class={`${baseClasses} ${activeClasses}`}>
+    <div>
+      <p class="text-[10px] uppercase tracking-[0.28em] text-white/45">{eyebrow}</p>
+      <h3 class="mt-3 text-2xl font-semibold text-white/92">{title}</h3>
+      <p class="mt-3 text-sm leading-relaxed text-white/68">{copy}</p>
+    </div>
+    <span class="mt-6 inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.28em] text-gold/90">
+      Open Resource
+      <span aria-hidden="true">+</span>
+    </span>
+  </a>
+) : (
+  <div class={`${baseClasses} opacity-90`}>
+    <div>
+      <p class="text-[10px] uppercase tracking-[0.28em] text-white/45">{eyebrow}</p>
+      <h3 class="mt-3 text-2xl font-semibold text-white/92">{title}</h3>
+      <p class="mt-3 text-sm leading-relaxed text-white/68">{copy}</p>
+    </div>
+    <span class="mt-6 inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.28em] text-white/38">
+      Available On Request
+    </span>
+  </div>
+)}
