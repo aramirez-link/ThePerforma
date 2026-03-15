@@ -1,5 +1,6 @@
 ﻿---
 import listen from "../../content/listen.json";
+import DonatePill from "./DonatePill.astro";
 
 const soundcloudTracks = listen.filter((item) => item.platform.toLowerCase() === "soundcloud");
 const fallbackTrack = {
@@ -20,7 +21,8 @@ const initialTrack = soundcloudTracks[0] ?? fallbackTrack;
 >
   <div class="flex items-center justify-between gap-3">
     <p class="text-[10px] uppercase tracking-[0.3em] text-gold/90">SoundCloud Stream</p>
-    <div class="flex items-center gap-2">
+    <div class="flex flex-wrap items-center justify-end gap-2">
+      <DonatePill source="global-soundcloud-mini-player" />
       <button
         id="global-mini-player-prev"
         type="button"

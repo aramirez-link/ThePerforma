@@ -1,6 +1,7 @@
 ---
 import BaseLayout from "../../layouts/BaseLayout.astro";
 import Button from "../../components/Button.astro";
+import DonatePill from "../../components/DonatePill.astro";
 import PressFactCard from "../../components/press-kit/PressFactCard.astro";
 import PressChapterCard from "../../components/press-kit/PressChapterCard.astro";
 import PressResourceCard from "../../components/press-kit/PressResourceCard.astro";
@@ -461,7 +462,12 @@ const schema = {
           The SoundCloud stream offers a direct line into thePerforma sound world: curation, pacing instincts, and the texture behind the live identity. It is a useful preview for editors, buyers, and brand partners who want a faster sense of taste and atmosphere.
         </p>
       </div>
-      <div class="overflow-hidden rounded-[2rem] border border-white/12 bg-black/50 shadow-[0_0_50px_rgba(242,84,45,0.08)]">
+      <div class="relative overflow-hidden rounded-[2rem] border border-white/12 bg-black/50 shadow-[0_0_50px_rgba(242,84,45,0.08)]">
+        <div class="pointer-events-none absolute right-3 top-3 z-10">
+          <div class="pointer-events-auto">
+            <DonatePill source="press-kit-soundcloud" />
+          </div>
+        </div>
         <iframe
           src="https://w.soundcloud.com/player/?url=https%3A//soundcloud.com/chipleetheperforma"
           title="The Performa SoundCloud stream"

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import DonatePill from "./DonatePill";
 
 type Props = {
   playbackId?: string | null;
@@ -60,7 +61,12 @@ export default function PerformaLivePlayer({
 
   return (
     <div className="overflow-hidden rounded-2xl border border-white/15 bg-black/45">
-      <div className="aspect-video w-full">
+      <div className="relative aspect-video w-full">
+        <div className="pointer-events-none absolute right-3 top-3 z-10">
+          <div className="pointer-events-auto">
+            <DonatePill source="live-player" />
+          </div>
+        </div>
         <iframe
           className="h-full w-full"
           key={`${playbackId}:${reloadTick}`}

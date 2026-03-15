@@ -3,6 +3,7 @@ import { getCurrentUser, isCloudVaultEnabled, type VaultUser } from "../lib/fanV
 import { getBrowserSupabaseClient } from "../lib/supabaseBrowser";
 import OperatorLiveConsole from "./OperatorLiveConsole";
 import PerformaLivePlayer from "./PerformaLivePlayer";
+import DonatePill from "./DonatePill";
 import { getPublicLiveStatus, type PublicLiveStatus } from "../lib/performaLive";
 
 type Platform = "youtube" | "instagram" | "facebook" | "twitch" | "multi";
@@ -202,7 +203,12 @@ export default function LiveStreamHub() {
               ingestHeartbeatAt={publicLive.ingestHeartbeatAt}
             />
           ) : (
-            <div className="aspect-video w-full">
+            <div className="relative aspect-video w-full">
+              <div className="pointer-events-none absolute right-3 top-3 z-10">
+                <div className="pointer-events-auto">
+                  <DonatePill source="live-hub-fallback-video" />
+                </div>
+              </div>
               <iframe
                 className="h-full w-full"
                 src={streamEmbedUrl}

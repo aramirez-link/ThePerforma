@@ -1,5 +1,6 @@
 ﻿---
 import BaseLayout from "../layouts/BaseLayout.astro";
+import DonatePill from "../components/DonatePill.astro";
 import Section from "../components/Section.astro";
 import PerformanceMode from "../components/PerformanceMode";
 import WatchPlaylist from "../components/WatchPlaylist";
@@ -71,7 +72,12 @@ const youtubeChannelUrl = "https://www.youtube.com/@chipleetheperforma";
     <div class="grid gap-4 md:grid-cols-2">
       {miniConcertSeries.map((video) => (
         <article class="rounded-[1.4rem] border border-white/15 bg-black/45 p-3 shadow-[0_0_40px_rgba(242,84,45,0.06)]">
-          <div class="aspect-video overflow-hidden rounded-xl border border-white/10 bg-black">
+          <div class="relative aspect-video overflow-hidden rounded-xl border border-white/10 bg-black">
+            <div class="pointer-events-none absolute right-3 top-3 z-10">
+              <div class="pointer-events-auto">
+                <DonatePill source={`watch-${video.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`} />
+              </div>
+            </div>
             <iframe
               src={video.embedUrl}
               title={video.title}
@@ -93,7 +99,12 @@ const youtubeChannelUrl = "https://www.youtube.com/@chipleetheperforma";
     <div class="grid gap-4 md:grid-cols-2">
       {cookingWithPerforma.map((video) => (
         <article class="rounded-[1.4rem] border border-white/15 bg-black/45 p-3 shadow-[0_0_40px_rgba(242,84,45,0.06)]">
-          <div class="aspect-video overflow-hidden rounded-xl border border-white/10 bg-black">
+          <div class="relative aspect-video overflow-hidden rounded-xl border border-white/10 bg-black">
+            <div class="pointer-events-none absolute right-3 top-3 z-10">
+              <div class="pointer-events-auto">
+                <DonatePill source={`watch-${video.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`} />
+              </div>
+            </div>
             <iframe
               src={video.embedUrl}
               title={video.title}

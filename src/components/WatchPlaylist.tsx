@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import FavoriteButton from "./FavoriteButton";
+import DonatePill from "./DonatePill";
 
 type WatchItem = {
   title: string;
@@ -98,6 +99,11 @@ export default function WatchPlaylist({ items }: Props) {
         <img src={current.thumbnail} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover opacity-[0.18]" />
         <div className="absolute inset-0 bg-[linear-gradient(160deg,rgba(255,255,255,0.03),rgba(0,0,0,0.82))]" />
         <div className="relative aspect-video overflow-hidden rounded-2xl border border-white/10 bg-black">
+          <div className="pointer-events-none absolute right-3 top-3 z-10">
+            <div className="pointer-events-auto">
+              <DonatePill source={`watch-playlist-${current.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`} />
+            </div>
+          </div>
           <iframe
             src={current.embedUrl}
             title={current.title}
