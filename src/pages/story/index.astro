@@ -8,6 +8,7 @@ import PressGalleryTile from "../../components/press-kit/PressGalleryTile.astro"
 
 const canonical = "https://theperforma.com/story/";
 const socialImage = "/assets/img/0032ChipFiesta_4K.jpg";
+const gateStorageKey = "the-performa-story-media-kit-v1";
 
 const quickFacts = [
   {
@@ -200,6 +201,59 @@ const schema = {
   image={socialImage}
   schema={schema}
 >
+  <section id="story-media-gate" class="mx-auto max-w-4xl px-4 pt-8 sm:px-6">
+    <div class="relative overflow-hidden rounded-[2.2rem] border border-white/15 bg-black/60 p-6 md:p-8" data-reveal>
+      <img src="/assets/img/201NewChip_4K.jpg" alt="" aria-hidden="true" class="absolute inset-0 h-full w-full object-cover opacity-20" />
+      <div class="absolute inset-0 bg-[linear-gradient(135deg,rgba(242,84,45,0.16),rgba(7,7,11,0.9))]"></div>
+      <div class="relative grid gap-6 lg:grid-cols-[0.92fr_1.08fr]">
+        <div>
+          <p class="text-[10px] uppercase tracking-[0.34em] text-gold/90">Media Access</p>
+          <h1 class="mt-4 font-display text-4xl md:text-5xl">Request the Press Kit</h1>
+          <p class="mt-4 text-sm leading-relaxed text-white/74 md:text-base">
+            The Performa press kit is reserved for media, promoters, curators, buyers, and brand teams evaluating the live property. Share your details to enter the full dossier.
+          </p>
+          <div class="mt-6 space-y-3 text-sm text-white/62">
+            <p>Inside: positioning, booking snapshot, artist narrative, chapter architecture, visual assets, and evaluation resources.</p>
+            <p>Admin accounts bypass this gate automatically after sign-in.</p>
+          </div>
+        </div>
+        <div class="rounded-[1.8rem] border border-white/12 bg-black/40 p-5 md:p-6">
+          <form id="story-media-gate-form" class="grid gap-4">
+            <div>
+              <label for="story-gate-name" class="mb-2 block text-[10px] uppercase tracking-[0.28em] text-white/55">Name</label>
+              <input id="story-gate-name" name="name" class="min-h-12 w-full rounded-2xl border border-white/15 bg-black/45 px-4 py-3 text-white placeholder:text-white/35 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold" placeholder="Full name" autocomplete="name" required />
+            </div>
+            <div>
+              <label for="story-gate-email" class="mb-2 block text-[10px] uppercase tracking-[0.28em] text-white/55">Email</label>
+              <input id="story-gate-email" name="email" type="email" class="min-h-12 w-full rounded-2xl border border-white/15 bg-black/45 px-4 py-3 text-white placeholder:text-white/35 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold" placeholder="name@company.com" autocomplete="email" required />
+            </div>
+            <div>
+              <label for="story-gate-phone" class="mb-2 block text-[10px] uppercase tracking-[0.28em] text-white/55">Phone</label>
+              <input id="story-gate-phone" name="phone" type="tel" class="min-h-12 w-full rounded-2xl border border-white/15 bg-black/45 px-4 py-3 text-white placeholder:text-white/35 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold" placeholder="Phone number" autocomplete="tel" />
+            </div>
+            <div>
+              <label for="story-gate-interest" class="mb-2 block text-[10px] uppercase tracking-[0.28em] text-white/55">Interest</label>
+              <select id="story-gate-interest" name="interest" class="min-h-12 w-full rounded-2xl border border-white/15 bg-black/45 px-4 py-3 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold" required>
+                <option value="">Select interest</option>
+                <option value="booking">Booking conversation</option>
+                <option value="media">Media / editorial</option>
+                <option value="festival">Festival / talent buying</option>
+                <option value="brand">Brand partnership</option>
+                <option value="private-event">Private event</option>
+                <option value="screening">Screening interview</option>
+              </select>
+            </div>
+            <p id="story-media-gate-status" class="min-h-5 text-sm text-white/68" aria-live="polite"></p>
+            <button type="submit" class="inline-flex min-h-12 items-center justify-center rounded-full bg-ember px-6 py-3 text-xs font-semibold uppercase tracking-[0.26em] text-ink shadow-[0_0_28px_rgba(242,84,45,0.35)] transition hover:shadow-[0_0_36px_rgba(242,84,45,0.5)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-gold">
+              Enter Press Kit
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div id="story-press-content" hidden>
   <section class="mx-auto max-w-6xl px-4 pt-8 sm:px-6">
     <div class="relative overflow-hidden rounded-[2.4rem] border border-white/15 bg-black/60" data-reveal>
       <img src="/assets/img/0032ChipFiesta_4K.jpg" alt="" aria-hidden="true" class="absolute inset-0 h-full w-full object-cover object-center opacity-40" />
@@ -436,4 +490,146 @@ const schema = {
       </div>
     </div>
   </section>
+  </div>
 </BaseLayout>
+
+<script>
+  import { getBrowserSupabaseClient } from "../../lib/supabaseBrowser";
+
+  (() => {
+    const gateStorageKey = "the-performa-story-media-kit-v1";
+    const gate = document.getElementById("story-media-gate");
+    const content = document.getElementById("story-press-content");
+    const form = document.getElementById("story-media-gate-form");
+    const status = document.getElementById("story-media-gate-status");
+
+    if (!gate || !content || !form || !(form instanceof HTMLFormElement) || !status) return;
+
+    const revealContent = () => {
+      gate.hidden = true;
+      content.hidden = false;
+    };
+
+    const showGate = () => {
+      gate.hidden = false;
+      content.hidden = true;
+    };
+
+    const readStoredAccess = () => {
+      try {
+        const raw = localStorage.getItem(gateStorageKey);
+        if (!raw) return false;
+        const parsed = JSON.parse(raw);
+        return Boolean(parsed?.granted);
+      } catch {
+        return false;
+      }
+    };
+
+    const persistAccess = (payload) => {
+      try {
+        localStorage.setItem(
+          gateStorageKey,
+          JSON.stringify({
+            granted: true,
+            ...payload,
+            grantedAt: new Date().toISOString()
+          })
+        );
+      } catch {}
+    };
+
+    const syncAccess = async () => {
+      const supabase = getBrowserSupabaseClient();
+      if (supabase) {
+        try {
+          const { data: sessionData } = await supabase.auth.getSession();
+          if (sessionData?.session?.user) {
+            const { data, error } = await supabase.rpc("is_store_admin");
+            if (!error && data === true) {
+              revealContent();
+              return;
+            }
+          }
+        } catch {}
+      }
+
+      if (readStoredAccess()) {
+        revealContent();
+        return;
+      }
+
+      showGate();
+    };
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      status.textContent = "";
+
+      const formData = new FormData(form);
+      const fullName = String(formData.get("name") || "").trim();
+      const email = String(formData.get("email") || "").trim().toLowerCase();
+      const phone = String(formData.get("phone") || "").trim();
+      const interest = String(formData.get("interest") || "").trim();
+
+      if (fullName.length < 2) {
+        status.textContent = "Enter your full name.";
+        return;
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        status.textContent = "Enter a valid email address.";
+        return;
+      }
+      if (!interest) {
+        status.textContent = "Select your interest.";
+        return;
+      }
+
+      const submitButton = form.querySelector('button[type="submit"]');
+      if (submitButton instanceof HTMLButtonElement) submitButton.disabled = true;
+      status.textContent = "Opening the press kit...";
+
+      const supabase = getBrowserSupabaseClient();
+      if (!supabase) {
+        status.textContent = "Media access is temporarily unavailable. Please try again shortly.";
+        if (submitButton instanceof HTMLButtonElement) submitButton.disabled = false;
+        return;
+      }
+
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const userId = sessionData?.session?.user?.id || null;
+        const { error } = await supabase.from("media_kit_requests").insert({
+          user_id: userId,
+          full_name: fullName,
+          email,
+          phone: phone || null,
+          interest,
+          source_path: "/story",
+          metadata: {
+            userAgent: navigator.userAgent,
+            locale: navigator.language || "",
+            referrer: document.referrer || "",
+            pathname: window.location.pathname
+          }
+        });
+        if (error) throw error;
+      } catch (error) {
+        status.textContent = error instanceof Error ? error.message : "Could not submit your request.";
+        if (submitButton instanceof HTMLButtonElement) submitButton.disabled = false;
+        return;
+      }
+
+      persistAccess({ name: fullName, email, interest });
+      revealContent();
+    });
+
+    void syncAccess();
+    window.addEventListener("fanvault:changed", () => {
+      void syncAccess();
+    });
+    document.addEventListener("astro:after-swap", () => {
+      void syncAccess();
+    });
+  })();
+</script>
