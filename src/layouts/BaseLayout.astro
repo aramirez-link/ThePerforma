@@ -65,7 +65,7 @@ const partnerSchema = {
     {!isFeedRoute && <GlobalMiniPlayer />}
     {!isFeedRoute && (
       <div transition:name="engagement-hub" transition:persist>
-        <EngagementHub client:load />
+        <EngagementHub client:only="react" />
       </div>
     )}
     <Footer />
