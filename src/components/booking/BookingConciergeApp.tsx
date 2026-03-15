@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
-import BookingBlueprintPanel from "./BookingBlueprintPanel";
+import BookingBlueprintModal from "./BookingBlueprintModal";
 import BookingChatPanel, { type StepKey } from "./BookingChatPanel";
+import BookingClaudeDrawer from "./BookingClaudeDrawer";
 import {
   defaultBookingSession,
+  formatCurrency,
   generateAiSummary,
   getEstimateBreakdown,
   getProgressPercent,
@@ -34,6 +36,24 @@ const STEP_ORDER: StepKey[] = [
 const getNextStep = (current: StepKey) => STEP_ORDER[Math.min(STEP_ORDER.length - 1, STEP_ORDER.indexOf(current) + 1)];
 const getPrevStep = (current: StepKey) => STEP_ORDER[Math.max(0, STEP_ORDER.indexOf(current) - 1)];
 
+const getResumeStep = (session: BookingSession): StepKey => {
+  if (!session.eventType) return "welcome";
+  if (!session.venueType) return "venueType";
+  if (!session.locationCity) return "location";
+  if (!session.targetDate) return "targetDate";
+  if (!session.attendeeCount) return "attendeeCount";
+  if (!session.ticketingModel) return "ticketingModel";
+  if (!session.audienceDescription) return "audienceDescription";
+  if (!session.vibeProfile) return "vibeProfile";
+  if (!session.productionAmbition) return "productionAmbition";
+  if (!session.liveElements.length) return "liveElements";
+  if (!session.productionNeeds.length) return "productionNeeds";
+  if (!session.budgetSignal) return "budgetSignal";
+  if (!session.nextStepIntent) return "nextStepIntent";
+  if (!session.contactEmail) return "contact";
+  return "contact";
+};
+
 const readStoredSession = (): BookingSession => {
   if (typeof window === "undefined") return defaultBookingSession();
   try {
@@ -50,9 +70,13 @@ export default function BookingConciergeApp() {
   const [currentStep, setCurrentStep] = useState<StepKey>("welcome");
   const [submissionState, setSubmissionState] = useState("");
   const [autosaveTick, setAutosaveTick] = useState(0);
+  const [blueprintOpen, setBlueprintOpen] = useState(false);
+  const [claudeOpen, setClaudeOpen] = useState(false);
 
   useEffect(() => {
-    setSession(readStoredSession());
+    const stored = readStoredSession();
+    setSession(stored);
+    setCurrentStep(getResumeStep(stored));
   }, []);
 
   useEffect(() => {
@@ -66,6 +90,16 @@ export default function BookingConciergeApp() {
     if (!autosaveTick) return;
     void persistBookingConciergeSession(session, "autosave");
   }, [autosaveTick, session]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const shouldLock = blueprintOpen || claudeOpen;
+    const previous = document.body.style.overflow;
+    if (shouldLock) document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [blueprintOpen, claudeOpen]);
 
   const progress = getProgressPercent(session);
   const recommendation = getRecommendedPackage(session);
@@ -90,6 +124,7 @@ export default function BookingConciergeApp() {
     setSession(fresh);
     setCurrentStep("welcome");
     setSubmissionState("");
+    setBlueprintOpen(false);
     if (typeof window !== "undefined") {
       localStorage.removeItem(STORAGE_KEY);
     }
@@ -102,7 +137,7 @@ export default function BookingConciergeApp() {
     }
 
     if (action === "copy-summary") {
-      const summary = `${aiSummary}\nEstimated range: ${estimate.totalLow} - ${estimate.totalHigh}`;
+      const summary = `${aiSummary}\nEstimated range: ${formatCurrency(estimate.totalLow)} - ${formatCurrency(estimate.totalHigh)}`;
       await navigator.clipboard.writeText(summary);
       setSubmissionState("Event summary copied for your team.");
       return;
@@ -150,31 +185,94 @@ export default function BookingConciergeApp() {
   };
 
   return (
-    <section className="mx-auto max-w-6xl px-4 pb-16 sm:px-6">
-      <div className="grid gap-6 lg:grid-cols-[1.04fr_0.96fr] lg:items-start">
-        <BookingChatPanel
-          session={session}
-          currentStep={currentStep}
-          onStepChange={setCurrentStep}
-          onUpdate={updateSession}
-          onBack={() => setCurrentStep(getPrevStep(currentStep))}
-          onContinue={() => setCurrentStep(getNextStep(currentStep))}
-          onReset={resetSession}
-          progress={progress}
-          readinessLabel={readinessLabel}
-          aiSummary={aiSummary}
-        />
-        <BookingBlueprintPanel
-          session={session}
-          recommendation={recommendation}
-          estimate={estimate}
-          aiSummary={aiSummary}
-          readinessLabel={readinessLabel}
-          isWelcomeState={isWelcomeState}
-          onAction={handleAction}
-          submissionState={submissionState}
-        />
-      </div>
-    </section>
+    <>
+      <section className="mx-auto max-w-6xl px-4 pb-20 sm:px-6">
+        <div className="sticky top-20 z-20 rounded-[1.7rem] border border-white/12 bg-black/55 p-4 backdrop-blur-xl">
+          <div className="grid gap-3 xl:grid-cols-[0.95fr_0.95fr_1.1fr_auto] xl:items-center">
+            <WorkspaceCard
+              label="Conversation Status"
+              value={readinessLabel}
+              detail={`${progress}% of the booking brief mapped`}
+            />
+            <WorkspaceCard
+              label="Package Fit"
+              value={recommendation.label}
+              detail={recommendation.rationale}
+            />
+            <WorkspaceCard
+              label="Preliminary Range"
+              value={`${formatCurrency(estimate.totalLow)} - ${formatCurrency(estimate.totalHigh)}`}
+              detail="Preliminary only. Final review, availability, scope, and contract still apply."
+            />
+
+            <div className="flex flex-wrap items-center gap-3 xl:justify-end">
+              <button
+                type="button"
+                onClick={() => setClaudeOpen(true)}
+                className="rounded-full border border-gold/35 px-5 py-3 text-[11px] uppercase tracking-[0.26em] text-gold transition hover:border-gold/55"
+              >
+                Ask Claude
+              </button>
+              <button
+                type="button"
+                onClick={() => setBlueprintOpen(true)}
+                className="rounded-full bg-ember px-5 py-3 text-[11px] uppercase tracking-[0.26em] text-ink"
+              >
+                Open Event Blueprint
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-6">
+          <BookingChatPanel
+            session={session}
+            currentStep={currentStep}
+            onStepChange={setCurrentStep}
+            onUpdate={updateSession}
+            onBack={() => setCurrentStep(getPrevStep(currentStep))}
+            onContinue={() => setCurrentStep(getNextStep(currentStep))}
+            onReset={resetSession}
+            onOpenBlueprint={() => setBlueprintOpen(true)}
+            onOpenClaude={() => setClaudeOpen(true)}
+            progress={progress}
+            readinessLabel={readinessLabel}
+            aiSummary={aiSummary}
+          />
+        </div>
+      </section>
+
+      <BookingBlueprintModal
+        open={blueprintOpen}
+        onClose={() => setBlueprintOpen(false)}
+        session={session}
+        recommendation={recommendation}
+        estimate={estimate}
+        aiSummary={aiSummary}
+        readinessLabel={readinessLabel}
+        isWelcomeState={isWelcomeState}
+        onAction={handleAction}
+        submissionState={submissionState}
+      />
+
+      <BookingClaudeDrawer
+        open={claudeOpen}
+        onClose={() => setClaudeOpen(false)}
+        session={session}
+        aiSummary={aiSummary}
+        recommendation={recommendation}
+        estimate={estimate}
+      />
+    </>
+  );
+}
+
+function WorkspaceCard({ label, value, detail }: { label: string; value: string; detail: string }) {
+  return (
+    <article className="rounded-[1.25rem] border border-white/10 bg-black/26 p-4">
+      <p className="text-[10px] uppercase tracking-[0.24em] text-white/48">{label}</p>
+      <p className="mt-2 text-sm text-white/90">{value}</p>
+      <p className="mt-2 text-xs leading-relaxed text-white/56">{detail}</p>
+    </article>
   );
 }

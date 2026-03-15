@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { BookingSession, EstimateBreakdown, PackageRecommendation } from "./bookingEngine";
 import { formatCurrency, getDependencies, getStaffingAssumptions } from "./bookingEngine";
 
@@ -10,6 +11,7 @@ type Props = {
   isWelcomeState: boolean;
   onAction: (action: "availability-review" | "schedule-call" | "email-package" | "save-follow-up" | "download-brief" | "copy-summary") => void;
   submissionState: string;
+  rootClassName?: string;
 };
 
 export default function BookingBlueprintPanel({
@@ -20,7 +22,8 @@ export default function BookingBlueprintPanel({
   readinessLabel,
   isWelcomeState,
   onAction,
-  submissionState
+  submissionState,
+  rootClassName
 }: Props) {
   const title =
     session.eventName ||
@@ -28,13 +31,19 @@ export default function BookingBlueprintPanel({
     "Performa Event Blueprint";
 
   return (
-    <aside className="rounded-[2rem] border border-white/15 bg-black/45 p-5 md:p-6 lg:sticky lg:top-24 lg:h-[calc(100vh-7rem)] lg:overflow-y-auto">
+    <section
+      className={
+        rootClassName ||
+        "rounded-[2rem] border border-white/15 bg-black/45 p-5 md:p-6"
+      }
+    >
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-[10px] uppercase tracking-[0.32em] text-gold/85">Event Blueprint</p>
           <h3 className="mt-3 font-display text-3xl md:text-4xl">{title}</h3>
           <p className="mt-3 text-sm leading-relaxed text-white/66">
-            {readinessLabel}. This blueprint is preliminary and designed for human review, availability screening, and contract follow-through.
+            {readinessLabel}. This blueprint is preliminary and designed for human review, availability screening,
+            and contract follow-through.
           </p>
         </div>
         <span className="rounded-full border border-white/12 bg-black/35 px-4 py-2 text-[10px] uppercase tracking-[0.24em] text-white/58">
@@ -43,7 +52,7 @@ export default function BookingBlueprintPanel({
       </div>
 
       <div className="mt-5 rounded-[1.4rem] border border-white/12 bg-black/28 p-4">
-        <p className="text-[10px] uppercase tracking-[0.28em] text-gold/85">What You’re Seeing</p>
+        <p className="text-[10px] uppercase tracking-[0.28em] text-gold/85">What You&apos;re Seeing</p>
         {isWelcomeState ? (
           <div className="mt-3 space-y-3">
             <p className="text-sm leading-relaxed text-white/70">
@@ -52,26 +61,34 @@ export default function BookingBlueprintPanel({
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-[1.2rem] border border-white/10 bg-black/24 p-4">
                 <p className="text-[10px] uppercase tracking-[0.24em] text-white/48">Will Build Live</p>
-                <p className="mt-2 text-sm leading-relaxed text-white/72">Event profile, package recommendation, investment range, and next-step path.</p>
+                <p className="mt-2 text-sm leading-relaxed text-white/72">
+                  Event profile, package recommendation, investment range, and next-step path.
+                </p>
               </div>
               <div className="rounded-[1.2rem] border border-white/10 bg-black/24 p-4">
                 <p className="text-[10px] uppercase tracking-[0.24em] text-white/48">Important</p>
-                <p className="mt-2 text-sm leading-relaxed text-white/72">Everything here is preliminary until the team reviews availability, scope, and contract terms.</p>
+                <p className="mt-2 text-sm leading-relaxed text-white/72">
+                  Everything here is preliminary until the team reviews availability, scope, and contract terms.
+                </p>
               </div>
             </div>
           </div>
         ) : (
           <p className="mt-2 text-sm leading-relaxed text-white/70">
-            This panel updates in real time as the concierge captures your event details. It shows the current event model, package fit, preliminary investment range, and the next action the team would recommend.
+            This panel updates in real time as the concierge captures your event details. It shows the current
+            event model, package fit, preliminary investment range, and the next action the team would recommend.
           </p>
         )}
       </div>
 
-      <div className={`mt-5 grid gap-4 ${isWelcomeState ? "opacity-55" : ""}`}>
+      <div className={`mt-5 grid gap-4 ${isWelcomeState ? "opacity-60" : ""}`}>
         <Panel title="Event Summary">
           <InfoLine label="Event type" value={session.eventType || "In progress"} />
           <InfoLine label="Venue" value={session.venueType || "In progress"} />
-          <InfoLine label="Location" value={[session.locationCity, session.locationState, session.locationCountry].filter(Boolean).join(", ") || "In progress"} />
+          <InfoLine
+            label="Location"
+            value={[session.locationCity, session.locationState, session.locationCountry].filter(Boolean).join(", ") || "In progress"}
+          />
           <InfoLine label="Target date" value={session.targetDate || "In progress"} />
           <InfoLine label="Attendance" value={session.attendeeCount ? session.attendeeCount.toLocaleString() : "In progress"} />
           <InfoLine label="Ticketing" value={session.ticketingModel || "In progress"} />
@@ -89,7 +106,9 @@ export default function BookingBlueprintPanel({
         </Panel>
 
         <Panel title="Estimated Investment">
-          <p className="text-2xl font-semibold text-white">{formatCurrency(estimate.totalLow)} - {formatCurrency(estimate.totalHigh)}</p>
+          <p className="text-2xl font-semibold text-white">
+            {formatCurrency(estimate.totalLow)} - {formatCurrency(estimate.totalHigh)}
+          </p>
           <p className="mt-2 text-sm leading-relaxed text-white/64">{estimate.confidenceNote}</p>
           <div className="mt-4 space-y-3">
             {estimate.lines.map((line) => (
@@ -99,7 +118,9 @@ export default function BookingBlueprintPanel({
                     <p className="text-sm text-white/86">{line.label}</p>
                     <p className="mt-1 text-xs leading-relaxed text-white/52">{line.note}</p>
                   </div>
-                  <p className="text-sm text-white/78">{formatCurrency(line.low)} - {formatCurrency(line.high)}</p>
+                  <p className="text-sm text-white/78">
+                    {formatCurrency(line.low)} - {formatCurrency(line.high)}
+                  </p>
                 </div>
               </div>
             ))}
@@ -128,38 +149,64 @@ export default function BookingBlueprintPanel({
 
         <Panel title="Next Steps">
           <p className="text-sm leading-relaxed text-white/74">
-            Based on the current event profile, the next best step is <span className="text-white">{recommendation.nextStep.replace("-", " ")}</span>. Nothing is confirmed until the team reviews availability, approves scope, and executes contract.
+            Based on the current event profile, the next best step is{" "}
+            <span className="text-white">{recommendation.nextStep.replace("-", " ")}</span>. Nothing is confirmed
+            until the team reviews availability, approves scope, and executes contract.
           </p>
           <div className="mt-4 flex flex-wrap gap-3">
-            <button type="button" onClick={() => onAction("availability-review")} className="rounded-full bg-ember px-5 py-3 text-xs uppercase tracking-[0.24em] text-ink">
+            <button
+              type="button"
+              onClick={() => onAction("availability-review")}
+              className="rounded-full bg-ember px-5 py-3 text-xs uppercase tracking-[0.24em] text-ink"
+            >
               Request Availability Review
             </button>
-            <button type="button" onClick={() => onAction("schedule-call")} className="rounded-full border border-white/20 px-5 py-3 text-xs uppercase tracking-[0.24em] text-white/80">
+            <button
+              type="button"
+              onClick={() => onAction("schedule-call")}
+              className="rounded-full border border-white/20 px-5 py-3 text-xs uppercase tracking-[0.24em] text-white/80"
+            >
               Schedule Booking Call
             </button>
-            <button type="button" onClick={() => onAction("email-package")} className="rounded-full border border-white/20 px-5 py-3 text-xs uppercase tracking-[0.24em] text-white/80">
+            <button
+              type="button"
+              onClick={() => onAction("email-package")}
+              className="rounded-full border border-white/20 px-5 py-3 text-xs uppercase tracking-[0.24em] text-white/80"
+            >
               Email Me the Package
             </button>
-            <button type="button" onClick={() => onAction("save-follow-up")} className="rounded-full border border-white/20 px-5 py-3 text-xs uppercase tracking-[0.24em] text-white/80">
+            <button
+              type="button"
+              onClick={() => onAction("save-follow-up")}
+              className="rounded-full border border-white/20 px-5 py-3 text-xs uppercase tracking-[0.24em] text-white/80"
+            >
               Save for Later
             </button>
           </div>
           <div className="mt-3 flex flex-wrap gap-3">
-            <button type="button" onClick={() => onAction("download-brief")} className="rounded-full border border-gold/35 px-5 py-3 text-[11px] uppercase tracking-[0.24em] text-gold">
+            <button
+              type="button"
+              onClick={() => onAction("download-brief")}
+              className="rounded-full border border-gold/35 px-5 py-3 text-[11px] uppercase tracking-[0.24em] text-gold"
+            >
               Download Event Brief
             </button>
-            <button type="button" onClick={() => onAction("copy-summary")} className="rounded-full border border-gold/35 px-5 py-3 text-[11px] uppercase tracking-[0.24em] text-gold">
+            <button
+              type="button"
+              onClick={() => onAction("copy-summary")}
+              className="rounded-full border border-gold/35 px-5 py-3 text-[11px] uppercase tracking-[0.24em] text-gold"
+            >
               Copy Event Summary
             </button>
           </div>
           {submissionState && <p className="mt-4 text-sm text-gold">{submissionState}</p>}
         </Panel>
       </div>
-    </aside>
+    </section>
   );
 }
 
-function Panel({ title, children }: { title: string; children: React.ReactNode }) {
+function Panel({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="rounded-[1.5rem] border border-white/12 bg-black/30 p-4">
       <p className="text-[10px] uppercase tracking-[0.28em] text-white/46">{title}</p>
