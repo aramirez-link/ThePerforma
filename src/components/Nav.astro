@@ -337,8 +337,8 @@ const toolkitLinks = [
         }
         fanLoggedIn = true;
         syncAuthButtonLabel();
-        const { data } = await supabase.from("store_admins").select("role").eq("user_id", user.id).maybeSingle();
-        if (data?.role) localStorage.setItem(ADMIN_NAV_KEY, "true");
+        const { data, error } = await supabase.rpc("is_store_admin");
+        if (!error && data === true) localStorage.setItem(ADMIN_NAV_KEY, "true");
         else localStorage.removeItem(ADMIN_NAV_KEY);
       } catch {
         fanLoggedIn = getPersistedFanLoginState();

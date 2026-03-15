@@ -480,8 +480,7 @@ export const isStoreAdmin = async (): Promise<boolean> => {
   if (!rpc.error && typeof rpc.data === "boolean") {
     return rpc.data;
   }
-  const { data } = await supabase.from("store_admins").select("role").eq("user_id", user.id).maybeSingle();
-  return Boolean(data?.role);
+  return false;
 };
 
 export const loadAdminSnapshot = async (): Promise<
