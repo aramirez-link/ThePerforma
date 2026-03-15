@@ -1,9 +1,7 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
 import Section from "../components/Section.astro";
-import DropCountdown from "../components/DropCountdown";
 import FanVaultConsole from "../components/FanVaultConsole";
-import drops from "../../content/drops.json";
 ---
 <BaseLayout title="Inner Circle Access | The Performa" description="Private drops, early booking priority, and unreleased performance cuts from Chip Lee - The Performa.">
   <Section
@@ -21,22 +19,6 @@ import drops from "../../content/drops.json";
         <a href="/" class="inline-flex min-h-11 items-center rounded-full bg-ember px-6 py-3 text-xs uppercase tracking-[0.34em] text-ink">Unlock Email Priority</a>
         <a href="/" class="inline-flex min-h-11 items-center rounded-full border border-white/30 px-6 py-3 text-xs uppercase tracking-[0.34em] text-white/75">Enable SMS Priority</a>
       </div>
-    </div>
-
-    <div class="mt-12 grid gap-6 md:grid-cols-2">
-      {drops.map((drop) => (
-        <article class="rounded-[1.7rem] border border-white/15 bg-black/40 p-6">
-          <p class="text-[10px] uppercase tracking-[0.3em] text-white/55">Private Drop</p>
-          <h3 class="mt-3 text-2xl font-semibold">{drop.title}</h3>
-          <p class="mt-2 text-sm text-white/72">{drop.description}</p>
-          <div class="mt-4">
-            <DropCountdown client:load launchDate={drop.launchDate} />
-          </div>
-          <a href={drop.ctaUrl} class="mt-6 inline-flex text-xs uppercase tracking-[0.3em] text-gold">
-            Reserve Drop Slot
-          </a>
-        </article>
-      ))}
     </div>
   </Section>
 </BaseLayout>
