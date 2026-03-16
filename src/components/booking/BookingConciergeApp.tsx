@@ -13,6 +13,7 @@ import {
   type BookingSession
 } from "./bookingEngine";
 import { persistBookingConciergeSession } from "../../lib/bookingConcierge";
+import { sendBookingSubmissionEmail } from "../../lib/formSubmissionMailer";
 
 const STORAGE_KEY = "the-performa-booking-concierge-v1";
 const STEP_ORDER: StepKey[] = [
@@ -222,6 +223,25 @@ export default function BookingConciergeApp() {
     const result = await persistBookingConciergeSession(nextSession, mode);
     if (!result.ok) {
       setSubmissionState(result.error);
+      return;
+    }
+
+    const emailResult = await sendBookingSubmissionEmail({
+      formName: "Booking Concierge",
+      sourcePath: "/book",
+      session: nextSession,
+      estimate,
+      recommendation,
+      metadata: {
+        submitMode: mode,
+        action
+      }
+    });
+
+    if (!emailResult.ok) {
+      setSubmissionState(
+        "The booking brief was saved, but the notification email could not be sent. Please retry or email info@link-collective.com."
+      );
       return;
     }
 

@@ -25,6 +25,33 @@ PUBLIC_SUPABASE_ANON_KEY=YOUR_ANON_KEY
 
 Without these env vars, Fan Vault falls back to local device storage only.
 
+## Booking and contact form email notifications
+
+Booking submissions from `/book`, the Stage Mode booking modal, and the press/media request form on `/story` now send a structured HTML email to `info@link-collective.com` through a Supabase Edge Function.
+
+1. Deploy the function:
+
+```bash
+supabase functions deploy form-submission-email
+```
+
+2. Ensure the mail secrets are set for the function runtime:
+
+```bash
+supabase secrets set RESEND_API_KEY=re_xxx
+supabase secrets set RESEND_FROM_EMAIL=alerts@theperforma.com
+```
+
+3. Optional test request after deploy:
+
+```bash
+curl -X POST "https://YOUR_PROJECT_REF.functions.supabase.co/form-submission-email" \
+  -H "Authorization: Bearer YOUR_SUPABASE_ANON_KEY" \
+  -H "apikey: YOUR_SUPABASE_ANON_KEY" \
+  -H "Content-Type: application/json" \
+  -d "{\"kind\":\"contact\",\"formName\":\"Manual Test\",\"sourcePath\":\"/test\",\"submittedAt\":\"2026-03-15T12:00:00.000Z\",\"contact\":{\"name\":\"Test Sender\",\"email\":\"test@example.com\"},\"details\":{\"interest\":\"Smoke test\"}}"
+```
+
 ## Live stream notification blast (Resend + Twilio)
 
 This repo now includes a Supabase Edge Function at `supabase/functions/go-live-blast/index.ts` that sends "Chip Lee is live" alerts to opted-in users from `fan_live_subscriptions`.

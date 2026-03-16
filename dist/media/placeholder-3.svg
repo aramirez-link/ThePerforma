@@ -1,0 +1,10 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900" viewBox="0 0 1200 900">
+  <defs>
+    <linearGradient id="g3" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0%" stop-color="#0d0f16" />
+      <stop offset="100%" stop-color="#9aa0a6" />
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="900" fill="url(#g3)" />
+  <text x="80" y="460" fill="#f3d38b" font-size="42" font-family="Space Grotesk, sans-serif" letter-spacing="6">Backstage</text>
+</svg>

@@ -521,6 +521,7 @@ const schema = {
 
 <script>
   import { getBrowserSupabaseClient } from "../../lib/supabaseBrowser";
+  import { sendContactSubmissionEmail } from "../../lib/formSubmissionMailer";
 
   (() => {
     const gateStorageKey = "the-performa-story-media-kit-v1";
@@ -640,6 +641,25 @@ const schema = {
           }
         });
         if (error) throw error;
+
+        const emailResult = await sendContactSubmissionEmail({
+          formName: "Story Press Kit Request",
+          sourcePath: "/story",
+          fullName,
+          email,
+          phone,
+          interest,
+          metadata: {
+            userId,
+            userAgent: navigator.userAgent,
+            locale: navigator.language || "",
+            referrer: document.referrer || "",
+            pathname: window.location.pathname
+          }
+        });
+        if (!emailResult.ok) {
+          console.error("Contact submission email failed:", emailResult.error);
+        }
       } catch (error) {
         status.textContent = error instanceof Error ? error.message : "Could not submit your request.";
         if (submitButton instanceof HTMLButtonElement) submitButton.disabled = false;

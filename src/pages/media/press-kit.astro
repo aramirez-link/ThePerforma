@@ -18,6 +18,7 @@ const generatedDate = new Intl.DateTimeFormat("en-US", {
   day: "numeric",
   year: "numeric"
 }).format(new Date());
+const contactEmail = "info@link-collective.com";
 ---
 <!doctype html>
 <html lang="en">
@@ -480,7 +481,7 @@ const generatedDate = new Intl.DateTimeFormat("en-US", {
           </div>
           <div class="footerbar">
             <span>{pressKitContacts.site}</span>
-            <span>{pressKitContacts.bookingEmail}</span>
+            <span>{contactEmail}</span>
           </div>
           <span class="page-number">Page 1</span>
         </div>
@@ -636,7 +637,7 @@ const generatedDate = new Intl.DateTimeFormat("en-US", {
                 </div>
                 <div class="contact-row">
                   <span>Email</span>
-                  <span>{pressKitContacts.bookingEmail}</span>
+                  <span>{contactEmail}</span>
                 </div>
                 <div class="contact-row">
                   <span>YouTube</span>

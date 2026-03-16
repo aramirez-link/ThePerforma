@@ -1,6 +1,12 @@
 import { getBrowserSupabaseClient } from "./supabaseBrowser";
 import type { BookingSession } from "../components/booking/bookingEngine";
-import { generateAiSummary, getEstimateBreakdown, getRecommendedPackage } from "../components/booking/bookingEngine";
+import {
+  defaultBookingSession,
+  generateAiSummary,
+  getEstimateBreakdown,
+  getRecommendedPackage
+} from "../components/booking/bookingEngine";
+import { sendBookingSubmissionEmail } from "./formSubmissionMailer";
 
 const mapSessionPayload = (session: BookingSession, submitMode: "autosave" | "submit" | "email" | "follow_up") => {
   const estimate = getEstimateBreakdown(session);
@@ -68,5 +74,94 @@ export const persistBookingConciergeSession = async (
   });
 
   if (error) return { ok: false as const, error: error.message };
+  return { ok: true as const };
+};
+
+export type LegacyBookingInquiryInput = {
+  venueType: string;
+  experienceTier: string;
+  name: string;
+  email: string;
+  city?: string;
+  date?: string;
+  notes?: string;
+  sourcePath?: string;
+};
+
+const mapLegacyVenueType = (value: string): BookingSession["venueType"] => {
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "club") return "nightclub";
+  if (normalized === "festival") return "festival-stage";
+  if (normalized === "private event") return "private-estate";
+  return "other";
+};
+
+const mapLegacyEventType = (value: string): BookingSession["eventType"] => {
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "club") return "club-night";
+  if (normalized === "festival") return "festival-mainstage";
+  if (normalized === "private event") return "private-luxury-event";
+  return "custom-event";
+};
+
+const mapLegacyAmbition = (value: string): BookingSession["productionAmbition"] => {
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "cinematic set") return "elevated";
+  if (normalized === "full stage production") return "headline";
+  if (normalized === "headliner package") return "immersive";
+  return "elevated";
+};
+
+const buildLegacyBookingSession = (input: LegacyBookingInquiryInput): BookingSession => {
+  const session = defaultBookingSession();
+  session.status = "submitted";
+  session.eventType = mapLegacyEventType(input.venueType);
+  session.venueType = mapLegacyVenueType(input.venueType);
+  session.locationCity = input.city?.trim() || "";
+  session.targetDate = input.date?.trim() || "";
+  session.productionAmbition = mapLegacyAmbition(input.experienceTier);
+  session.audienceDescription = input.notes?.trim() || "";
+  session.vibeProfile = input.experienceTier.trim();
+  session.contactName = input.name.trim();
+  session.contactEmail = input.email.trim().toLowerCase();
+  session.nextStepIntent = "availability-review";
+  session.contactPreference = "email";
+  session.followUpConsent = true;
+  session.outreachConsent = true;
+  session.updatedAt = new Date().toISOString();
+  return session;
+};
+
+export const submitLegacyBookingInquiry = async (input: LegacyBookingInquiryInput) => {
+  const session = buildLegacyBookingSession(input);
+  const recommendation = getRecommendedPackage(session);
+  session.packagePreference = recommendation.tier;
+  session.aiSummary = generateAiSummary(session);
+  const estimate = getEstimateBreakdown(session);
+
+  const persistResult = await persistBookingConciergeSession(session, "submit");
+  if (!persistResult.ok) return persistResult;
+
+  const emailResult = await sendBookingSubmissionEmail({
+    formName: "Stage Mode Booking Modal",
+    sourcePath: input.sourcePath || "/",
+    session,
+    estimate,
+    recommendation,
+    notes: input.notes?.trim() || "",
+    metadata: {
+      legacyVenueType: input.venueType,
+      legacyExperienceTier: input.experienceTier
+    }
+  });
+
+  if (!emailResult.ok) {
+    return {
+      ok: true as const,
+      warning:
+        "The request was saved, but the notification email could not be sent. Please retry or email info@link-collective.com."
+    };
+  }
+
   return { ok: true as const };
 };
