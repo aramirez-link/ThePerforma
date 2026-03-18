@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   createFeedPost,
   getLiveSessionFeed,
@@ -25,11 +25,11 @@ type Props = {
 type RailFilter = "all" | "chat" | "prompts" | "polls";
 type ComposerMode = "live_chat" | "host_prompt" | "announcement" | "poll";
 
-const reactionDefs: Array<{ type: LiveSessionReactionType; label: string; icon: string }> = [
-  { type: "fire", label: "Fire", icon: "Fire" },
-  { type: "bolt", label: "Bolt", icon: "Bolt" },
-  { type: "hands", label: "Hands", icon: "Hands" },
-  { type: "heart", label: "Heart", icon: "Heart" }
+const reactionDefs: Array<{ type: LiveSessionReactionType; label: string }> = [
+  { type: "fire", label: "Fire" },
+  { type: "bolt", label: "Bolt" },
+  { type: "hands", label: "Hands" },
+  { type: "heart", label: "Heart" }
 ];
 
 const filterDefs: Array<{ id: RailFilter; label: string }> = [
@@ -38,6 +38,9 @@ const filterDefs: Array<{ id: RailFilter; label: string }> = [
   { id: "prompts", label: "Prompts" },
   { id: "polls", label: "Polls" }
 ];
+
+const pollOptionsSeed = ["", "", "", ""];
+const feedScrollStepPx = 320;
 
 const createEmptyReactionSummary = (sessionId = ""): LiveSessionReactionSummary => ({
   sessionId,
@@ -67,7 +70,13 @@ const kindLabel = (post: FanFeedPost) => {
   return "Link Up";
 };
 
-const pollOptionsSeed = ["", "", "", ""];
+const filterForComposerMode = (mode: ComposerMode): RailFilter => {
+  if (mode === "live_chat") return "chat";
+  if (mode === "poll") return "polls";
+  return "prompts";
+};
+
+const isCompactChatBubble = (post: FanFeedPost) => post.postKind === "live_chat" && !post.poll && !post.mediaUrl;
 
 export default function LiveCompanion({ session, user, canModerate, fallbackEmbedUrl }: Props) {
   const [loading, setLoading] = useState(false);
@@ -83,6 +92,15 @@ export default function LiveCompanion({ session, user, canModerate, fallbackEmbe
   const [pollOptions, setPollOptions] = useState<string[]>(pollOptionsSeed);
   const [pinOnPublish, setPinOnPublish] = useState(false);
   const [selectedPollOptions, setSelectedPollOptions] = useState<Record<string, string[]>>({});
+  const feedScrollRef = useRef<HTMLDivElement | null>(null);
+
+  const scrollFeedToTop = (behavior: ScrollBehavior = "smooth") => {
+    feedScrollRef.current?.scrollTo({ top: 0, behavior });
+  };
+
+  const scrollFeedBy = (delta: number) => {
+    feedScrollRef.current?.scrollBy({ top: delta, behavior: "smooth" });
+  };
 
   useEffect(() => {
     if (!canModerate && composerMode !== "live_chat") {
@@ -95,7 +113,14 @@ export default function LiveCompanion({ session, user, canModerate, fallbackEmbe
     setReactions(createEmptyReactionSummary(session?.sessionId || ""));
     setPosts([]);
     setError("");
+    setFilter("all");
+    setSelectedPollOptions({});
+    scrollFeedToTop("auto");
   }, [session?.sessionId]);
+
+  useEffect(() => {
+    scrollFeedToTop("auto");
+  }, [filter]);
 
   useEffect(() => {
     if (!user || !session?.sessionId) {
@@ -174,8 +199,10 @@ export default function LiveCompanion({ session, user, canModerate, fallbackEmbe
 
     setBody("");
     setPollQuestion("");
-    setPollOptions(pollOptionsSeed);
+    setPollOptions([...pollOptionsSeed]);
     setPinOnPublish(false);
+    setFilter(filterForComposerMode(composerMode));
+    scrollFeedToTop();
   };
 
   const handleReaction = async (reactionType: LiveSessionReactionType) => {
@@ -183,9 +210,7 @@ export default function LiveCompanion({ session, user, canModerate, fallbackEmbe
     setActionBusy(`reaction:${reactionType}`);
     const result = await toggleLiveSessionReaction(session.sessionId, reactionType);
     setActionBusy("");
-    if (!result.ok) {
-      setError(result.error);
-    }
+    if (!result.ok) setError(result.error);
   };
 
   const handlePinToggle = async (postId: string, nextPinned: boolean) => {
@@ -229,8 +254,30 @@ export default function LiveCompanion({ session, user, canModerate, fallbackEmbe
     setSelectedPollOptions((current) => ({ ...current, [post.id]: [] }));
   };
 
-  const leftPanel = (
-    <section className="space-y-4">
+  const supportPanel = (
+    <section className="order-2 space-y-3 xl:order-1">
+      <div className="rounded-2xl border border-white/12 bg-black/30 p-4">
+        <p className="text-[10px] uppercase tracking-[0.24em] text-white/45">Session</p>
+        <p className="mt-2 text-sm text-white/88">{session?.title || "Waiting for the next live session"}</p>
+        <p className="mt-2 text-[11px] text-white/55">
+          {session?.isLive ? "The Performa is live now." : "Standby mode. The player will switch when the next session starts."}
+        </p>
+      </div>
+      <div className="rounded-2xl border border-white/12 bg-black/30 p-4">
+        <p className="text-[10px] uppercase tracking-[0.24em] text-white/45">Room Pulse</p>
+        <p className="mt-2 text-2xl font-display">{reactions.totalCount}</p>
+        <p className="mt-2 text-[11px] text-white/55">Total live reactions across this session.</p>
+      </div>
+      <div className="rounded-2xl border border-white/12 bg-black/30 p-4">
+        <p className="text-[10px] uppercase tracking-[0.24em] text-white/45">Live Objects</p>
+        <p className="mt-2 text-sm text-white/88">{posts.length} active items in the rail</p>
+        <p className="mt-2 text-[11px] text-white/55">Chat, prompts, polls, and announcements stay locked to this session.</p>
+      </div>
+    </section>
+  );
+
+  const videoPanel = (
+    <section className="order-1 space-y-4 xl:order-2">
       <div className="overflow-hidden rounded-[1.8rem] border border-white/15 bg-black/45">
         {session?.playbackId ? (
           <PerformaLivePlayer
@@ -263,37 +310,33 @@ export default function LiveCompanion({ session, user, canModerate, fallbackEmbe
         )}
       </div>
 
-      <div className="grid gap-3 md:grid-cols-3">
-        <div className="rounded-2xl border border-white/12 bg-black/30 p-4">
-          <p className="text-[10px] uppercase tracking-[0.24em] text-white/45">Session</p>
-          <p className="mt-2 text-sm text-white/88">{session?.title || "Waiting for the next live session"}</p>
-          <p className="mt-2 text-[11px] text-white/55">
-            {session?.isLive ? "The Performa is live now." : "Standby mode. The player will switch when the next session starts."}
-          </p>
-        </div>
-        <div className="rounded-2xl border border-white/12 bg-black/30 p-4">
-          <p className="text-[10px] uppercase tracking-[0.24em] text-white/45">Room Pulse</p>
-          <p className="mt-2 text-2xl font-display">{reactions.totalCount}</p>
-          <p className="mt-2 text-[11px] text-white/55">Total live reactions across this session.</p>
-        </div>
-        <div className="rounded-2xl border border-white/12 bg-black/30 p-4">
-          <p className="text-[10px] uppercase tracking-[0.24em] text-white/45">Link Up Rail</p>
-          <p className="mt-2 text-sm text-white/88">{posts.length} live objects in the room</p>
-          <p className="mt-2 text-[11px] text-white/55">Chat, polls, prompts, and announcements stay scoped to this session.</p>
+      <div className="rounded-2xl border border-white/12 bg-black/30 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.24em] text-gold/80">Viewer Mode</p>
+            <p className="mt-2 text-sm text-white/84">The stream stays centered while the right rail handles chat and activity in a separate scroller.</p>
+          </div>
+          <a
+            href="#live-rail-feed"
+            className="inline-flex min-h-11 items-center rounded-full border border-white/20 px-4 py-2 text-[10px] uppercase tracking-[0.2em] text-white/75 hover:border-gold/45 hover:text-gold"
+          >
+            Open Rail
+          </a>
         </div>
       </div>
     </section>
   );
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[minmax(0,1.65fr)_minmax(350px,1fr)]">
-      {leftPanel}
+    <div className="grid gap-5 xl:grid-cols-[minmax(220px,0.68fr)_minmax(0,1.42fr)_minmax(360px,0.96fr)] xl:items-start">
+      {supportPanel}
+      {videoPanel}
 
-      <aside className="rounded-[1.8rem] border border-white/15 bg-[linear-gradient(180deg,rgba(9,11,18,0.96),rgba(6,7,12,0.92))] p-4 shadow-[0_0_60px_rgba(242,84,45,0.14)] md:p-5">
+      <aside className="order-3 flex flex-col rounded-[1.8rem] border border-white/15 bg-[linear-gradient(180deg,rgba(9,11,18,0.96),rgba(6,7,12,0.92))] p-4 shadow-[0_0_60px_rgba(242,84,45,0.14)] md:p-5 xl:h-[52rem] xl:min-h-[52rem]">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-[10px] uppercase tracking-[0.3em] text-gold/85">Link Up Live</p>
-            <h4 className="mt-2 font-display text-2xl">Session Rail</h4>
+            <h4 className="mt-2 font-display text-2xl">Rail</h4>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {session?.isLive && (
@@ -308,7 +351,7 @@ export default function LiveCompanion({ session, user, canModerate, fallbackEmbe
         </div>
 
         <p className="mt-3 text-sm text-white/68">
-          Fan chat, reactions, host prompts, and live polls route through this rail and stay isolated to the active Performa session.
+          New chat bubbles and session activity stay at the top of this rail. Scroll inside the rail instead of pushing the whole page.
         </p>
 
         {error && <p className="mt-4 rounded-2xl border border-rose-400/35 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</p>}
@@ -332,8 +375,8 @@ export default function LiveCompanion({ session, user, canModerate, fallbackEmbe
         )}
 
         {session?.sessionId && user && (
-          <>
-            <div className="mt-5 rounded-2xl border border-white/12 bg-black/25 p-4">
+          <div className="mt-4 flex min-h-0 flex-1 flex-col">
+            <div className="rounded-2xl border border-white/12 bg-black/25 p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-[10px] uppercase tracking-[0.24em] text-white/55">Live Reactions</p>
                 <p className="text-[11px] text-white/45">{reactions.totalCount} total</p>
@@ -347,17 +390,16 @@ export default function LiveCompanion({ session, user, canModerate, fallbackEmbe
                       type="button"
                       onClick={() => void handleReaction(reaction.type)}
                       disabled={actionBusy === `reaction:${reaction.type}`}
-                      className={`rounded-2xl border px-3 py-3 text-left transition ${
+                      className={`rounded-2xl border px-3 py-2 text-left transition ${
                         active
                           ? "border-gold/60 bg-gold/10 text-gold"
                           : "border-white/12 bg-black/30 text-white/78 hover:border-gold/40 hover:text-gold"
                       }`}
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] uppercase tracking-[0.18em]">{reaction.icon}</span>
+                        <span className="text-[10px] uppercase tracking-[0.18em]">{reaction.label}</span>
                         <span className="text-sm">{reactions.counts[reaction.type]}</span>
                       </div>
-                      <p className="mt-2 text-[11px]">{reaction.label}</p>
                     </button>
                   );
                 })}
@@ -384,17 +426,151 @@ export default function LiveCompanion({ session, user, canModerate, fallbackEmbe
                 </div>
                 <p className="mt-3 text-sm text-white/85">{pinnedPost.body || "Pinned live post"}</p>
                 <p className="mt-3 text-[11px] text-white/45">
-                  {pinnedPost.authorName} · {formatTimestamp(pinnedPost.createdAt)}
+                  {pinnedPost.authorName} | {formatTimestamp(pinnedPost.createdAt)}
                 </p>
               </div>
             )}
+
+            <div className="mt-4 flex min-h-0 flex-1 flex-col rounded-2xl border border-white/12 bg-black/25">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
+                <div>
+                  <p id="live-rail-feed" className="text-[10px] uppercase tracking-[0.24em] text-white/55">
+                    Chat and Activity
+                  </p>
+                  <p className="mt-1 text-[11px] text-white/45">Newest items stay on top.</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {filterDefs.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setFilter(item.id)}
+                      className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.18em] ${
+                        filter === item.id ? "border-gold/60 text-gold" : "border-white/12 text-white/58"
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-2 border-b border-white/10 px-4 py-2">
+                <p className="text-[11px] text-white/45">{filteredPosts.length} items in view</p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => scrollFeedToTop()}
+                    className="rounded-full border border-white/12 px-3 py-1 text-[10px] uppercase tracking-[0.16em] text-white/70 hover:border-gold/45 hover:text-gold"
+                  >
+                    Newest
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => scrollFeedBy(feedScrollStepPx)}
+                    className="rounded-full border border-white/12 px-3 py-1 text-[10px] uppercase tracking-[0.16em] text-white/70 hover:border-gold/45 hover:text-gold"
+                  >
+                    Older
+                  </button>
+                </div>
+              </div>
+
+              <div ref={feedScrollRef} className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
+                <div className="space-y-3">
+                  {loading && <p className="rounded-2xl border border-white/12 bg-black/25 px-4 py-3 text-sm text-white/68">Loading live rail...</p>}
+                  {!loading && !filteredPosts.length && (
+                    <p className="rounded-2xl border border-white/12 bg-black/25 px-4 py-3 text-sm text-white/68">
+                      No posts match this filter yet. The next chat message, prompt, or poll will land here at the top of the rail.
+                    </p>
+                  )}
+                  {filteredPosts.map((post) => {
+                    const pendingSelection = selectedPollOptions[post.id] || [];
+                    const compactBubble = isCompactChatBubble(post);
+                    return (
+                      <article
+                        key={post.id}
+                        className={`rounded-2xl border ${
+                          compactBubble ? "border-white/10 bg-black/35 px-3 py-3" : "border-white/12 bg-black/25 p-4"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-[10px] uppercase tracking-[0.24em] text-gold/80">{kindLabel(post)}</p>
+                            <p className="mt-2 text-sm text-white/90">{post.authorName}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-[11px] text-white/45">{formatTimestamp(post.createdAt)}</p>
+                            {canModerate && (
+                              <button
+                                type="button"
+                                onClick={() => void handlePinToggle(post.id, !post.isPinned)}
+                                disabled={actionBusy === `pin:${post.id}`}
+                                className="mt-2 rounded-full border border-white/15 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white/65 hover:border-gold/45 hover:text-gold"
+                              >
+                                {post.isPinned ? "Unpin" : "Pin"}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {post.body && <p className="mt-3 text-sm leading-6 text-white/82">{post.body}</p>}
+
+                        {post.poll && (
+                          <div className="mt-4 rounded-2xl border border-gold/20 bg-gold/10 p-3">
+                            <p className="text-sm font-semibold text-white">{post.poll.question}</p>
+                            <div className="mt-3 space-y-2">
+                              {post.poll.options.map((option) => {
+                                const totalVotes = Math.max(1, post.poll?.totalVotes || 0);
+                                const width = `${Math.round((option.voteCount / totalVotes) * 100)}%`;
+                                const active = option.viewerVoted || pendingSelection.includes(option.id);
+                                return (
+                                  <button
+                                    key={option.id}
+                                    type="button"
+                                    onClick={() => void handlePollChoice(post, option.id)}
+                                    disabled={post.poll?.viewerHasVoted && !post.poll.allowMultiple}
+                                    className={`w-full overflow-hidden rounded-2xl border text-left ${
+                                      active ? "border-gold/60 bg-gold/10 text-gold" : "border-white/12 bg-black/25 text-white/82"
+                                    }`}
+                                  >
+                                    <div className="relative px-3 py-3">
+                                      <div className="absolute inset-y-0 left-0 bg-gold/10" style={{ width }} />
+                                      <div className="relative flex items-center justify-between gap-3">
+                                        <span>{option.label}</span>
+                                        <span className="text-[11px] text-white/55">{option.voteCount}</span>
+                                      </div>
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            {post.poll.allowMultiple && !post.poll.viewerHasVoted && (
+                              <div className="mt-3 flex justify-end">
+                                <button
+                                  type="button"
+                                  onClick={() => void submitMultiPoll(post)}
+                                  disabled={actionBusy === `poll:${post.id}`}
+                                  className="rounded-full border border-gold/40 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-gold"
+                                >
+                                  Submit Vote
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </article>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
 
             <form onSubmit={submitPost} className="mt-4 rounded-2xl border border-white/12 bg-black/25 p-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-[10px] uppercase tracking-[0.24em] text-white/55">Publish Into Session</p>
                   <p className="mt-1 text-[11px] text-white/45">
-                    {canModerate ? "Chat, host prompts, announcements, and live polls." : "Drop directly into the live session chat."}
+                    {canModerate ? "Composer stays anchored while the feed scrolls separately." : "Chat composer stays fixed at the bottom of the rail."}
                   </p>
                 </div>
                 {canModerate && (
@@ -482,7 +658,7 @@ export default function LiveCompanion({ session, user, canModerate, fallbackEmbe
               )}
 
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                <p className="text-[11px] text-white/45">Signed in as {user.name}. Session-scoped posts stay attached to this live session.</p>
+                <p className="text-[11px] text-white/45">Signed in as {user.name}. New items will show at the top of the rail.</p>
                 <button
                   type="submit"
                   disabled={submitting}
@@ -492,103 +668,7 @@ export default function LiveCompanion({ session, user, canModerate, fallbackEmbe
                 </button>
               </div>
             </form>
-
-            <div className="mt-4 flex flex-wrap gap-2">
-              {filterDefs.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setFilter(item.id)}
-                  className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.18em] ${
-                    filter === item.id ? "border-gold/60 text-gold" : "border-white/12 text-white/58"
-                  }`}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-
-            <div className="mt-4 space-y-3">
-              {loading && <p className="rounded-2xl border border-white/12 bg-black/25 px-4 py-3 text-sm text-white/68">Loading live rail…</p>}
-              {!loading && !filteredPosts.length && (
-                <p className="rounded-2xl border border-white/12 bg-black/25 px-4 py-3 text-sm text-white/68">
-                  No posts match this filter yet. The next chat message, prompt, or poll will land here in real time.
-                </p>
-              )}
-              {filteredPosts.map((post) => {
-                const pendingSelection = selectedPollOptions[post.id] || [];
-                return (
-                  <article key={post.id} className="rounded-2xl border border-white/12 bg-black/25 p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-[10px] uppercase tracking-[0.24em] text-gold/80">{kindLabel(post)}</p>
-                        <p className="mt-2 text-sm text-white/90">{post.authorName}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-[11px] text-white/45">{formatTimestamp(post.createdAt)}</p>
-                        {canModerate && (
-                          <button
-                            type="button"
-                            onClick={() => void handlePinToggle(post.id, !post.isPinned)}
-                            disabled={actionBusy === `pin:${post.id}`}
-                            className="mt-2 rounded-full border border-white/15 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white/65 hover:border-gold/45 hover:text-gold"
-                          >
-                            {post.isPinned ? "Unpin" : "Pin"}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    {post.body && <p className="mt-3 text-sm leading-6 text-white/82">{post.body}</p>}
-
-                    {post.poll && (
-                      <div className="mt-4 rounded-2xl border border-gold/20 bg-gold/10 p-3">
-                        <p className="text-sm font-semibold text-white">{post.poll.question}</p>
-                        <div className="mt-3 space-y-2">
-                          {post.poll.options.map((option) => {
-                            const totalVotes = Math.max(1, post.poll?.totalVotes || 0);
-                            const width = `${Math.round((option.voteCount / totalVotes) * 100)}%`;
-                            const active = option.viewerVoted || pendingSelection.includes(option.id);
-                            return (
-                              <button
-                                key={option.id}
-                                type="button"
-                                onClick={() => void handlePollChoice(post, option.id)}
-                                disabled={post.poll?.viewerHasVoted && !post.poll.allowMultiple}
-                                className={`w-full overflow-hidden rounded-2xl border text-left ${
-                                  active ? "border-gold/60 bg-gold/10 text-gold" : "border-white/12 bg-black/25 text-white/82"
-                                }`}
-                              >
-                                <div className="relative px-3 py-3">
-                                  <div className="absolute inset-y-0 left-0 bg-gold/10" style={{ width }} />
-                                  <div className="relative flex items-center justify-between gap-3">
-                                    <span>{option.label}</span>
-                                    <span className="text-[11px] text-white/55">{option.voteCount}</span>
-                                  </div>
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                        {post.poll.allowMultiple && !post.poll.viewerHasVoted && (
-                          <div className="mt-3 flex justify-end">
-                            <button
-                              type="button"
-                              onClick={() => void submitMultiPoll(post)}
-                              disabled={actionBusy === `poll:${post.id}`}
-                              className="rounded-full border border-gold/40 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-gold"
-                            >
-                              Submit Vote
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </article>
-                );
-              })}
-            </div>
-          </>
+          </div>
         )}
       </aside>
     </div>
