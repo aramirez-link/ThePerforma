@@ -254,30 +254,8 @@ export default function LiveCompanion({ session, user, canModerate, fallbackEmbe
     setSelectedPollOptions((current) => ({ ...current, [post.id]: [] }));
   };
 
-  const supportPanel = (
-    <section className="order-2 space-y-3 xl:order-1">
-      <div className="rounded-2xl border border-white/12 bg-black/30 p-4">
-        <p className="text-[10px] uppercase tracking-[0.24em] text-white/45">Session</p>
-        <p className="mt-2 text-sm text-white/88">{session?.title || "Waiting for the next live session"}</p>
-        <p className="mt-2 text-[11px] text-white/55">
-          {session?.isLive ? "The Performa is live now." : "Standby mode. The player will switch when the next session starts."}
-        </p>
-      </div>
-      <div className="rounded-2xl border border-white/12 bg-black/30 p-4">
-        <p className="text-[10px] uppercase tracking-[0.24em] text-white/45">Room Pulse</p>
-        <p className="mt-2 text-2xl font-display">{reactions.totalCount}</p>
-        <p className="mt-2 text-[11px] text-white/55">Total live reactions across this session.</p>
-      </div>
-      <div className="rounded-2xl border border-white/12 bg-black/30 p-4">
-        <p className="text-[10px] uppercase tracking-[0.24em] text-white/45">Live Objects</p>
-        <p className="mt-2 text-sm text-white/88">{posts.length} active items in the rail</p>
-        <p className="mt-2 text-[11px] text-white/55">Chat, prompts, polls, and announcements stay locked to this session.</p>
-      </div>
-    </section>
-  );
-
-  const videoPanel = (
-    <section className="order-1 space-y-4 xl:order-2">
+  const playerPanel = (
+    <section className="space-y-4">
       <div className="overflow-hidden rounded-[1.8rem] border border-white/15 bg-black/45">
         {session?.playbackId ? (
           <PerformaLivePlayer
@@ -310,33 +288,37 @@ export default function LiveCompanion({ session, user, canModerate, fallbackEmbe
         )}
       </div>
 
-      <div className="rounded-2xl border border-white/12 bg-black/30 p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-[10px] uppercase tracking-[0.24em] text-gold/80">Viewer Mode</p>
-            <p className="mt-2 text-sm text-white/84">The stream stays centered while the right rail handles chat and activity in a separate scroller.</p>
-          </div>
-          <a
-            href="#live-rail-feed"
-            className="inline-flex min-h-11 items-center rounded-full border border-white/20 px-4 py-2 text-[10px] uppercase tracking-[0.2em] text-white/75 hover:border-gold/45 hover:text-gold"
-          >
-            Open Rail
-          </a>
+      <div className="grid gap-3 md:grid-cols-3">
+        <div className="rounded-2xl border border-white/12 bg-black/30 p-4">
+          <p className="text-[10px] uppercase tracking-[0.24em] text-white/45">Session</p>
+          <p className="mt-2 text-sm text-white/88">{session?.title || "Waiting for the next live session"}</p>
+          <p className="mt-2 text-[11px] text-white/55">
+            {session?.isLive ? "The Performa is live now." : "Standby mode. The player will switch when the next session starts."}
+          </p>
+        </div>
+        <div className="rounded-2xl border border-white/12 bg-black/30 p-4">
+          <p className="text-[10px] uppercase tracking-[0.24em] text-white/45">Room Pulse</p>
+          <p className="mt-2 text-2xl font-display">{reactions.totalCount}</p>
+          <p className="mt-2 text-[11px] text-white/55">Total live reactions across this session.</p>
+        </div>
+        <div className="rounded-2xl border border-white/12 bg-black/30 p-4">
+          <p className="text-[10px] uppercase tracking-[0.24em] text-white/45">Live Rail</p>
+          <p className="mt-2 text-sm text-white/88">{filteredPosts.length} items currently in view</p>
+          <p className="mt-2 text-[11px] text-white/55">The feed on the right scrolls independently from the page.</p>
         </div>
       </div>
     </section>
   );
 
   return (
-    <div className="grid gap-5 xl:grid-cols-[minmax(220px,0.68fr)_minmax(0,1.42fr)_minmax(360px,0.96fr)] xl:items-start">
-      {supportPanel}
-      {videoPanel}
+    <div className="grid gap-5 xl:grid-cols-[minmax(0,1.5fr)_minmax(380px,0.95fr)] xl:items-start">
+      {playerPanel}
 
-      <aside className="order-3 flex flex-col rounded-[1.8rem] border border-white/15 bg-[linear-gradient(180deg,rgba(9,11,18,0.96),rgba(6,7,12,0.92))] p-4 shadow-[0_0_60px_rgba(242,84,45,0.14)] md:p-5 xl:h-[52rem] xl:min-h-[52rem]">
+      <aside className="flex flex-col rounded-[1.8rem] border border-white/15 bg-[linear-gradient(180deg,rgba(9,11,18,0.96),rgba(6,7,12,0.92))] p-4 shadow-[0_0_60px_rgba(242,84,45,0.14)] md:p-5 xl:h-[52rem] xl:min-h-[52rem]">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-[10px] uppercase tracking-[0.3em] text-gold/85">Link Up Live</p>
-            <h4 className="mt-2 font-display text-2xl">Rail</h4>
+            <h4 className="mt-2 font-display text-2xl">Session Chat</h4>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {session?.isLive && (
@@ -351,14 +333,14 @@ export default function LiveCompanion({ session, user, canModerate, fallbackEmbe
         </div>
 
         <p className="mt-3 text-sm text-white/68">
-          New chat bubbles and session activity stay at the top of this rail. Scroll inside the rail instead of pushing the whole page.
+          Publish into the session here, and let the chat window below handle the scrolling so viewers do not have to move the full page.
         </p>
 
         {error && <p className="mt-4 rounded-2xl border border-rose-400/35 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</p>}
 
         {!session?.sessionId && (
           <div className="mt-5 rounded-2xl border border-white/12 bg-black/25 p-4 text-sm text-white/70">
-            No active live session is published yet. Start or switch a live session from the operator console to activate the companion rail.
+            No active live session is published yet. Start or switch a live session from the operator console to activate the session chat.
           </div>
         )}
 
@@ -376,68 +358,141 @@ export default function LiveCompanion({ session, user, canModerate, fallbackEmbe
 
         {session?.sessionId && user && (
           <div className="mt-4 flex min-h-0 flex-1 flex-col">
-            <div className="rounded-2xl border border-white/12 bg-black/25 p-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-[10px] uppercase tracking-[0.24em] text-white/55">Live Reactions</p>
-                <p className="text-[11px] text-white/45">{reactions.totalCount} total</p>
-              </div>
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                {reactionDefs.map((reaction) => {
-                  const active = viewerReactions.has(reaction.type);
-                  return (
-                    <button
-                      key={reaction.type}
-                      type="button"
-                      onClick={() => void handleReaction(reaction.type)}
-                      disabled={actionBusy === `reaction:${reaction.type}`}
-                      className={`rounded-2xl border px-3 py-2 text-left transition ${
-                        active
-                          ? "border-gold/60 bg-gold/10 text-gold"
-                          : "border-white/12 bg-black/30 text-white/78 hover:border-gold/40 hover:text-gold"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] uppercase tracking-[0.18em]">{reaction.label}</span>
-                        <span className="text-sm">{reactions.counts[reaction.type]}</span>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {pinnedPost && (
-              <div className="mt-4 rounded-2xl border border-gold/35 bg-gold/10 p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-[10px] uppercase tracking-[0.24em] text-gold/90">Pinned On Air</p>
-                    <p className="mt-2 text-sm font-semibold text-white">{kindLabel(pinnedPost)}</p>
-                  </div>
-                  {canModerate && (
-                    <button
-                      type="button"
-                      onClick={() => void handlePinToggle(pinnedPost.id, false)}
-                      disabled={actionBusy === `pin:${pinnedPost.id}`}
-                      className="rounded-full border border-white/15 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white/70 hover:border-gold/45 hover:text-gold"
-                    >
-                      Unpin
-                    </button>
-                  )}
+            <form onSubmit={submitPost} className="rounded-2xl border border-white/12 bg-black/25 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.24em] text-white/55">Publish In Session</p>
+                  <p className="mt-1 text-[11px] text-white/45">
+                    {canModerate ? "Chats, prompts, announcements, and polls publish into the feed below." : "Messages publish into the chat feed below."}
+                  </p>
                 </div>
-                <p className="mt-3 text-sm text-white/85">{pinnedPost.body || "Pinned live post"}</p>
-                <p className="mt-3 text-[11px] text-white/45">
-                  {pinnedPost.authorName} | {formatTimestamp(pinnedPost.createdAt)}
-                </p>
+                {canModerate && (
+                  <div className="flex flex-wrap gap-2">
+                    {(["live_chat", "host_prompt", "announcement", "poll"] as ComposerMode[]).map((mode) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => setComposerMode(mode)}
+                        className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.18em] ${
+                          composerMode === mode ? "border-gold/60 text-gold" : "border-white/15 text-white/60"
+                        }`}
+                      >
+                        {mode === "live_chat"
+                          ? "Chat"
+                          : mode === "host_prompt"
+                          ? "Prompt"
+                          : mode === "announcement"
+                          ? "Notice"
+                          : "Poll"}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
+
+              <div className="mt-4 grid gap-3">
+                <div className="grid grid-cols-2 gap-2">
+                  {reactionDefs.map((reaction) => {
+                    const active = viewerReactions.has(reaction.type);
+                    return (
+                      <button
+                        key={reaction.type}
+                        type="button"
+                        onClick={() => void handleReaction(reaction.type)}
+                        disabled={actionBusy === `reaction:${reaction.type}`}
+                        className={`rounded-2xl border px-3 py-2 text-left transition ${
+                          active
+                            ? "border-gold/60 bg-gold/10 text-gold"
+                            : "border-white/12 bg-black/30 text-white/78 hover:border-gold/40 hover:text-gold"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[10px] uppercase tracking-[0.18em]">{reaction.label}</span>
+                          <span className="text-sm">{reactions.counts[reaction.type]}</span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <label className="block text-[11px] uppercase tracking-[0.2em] text-white/50">
+                  {composerMode === "live_chat" ? "Message" : composerMode === "poll" ? "Optional intro" : "On-air copy"}
+                  <textarea
+                    value={body}
+                    onChange={(event) => setBody(event.target.value)}
+                    rows={composerMode === "live_chat" ? 3 : 4}
+                    placeholder={
+                      composerMode === "live_chat"
+                        ? "Jump into the room..."
+                        : composerMode === "host_prompt"
+                        ? "Ask the room a direct question..."
+                        : composerMode === "announcement"
+                        ? "Drop a host notice or stage cue..."
+                        : "Optional context for the poll..."
+                    }
+                    className="mt-2 min-h-[110px] w-full rounded-2xl border border-white/15 bg-black/40 px-4 py-3 text-sm text-white/88 placeholder:text-white/30"
+                  />
+                </label>
+
+                {composerMode === "poll" && (
+                  <div className="space-y-3">
+                    <label className="block text-[11px] uppercase tracking-[0.2em] text-white/50">
+                      Poll Question
+                      <input
+                        value={pollQuestion}
+                        onChange={(event) => setPollQuestion(event.target.value)}
+                        placeholder="What should happen next?"
+                        className="mt-2 min-h-11 w-full rounded-2xl border border-white/15 bg-black/40 px-4 py-3 text-sm text-white/88 placeholder:text-white/30"
+                      />
+                    </label>
+                    <div className="grid gap-2 md:grid-cols-2">
+                      {pollOptions.map((option, index) => (
+                        <label key={index} className="block text-[11px] uppercase tracking-[0.2em] text-white/50">
+                          Option {index + 1}
+                          <input
+                            value={option}
+                            onChange={(event) =>
+                              setPollOptions((current) => current.map((value, valueIndex) => (valueIndex === index ? event.target.value : value)))
+                            }
+                            placeholder={`Choice ${index + 1}`}
+                            className="mt-2 min-h-11 w-full rounded-2xl border border-white/15 bg-black/40 px-4 py-3 text-sm text-white/88 placeholder:text-white/30"
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {canModerate && composerMode !== "live_chat" && (
+                  <label className="flex items-center gap-2 text-xs text-white/78">
+                    <input
+                      type="checkbox"
+                      checked={pinOnPublish}
+                      onChange={(event) => setPinOnPublish(event.target.checked)}
+                      className="h-4 w-4 accent-gold"
+                    />
+                    Pin this post at the top of the session chat
+                  </label>
+                )}
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                <p className="text-[11px] text-white/45">Signed in as {user.name}. New posts appear at the top of the chat window.</p>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="inline-flex min-h-11 items-center rounded-full bg-ember px-4 py-2 text-[10px] uppercase tracking-[0.24em] text-ink disabled:opacity-60"
+                >
+                  {submitting ? "Sending..." : composerMode === "poll" ? "Publish Poll" : "Send To Session"}
+                </button>
+              </div>
+            </form>
 
             <div className="mt-4 flex min-h-0 flex-1 flex-col rounded-2xl border border-white/12 bg-black/25">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
                 <div>
-                  <p id="live-rail-feed" className="text-[10px] uppercase tracking-[0.24em] text-white/55">
-                    Chat and Activity
-                  </p>
-                  <p className="mt-1 text-[11px] text-white/45">Newest items stay on top.</p>
+                  <p className="text-[10px] uppercase tracking-[0.24em] text-white/55">Chat Window</p>
+                  <p className="mt-1 text-[11px] text-white/45">Newest messages and activity stay on top.</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   {filterDefs.map((item) => (
@@ -477,10 +532,35 @@ export default function LiveCompanion({ session, user, canModerate, fallbackEmbe
 
               <div ref={feedScrollRef} className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
                 <div className="space-y-3">
-                  {loading && <p className="rounded-2xl border border-white/12 bg-black/25 px-4 py-3 text-sm text-white/68">Loading live rail...</p>}
+                  {pinnedPost && (
+                    <div className="rounded-2xl border border-gold/35 bg-gold/10 p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-[0.24em] text-gold/90">Pinned On Air</p>
+                          <p className="mt-2 text-sm font-semibold text-white">{kindLabel(pinnedPost)}</p>
+                        </div>
+                        {canModerate && (
+                          <button
+                            type="button"
+                            onClick={() => void handlePinToggle(pinnedPost.id, false)}
+                            disabled={actionBusy === `pin:${pinnedPost.id}`}
+                            className="rounded-full border border-white/15 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white/70 hover:border-gold/45 hover:text-gold"
+                          >
+                            Unpin
+                          </button>
+                        )}
+                      </div>
+                      <p className="mt-3 text-sm text-white/85">{pinnedPost.body || "Pinned live post"}</p>
+                      <p className="mt-3 text-[11px] text-white/45">
+                        {pinnedPost.authorName} | {formatTimestamp(pinnedPost.createdAt)}
+                      </p>
+                    </div>
+                  )}
+
+                  {loading && <p className="rounded-2xl border border-white/12 bg-black/25 px-4 py-3 text-sm text-white/68">Loading session chat...</p>}
                   {!loading && !filteredPosts.length && (
                     <p className="rounded-2xl border border-white/12 bg-black/25 px-4 py-3 text-sm text-white/68">
-                      No posts match this filter yet. The next chat message, prompt, or poll will land here at the top of the rail.
+                      No posts match this filter yet. The next message, prompt, or poll will appear here at the top of the chat window.
                     </p>
                   )}
                   {filteredPosts.map((post) => {
@@ -564,110 +644,6 @@ export default function LiveCompanion({ session, user, canModerate, fallbackEmbe
                 </div>
               </div>
             </div>
-
-            <form onSubmit={submitPost} className="mt-4 rounded-2xl border border-white/12 bg-black/25 p-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-[10px] uppercase tracking-[0.24em] text-white/55">Publish Into Session</p>
-                  <p className="mt-1 text-[11px] text-white/45">
-                    {canModerate ? "Composer stays anchored while the feed scrolls separately." : "Chat composer stays fixed at the bottom of the rail."}
-                  </p>
-                </div>
-                {canModerate && (
-                  <div className="flex flex-wrap gap-2">
-                    {(["live_chat", "host_prompt", "announcement", "poll"] as ComposerMode[]).map((mode) => (
-                      <button
-                        key={mode}
-                        type="button"
-                        onClick={() => setComposerMode(mode)}
-                        className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.18em] ${
-                          composerMode === mode ? "border-gold/60 text-gold" : "border-white/15 text-white/60"
-                        }`}
-                      >
-                        {mode === "live_chat"
-                          ? "Chat"
-                          : mode === "host_prompt"
-                          ? "Prompt"
-                          : mode === "announcement"
-                          ? "Notice"
-                          : "Poll"}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <label className="mt-4 block text-[11px] uppercase tracking-[0.2em] text-white/50">
-                {composerMode === "live_chat" ? "Message" : composerMode === "poll" ? "Optional intro" : "On-air copy"}
-                <textarea
-                  value={body}
-                  onChange={(event) => setBody(event.target.value)}
-                  rows={composerMode === "live_chat" ? 3 : 4}
-                  placeholder={
-                    composerMode === "live_chat"
-                      ? "Jump into the room..."
-                      : composerMode === "host_prompt"
-                      ? "Ask the room a direct question..."
-                      : composerMode === "announcement"
-                      ? "Drop a host notice or stage cue..."
-                      : "Optional context for the poll..."
-                  }
-                  className="mt-2 min-h-[110px] w-full rounded-2xl border border-white/15 bg-black/40 px-4 py-3 text-sm text-white/88 placeholder:text-white/30"
-                />
-              </label>
-
-              {composerMode === "poll" && (
-                <div className="mt-4 space-y-3">
-                  <label className="block text-[11px] uppercase tracking-[0.2em] text-white/50">
-                    Poll Question
-                    <input
-                      value={pollQuestion}
-                      onChange={(event) => setPollQuestion(event.target.value)}
-                      placeholder="What should happen next?"
-                      className="mt-2 min-h-11 w-full rounded-2xl border border-white/15 bg-black/40 px-4 py-3 text-sm text-white/88 placeholder:text-white/30"
-                    />
-                  </label>
-                  <div className="grid gap-2 md:grid-cols-2">
-                    {pollOptions.map((option, index) => (
-                      <label key={index} className="block text-[11px] uppercase tracking-[0.2em] text-white/50">
-                        Option {index + 1}
-                        <input
-                          value={option}
-                          onChange={(event) =>
-                            setPollOptions((current) => current.map((value, valueIndex) => (valueIndex === index ? event.target.value : value)))
-                          }
-                          placeholder={`Choice ${index + 1}`}
-                          className="mt-2 min-h-11 w-full rounded-2xl border border-white/15 bg-black/40 px-4 py-3 text-sm text-white/88 placeholder:text-white/30"
-                        />
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {canModerate && composerMode !== "live_chat" && (
-                <label className="mt-4 flex items-center gap-2 text-xs text-white/78">
-                  <input
-                    type="checkbox"
-                    checked={pinOnPublish}
-                    onChange={(event) => setPinOnPublish(event.target.checked)}
-                    className="h-4 w-4 accent-gold"
-                  />
-                  Pin this post at the top of the live rail
-                </label>
-              )}
-
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                <p className="text-[11px] text-white/45">Signed in as {user.name}. New items will show at the top of the rail.</p>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="inline-flex min-h-11 items-center rounded-full bg-ember px-4 py-2 text-[10px] uppercase tracking-[0.24em] text-ink disabled:opacity-60"
-                >
-                  {submitting ? "Sending..." : composerMode === "poll" ? "Publish Poll" : "Send To Rail"}
-                </button>
-              </div>
-            </form>
           </div>
         )}
       </aside>
