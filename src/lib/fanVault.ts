@@ -66,6 +66,15 @@ export type FanFeedMediaType = "image" | "video" | "link";
 export type FeedModerationStatus = "pending" | "approved" | "rejected" | "flagged";
 export type FeedReportTargetType = "post" | "comment";
 export type FeedReportStatus = "open" | "reviewed" | "resolved" | "dismissed";
+export type LiveFeedPostKind = "standard" | "live_chat" | "host_prompt" | "announcement" | "poll";
+export type LiveSessionReactionType = "fire" | "bolt" | "hands" | "heart";
+
+export type LiveSessionReactionSummary = {
+  sessionId: string;
+  totalCount: number;
+  counts: Record<LiveSessionReactionType, number>;
+  viewerReactions: LiveSessionReactionType[];
+};
 
 export type FeedModerationReport = {
   id: number;
@@ -154,6 +163,9 @@ export type FanFeedPost = {
   userId: string;
   authorName: string;
   body: string;
+  liveSessionId: string | null;
+  postKind: LiveFeedPostKind;
+  isPinned: boolean;
   mediaUrl: string | null;
   mediaType: FanFeedMediaType | null;
   moderationStatus: FeedModerationStatus;
@@ -177,6 +189,8 @@ const FEED_MAX_POLL_QUESTION_LEN = 280;
 const FEED_MAX_POLL_OPTION_LEN = 120;
 const FEED_MIN_POLL_OPTIONS = 2;
 const FEED_MAX_POLL_OPTIONS = 6;
+const LIVE_POST_KINDS = new Set<LiveFeedPostKind>(["standard", "live_chat", "host_prompt", "announcement", "poll"]);
+const LIVE_SESSION_REACTION_TYPES: LiveSessionReactionType[] = ["fire", "bolt", "hands", "heart"];
 const FEED_ALLOWED_IMAGE_MIME = new Set([
   "image/jpeg",
   "image/png",
@@ -988,6 +1002,9 @@ const mapFeedPost = (
   userId: row.user_id,
   authorName: names.get(row.user_id) || "Fan",
   body: row.body || "",
+  liveSessionId: row.live_session_id || null,
+  postKind: normalizeLivePostKind(row.post_kind, Boolean(poll)),
+  isPinned: Boolean(row.is_pinned),
   mediaUrl: row.media_url || null,
   mediaType: (row.media_type as FanFeedMediaType | null) || null,
   moderationStatus: (row.moderation_status as FeedModerationStatus) || "approved",
@@ -1174,6 +1191,24 @@ const hasMissingRelationError = (error: unknown, relation: string) => {
   return postgresMissing || schemaCacheMissing || schemaCacheMissingAlt;
 };
 
+const emptyLiveReactionCounts = (): Record<LiveSessionReactionType, number> => ({
+  fire: 0,
+  bolt: 0,
+  hands: 0,
+  heart: 0
+});
+
+const normalizeLivePostKind = (value: unknown, hasPoll: boolean): LiveFeedPostKind => {
+  const kind = String(value || "").trim().toLowerCase() as LiveFeedPostKind;
+  if (LIVE_POST_KINDS.has(kind)) return kind;
+  return hasPoll ? "poll" : "standard";
+};
+
+const isViewerStoreAdmin = async (supabase: SupabaseClient): Promise<boolean> => {
+  const rpc = await supabase.rpc("is_store_admin");
+  return !rpc.error && typeof rpc.data === "boolean" ? rpc.data : false;
+};
+
 const normalizeTriviaLookAndFeel = (value: unknown): TriviaLookAndFeel => {
   if (!value || typeof value !== "object") return {};
   const raw = value as Record<string, unknown>;
@@ -1189,33 +1224,52 @@ const normalizeTriviaLookAndFeel = (value: unknown): TriviaLookAndFeel => {
   };
 };
 
-export const getFanFeed = async (limit = 30): Promise<Result<{ posts: FanFeedPost[] }>> => {
-  if (!isCloudVaultEnabled) return { ok: false, error: "Fan Feed requires Supabase cloud mode." };
-  const supabase = getSupabase();
-  if (!supabase) return { ok: false, error: "Vault is not configured." };
-  const viewer = await getCloudUserAndProfile();
-  if (!viewer) return { ok: false, error: "Log in to Fan Vault to view the feed." };
+const loadFeedPosts = async (
+  supabase: SupabaseClient,
+  viewer: VaultUser,
+  limit: number,
+  options: { liveSessionId?: string | null } = {}
+): Promise<Result<{ posts: FanFeedPost[] }>> => {
+  const boundedLimit = Math.max(1, Math.min(100, limit));
+  const liveSessionId = String(options.liveSessionId || "").trim() || null;
 
-  let { data: postRows, error: postsError } = await supabase
+  let postQuery = supabase
     .from("fan_feed_posts")
-    .select("id,user_id,body,media_url,media_type,moderation_status,moderation_reason,is_nsfw,share_count,created_at,updated_at")
+    .select("id,user_id,body,live_session_id,post_kind,is_pinned,media_url,media_type,moderation_status,moderation_reason,is_nsfw,share_count,created_at,updated_at")
     .order("created_at", { ascending: false })
-    .limit(Math.max(1, Math.min(100, limit)));
+    .limit(boundedLimit);
 
-  const postSelectMissingModerationCols =
+  if (liveSessionId) {
+    postQuery = postQuery.eq("live_session_id", liveSessionId);
+  }
+
+  let { data: postRows, error: postsError } = await postQuery;
+
+  if (postsError && liveSessionId && hasMissingColumnError(postsError, "live_session_id")) {
+    return {
+      ok: false,
+      error: "Live companion feature is not fully installed yet. Run the latest Supabase migration and reload schema cache."
+    };
+  }
+
+  const postSelectMissingFallbackCols =
     postsError &&
     (hasMissingColumnError(postsError, "is_nsfw") ||
       hasMissingColumnError(postsError, "moderation_status") ||
-      hasMissingColumnError(postsError, "moderation_reason"));
+      hasMissingColumnError(postsError, "moderation_reason") ||
+      hasMissingColumnError(postsError, "post_kind") ||
+      hasMissingColumnError(postsError, "is_pinned"));
 
-  if (postSelectMissingModerationCols) {
-    const fallback = await supabase
+  if (postSelectMissingFallbackCols) {
+    let fallback = supabase
       .from("fan_feed_posts")
-      .select("id,user_id,body,media_url,media_type,share_count,created_at,updated_at")
+      .select(`id,user_id,body${liveSessionId ? ",live_session_id" : ""},media_url,media_type,share_count,created_at,updated_at`)
       .order("created_at", { ascending: false })
-      .limit(Math.max(1, Math.min(100, limit)));
-    postRows = fallback.data as any[] | null;
-    postsError = fallback.error;
+      .limit(boundedLimit);
+    if (liveSessionId) fallback = fallback.eq("live_session_id", liveSessionId);
+    const fallbackRes = await fallback;
+    postRows = fallbackRes.data as any[] | null;
+    postsError = fallbackRes.error;
   }
 
   if (postsError) return { ok: false, error: postsError.message };
@@ -1371,10 +1425,82 @@ export const getFanFeed = async (limit = 30): Promise<Result<{ posts: FanFeedPos
   };
 };
 
+const loadLiveSessionReactionSummary = async (
+  supabase: SupabaseClient,
+  viewer: VaultUser,
+  sessionId: string
+): Promise<Result<{ summary: LiveSessionReactionSummary }>> => {
+  const { data, error } = await supabase
+    .from("live_session_reactions")
+    .select("reaction_type,user_id")
+    .eq("session_id", sessionId);
+
+  if (error) {
+    if (hasMissingRelationError(error, "live_session_reactions")) {
+      return {
+        ok: false,
+        error: "Live companion feature is not fully installed yet. Run the latest Supabase migration and reload schema cache."
+      };
+    }
+    return { ok: false, error: error.message };
+  }
+
+  const counts = emptyLiveReactionCounts();
+  const viewerReactions = new Set<LiveSessionReactionType>();
+  (data || []).forEach((row: any) => {
+    const type = String(row.reaction_type || "").trim().toLowerCase() as LiveSessionReactionType;
+    if (!LIVE_SESSION_REACTION_TYPES.includes(type)) return;
+    counts[type] += 1;
+    if (row.user_id === viewer.id) viewerReactions.add(type);
+  });
+
+  return {
+    ok: true,
+    summary: {
+      sessionId,
+      totalCount: Object.values(counts).reduce((sum, value) => sum + value, 0),
+      counts,
+      viewerReactions: Array.from(viewerReactions)
+    }
+  };
+};
+
+export const getFanFeed = async (limit = 30): Promise<Result<{ posts: FanFeedPost[] }>> => {
+  if (!isCloudVaultEnabled) return { ok: false, error: "Fan Feed requires Supabase cloud mode." };
+  const supabase = getSupabase();
+  if (!supabase) return { ok: false, error: "Vault is not configured." };
+  const viewer = await getCloudUserAndProfile();
+  if (!viewer) return { ok: false, error: "Log in to Fan Vault to view the feed." };
+  return loadFeedPosts(supabase, viewer, limit);
+};
+
+export const getLiveSessionFeed = async (
+  sessionId: string,
+  limit = 40
+): Promise<Result<{ posts: FanFeedPost[]; reactions: LiveSessionReactionSummary }>> => {
+  if (!isCloudVaultEnabled) return { ok: false, error: "Fan Feed requires Supabase cloud mode." };
+  const supabase = getSupabase();
+  if (!supabase) return { ok: false, error: "Vault is not configured." };
+  const viewer = await getCloudUserAndProfile();
+  if (!viewer) return { ok: false, error: "Log in to Fan Vault to join Link Up Live." };
+
+  const [feed, reactions] = await Promise.all([
+    loadFeedPosts(supabase, viewer, limit, { liveSessionId: sessionId }),
+    loadLiveSessionReactionSummary(supabase, viewer, sessionId)
+  ]);
+
+  if (!feed.ok) return feed;
+  if (!reactions.ok) return reactions;
+  return { ok: true, posts: feed.posts, reactions: reactions.summary };
+};
+
 export const createFeedPost = async (input: {
   body: string;
   mediaUrl?: string | null;
   mediaType?: FanFeedMediaType | null;
+  liveSessionId?: string | null;
+  postKind?: LiveFeedPostKind;
+  isPinned?: boolean;
   poll?: {
     question: string;
     allowMultiple?: boolean;
@@ -1390,6 +1516,7 @@ export const createFeedPost = async (input: {
 
   const body = (input.body || "").trim();
   const pollInput = input.poll || null;
+  const liveSessionId = String(input.liveSessionId || "").trim() || null;
   const rawMediaUrl = (input.mediaUrl || "").trim();
   if (!body && !rawMediaUrl && !pollInput) return { ok: false, error: "Add text, a media link, or a poll to publish." };
   if (body.length > FEED_MAX_POST_BODY_LEN) {
@@ -1406,6 +1533,19 @@ export const createFeedPost = async (input: {
   if (input.mediaType && !["image", "video", "link"].includes(input.mediaType)) {
     return { ok: false, error: "Invalid media type." };
   }
+
+  const rawPostKind = String(input.postKind || "").trim().toLowerCase();
+  if (rawPostKind && !LIVE_POST_KINDS.has(rawPostKind as LiveFeedPostKind)) {
+    return { ok: false, error: "Invalid live post type." };
+  }
+  const requestedPostKind = rawPostKind
+    ? (rawPostKind as LiveFeedPostKind)
+    : pollInput
+    ? "poll"
+    : liveSessionId
+    ? "live_chat"
+    : "standard";
+  const wantsPinned = Boolean(input.isPinned);
 
   let normalizedPoll:
     | {
@@ -1480,6 +1620,14 @@ export const createFeedPost = async (input: {
     return { ok: false, error: "Post blocked by community safety filter." };
   }
 
+  const requiresAdmin = wantsPinned || requestedPostKind === "host_prompt" || requestedPostKind === "announcement";
+  if (requiresAdmin) {
+    const admin = await isViewerStoreAdmin(supabase);
+    if (!admin) {
+      return { ok: false, error: "Only Performa admins can pin posts or publish host prompts." };
+    }
+  }
+
   let moderationStatus: FeedModerationStatus = "approved";
   let moderationReason: string | null = null;
   const moderationEnabled = await isFeedModerationEnabled();
@@ -1505,6 +1653,9 @@ export const createFeedPost = async (input: {
   const insertPayload = {
     user_id: viewer.id,
     body,
+    live_session_id: liveSessionId,
+    post_kind: requestedPostKind,
+    is_pinned: wantsPinned,
     media_url: mediaUrl || null,
     media_type: input.mediaType || (mediaUrl ? "link" : null),
     moderation_status: moderationStatus,
@@ -1548,6 +1699,18 @@ export const createFeedPost = async (input: {
       hasMissingColumnError(error, "is_nsfw") ||
       hasMissingColumnError(error, "moderation_status") ||
       hasMissingColumnError(error, "moderation_reason");
+
+    const missingLiveCols =
+      hasMissingColumnError(error, "live_session_id") ||
+      hasMissingColumnError(error, "post_kind") ||
+      hasMissingColumnError(error, "is_pinned");
+
+    if ((liveSessionId || wantsPinned || input.postKind) && missingLiveCols) {
+      return {
+        ok: false,
+        error: "Live companion feature is not fully installed yet. Run the latest Supabase migration and reload schema cache."
+      };
+    }
 
     if (!missingModerationCols) return { ok: false, error: error.message };
 
@@ -1886,6 +2049,119 @@ export const toggleFeedLike = async (postId: string): Promise<Result<{ liked: bo
   });
   if (error) return { ok: false, error: error.message };
   return { ok: true, liked: true };
+};
+
+export const toggleLiveSessionReaction = async (
+  sessionId: string,
+  reactionType: LiveSessionReactionType
+): Promise<Result<{ active: boolean }>> => {
+  if (!isCloudVaultEnabled) return { ok: false, error: "Live reactions require Supabase cloud mode." };
+  const supabase = getSupabase();
+  if (!supabase) return { ok: false, error: "Vault is not configured." };
+  const viewer = await getCloudUserAndProfile();
+  if (!viewer) return { ok: false, error: "Log in to Fan Vault to react." };
+
+  if (!LIVE_SESSION_REACTION_TYPES.includes(reactionType)) {
+    return { ok: false, error: "Invalid reaction type." };
+  }
+
+  const { data: existing, error: existingError } = await supabase
+    .from("live_session_reactions")
+    .select("session_id")
+    .eq("session_id", sessionId)
+    .eq("user_id", viewer.id)
+    .eq("reaction_type", reactionType)
+    .maybeSingle();
+
+  if (existingError) {
+    if (hasMissingRelationError(existingError, "live_session_reactions")) {
+      return {
+        ok: false,
+        error: "Live companion feature is not fully installed yet. Run the latest Supabase migration and reload schema cache."
+      };
+    }
+    return { ok: false, error: existingError.message };
+  }
+
+  if (existing) {
+    const { error } = await supabase
+      .from("live_session_reactions")
+      .delete()
+      .eq("session_id", sessionId)
+      .eq("user_id", viewer.id)
+      .eq("reaction_type", reactionType);
+    if (error) return { ok: false, error: error.message };
+    return { ok: true, active: false };
+  }
+
+  const { error } = await supabase.from("live_session_reactions").insert({
+    session_id: sessionId,
+    user_id: viewer.id,
+    reaction_type: reactionType
+  });
+  if (error) {
+    if (hasMissingRelationError(error, "live_session_reactions")) {
+      return {
+        ok: false,
+        error: "Live companion feature is not fully installed yet. Run the latest Supabase migration and reload schema cache."
+      };
+    }
+    return { ok: false, error: error.message };
+  }
+  return { ok: true, active: true };
+};
+
+export const setFeedPostPinned = async (postId: string, isPinned: boolean): Promise<Result<{ updated: true }>> => {
+  if (!isCloudVaultEnabled) return { ok: false, error: "Pinning requires Supabase cloud mode." };
+  const supabase = getSupabase();
+  if (!supabase) return { ok: false, error: "Vault is not configured." };
+  const viewer = await getCloudUserAndProfile();
+  if (!viewer) return { ok: false, error: "Log in required." };
+
+  const admin = await isViewerStoreAdmin(supabase);
+  if (!admin) return { ok: false, error: "Only Performa admins can pin live posts." };
+
+  const numericPostId = Number(postId);
+  if (!Number.isFinite(numericPostId)) return { ok: false, error: "Invalid post id." };
+
+  const { data: postRow, error: postError } = await supabase
+    .from("fan_feed_posts")
+    .select("id,live_session_id")
+    .eq("id", numericPostId)
+    .maybeSingle();
+
+  if (postError) {
+    if (hasMissingColumnError(postError, "live_session_id") || hasMissingColumnError(postError, "is_pinned")) {
+      return {
+        ok: false,
+        error: "Live companion feature is not fully installed yet. Run the latest Supabase migration and reload schema cache."
+      };
+    }
+    return { ok: false, error: postError.message };
+  }
+  if (!postRow) return { ok: false, error: "Post not found." };
+
+  const liveSessionId = postRow.live_session_id ? String(postRow.live_session_id) : "";
+  if (isPinned && liveSessionId) {
+    const clearPinned = await supabase.from("fan_feed_posts").update({ is_pinned: false }).eq("live_session_id", liveSessionId).eq("is_pinned", true);
+    if (clearPinned.error) return { ok: false, error: clearPinned.error.message };
+  }
+
+  const { error } = await supabase
+    .from("fan_feed_posts")
+    .update({ is_pinned: isPinned })
+    .eq("id", numericPostId);
+
+  if (error) {
+    if (hasMissingColumnError(error, "is_pinned")) {
+      return {
+        ok: false,
+        error: "Live companion feature is not fully installed yet. Run the latest Supabase migration and reload schema cache."
+      };
+    }
+    return { ok: false, error: error.message };
+  }
+  return { ok: true, updated: true };
 };
 
 export const incrementFeedShare = async (postId: string): Promise<Result<{ shared: true }>> => {
@@ -2312,6 +2588,45 @@ export const subscribeToFanFeed = (onChange: () => void): (() => void) | null =>
     .on("postgres_changes", { event: "*", schema: "public", table: "fan_feed_poll_options" }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "fan_feed_poll_votes" }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "fan_feed_trivia_posts" }, onChange)
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+};
+
+export const subscribeToLiveSessionFeed = (sessionId: string, onChange: () => void): (() => void) | null => {
+  if (!isCloudVaultEnabled) return null;
+  const supabase = getSupabase();
+  if (!supabase) return null;
+  const cleanSessionId = String(sessionId || "").trim();
+  if (!cleanSessionId) return null;
+
+  const channel = supabase
+    .channel(`fan-feed-live-${cleanSessionId}`)
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "fan_feed_posts",
+        filter: `live_session_id=eq.${cleanSessionId}`
+      },
+      onChange
+    )
+    .on("postgres_changes", { event: "*", schema: "public", table: "fan_feed_polls" }, onChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "fan_feed_poll_options" }, onChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "fan_feed_poll_votes" }, onChange)
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "live_session_reactions",
+        filter: `session_id=eq.${cleanSessionId}`
+      },
+      onChange
+    )
     .subscribe();
 
   return () => {

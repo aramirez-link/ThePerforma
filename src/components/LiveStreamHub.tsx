@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { getCurrentUser, isCloudVaultEnabled, type VaultUser } from "../lib/fanVault";
 import { getBrowserSupabaseClient } from "../lib/supabaseBrowser";
+import { isStoreAdmin } from "../lib/storefront";
 import OperatorLiveConsole from "./OperatorLiveConsole";
-import PerformaLivePlayer from "./PerformaLivePlayer";
-import DonatePill from "./DonatePill";
+import LiveCompanion from "./LiveCompanion";
 import { getPublicLiveStatus, type PublicLiveStatus } from "../lib/performaLive";
 
 type Platform = "youtube" | "instagram" | "facebook" | "twitch" | "multi";
@@ -59,6 +59,7 @@ export default function LiveStreamHub() {
   const [prefs, setPrefs] = useState<LiveAlertPreference>(defaultPreference);
   const [liveStatus, setLiveStatus] = useState<{ status: string; updatedAt?: string } | null>(null);
   const [publicLive, setPublicLive] = useState<PublicLiveStatus | null>(null);
+  const [adminEnabled, setAdminEnabled] = useState(false);
   const operatorAllowlist = useMemo(
     () =>
       String(import.meta.env.PUBLIC_OPERATOR_EMAILS || "")
@@ -70,12 +71,14 @@ export default function LiveStreamHub() {
 
   const isLoggedIn = Boolean(user);
   const isOperator = Boolean(user?.email && operatorAllowlist.includes(user.email.toLowerCase()));
+  const canModerateLive = isOperator || adminEnabled;
 
   useEffect(() => {
     const init = async () => {
       setLoading(true);
       const current = await getCurrentUser();
       setUser(current);
+      setAdminEnabled(current ? await isStoreAdmin() : false);
 
       if (!current) {
         setLoading(false);
@@ -178,62 +181,32 @@ export default function LiveStreamHub() {
   };
 
   return (
-    <div className="rounded-[2rem] border border-white/15 bg-black/50 p-5 md:p-7 shadow-[0_0_70px_rgba(242,84,45,0.12)]">
-      <p className="text-[10px] uppercase tracking-[0.32em] text-gold/80">Chip Lee Pop-Up Fan Streams</p>
-      {liveStatus?.status === "live" && (
-        <p className="mt-2 inline-flex rounded-full border border-ember/60 bg-ember/15 px-3 py-1 text-[10px] uppercase tracking-[0.24em] text-gold">
-          Live Now
-        </p>
-      )}
-      <h3 className="mt-3 font-display text-2xl md:text-3xl">Live Stream Command Deck</h3>
-      <p className="mt-3 max-w-3xl text-sm text-white/70">
-        Go live directly from the portal, trigger fan alerts for registered users, and simulcast your stream feed out to major platforms.
-      </p>
-
-      <div className="mt-6 grid gap-5 lg:grid-cols-[1.6fr_1fr]">
-        <div className="overflow-hidden rounded-2xl border border-white/15 bg-black/45">
-          {publicLive?.playbackId ? (
-            <PerformaLivePlayer
-              playbackId={publicLive.playbackId}
-              title={publicLive.title || "Performa Live Stream"}
-              isLive={Boolean(publicLive.isLive)}
-              ingestType={publicLive.ingestType}
-              latencyMode={publicLive.latencyMode}
-              health={publicLive.health}
-              ingestHeartbeatAt={publicLive.ingestHeartbeatAt}
-            />
-          ) : (
-            <div className="relative aspect-video w-full">
-              <div className="pointer-events-none absolute right-3 top-3 z-10">
-                <div className="pointer-events-auto">
-                  <DonatePill source="live-hub-fallback-video" />
-                </div>
-              </div>
-              <iframe
-                className="h-full w-full"
-                src={streamEmbedUrl}
-                title="Chip Lee Pop-Up Fan Stream"
-                loading="lazy"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                allowFullScreen
-              />
-            </div>
-          )}
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 p-3">
-            <p className="text-xs text-white/65">
-              {publicLive?.playbackId
-                ? "Performa Live is now routed into this command deck player."
-                : "No active Performa live feed detected. Fallback channel embed is shown."}
+    <div className="rounded-[2rem] border border-white/15 bg-black/50 p-5 shadow-[0_0_70px_rgba(242,84,45,0.12)] md:p-7">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.32em] text-gold/80">Chip Lee Pop-Up Fan Streams</p>
+          {liveStatus?.status === "live" && (
+            <p className="mt-2 inline-flex rounded-full border border-ember/60 bg-ember/15 px-3 py-1 text-[10px] uppercase tracking-[0.24em] text-gold">
+              Live Now
             </p>
-            {publicLive?.health === "stale" && (
-              <p className="text-[11px] text-rose-300">Feed is up but the live heartbeat looks stale. Refresh or check origin upload.</p>
-            )}
-            <a href="/watch" className="inline-flex min-h-11 items-center rounded-full border border-white/25 px-3 py-2 text-[10px] uppercase tracking-[0.2em] text-white/80">
-              Open Watch
-            </a>
-          </div>
+          )}
+          <h3 className="mt-3 font-display text-2xl md:text-3xl">Live Companion Deck</h3>
+          <p className="mt-3 max-w-3xl text-sm text-white/70">
+            Watch the stream on the left, run the Link Up Live rail on the right, and keep chat, prompts, reactions, and polls scoped to the active Performa session.
+          </p>
         </div>
+        {canModerateLive && (
+          <span className="rounded-full border border-gold/45 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-gold">
+            Host Controls Enabled
+          </span>
+        )}
+      </div>
 
+      <div className="mt-6">
+        <LiveCompanion session={publicLive} user={user} canModerate={canModerateLive} fallbackEmbedUrl={streamEmbedUrl} />
+      </div>
+
+      <div className="mt-5 grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
         <aside className="rounded-2xl border border-white/15 bg-black/45 p-4">
           <p className="text-[10px] uppercase tracking-[0.28em] text-white/55">On-Air Alerts</p>
           {loading && <p className="mt-3 text-sm text-white/65">Loading your alert settings...</p>}
@@ -286,49 +259,68 @@ export default function LiveStreamHub() {
                   onBlur={() => void persist({ ...prefs, smsPhone: prefs.smsPhone.trim(), updatedAt: new Date().toISOString() })}
                   placeholder="+1 404 555 0123"
                   disabled={!prefs.enabled || !prefs.smsAlerts}
-                  className="mt-1 w-full rounded-xl border border-white/20 bg-black/45 px-3 py-2 text-sm text-white/85 placeholder:text-white/35 min-h-11"
+                  className="mt-1 min-h-11 w-full rounded-xl border border-white/20 bg-black/45 px-3 py-2 text-sm text-white/85 placeholder:text-white/35"
                 />
               </label>
               <label className="block text-xs text-white/80">
                 Preferred platform
                 <select
-                  className="mt-1 w-full rounded-xl border border-white/20 bg-black/45 px-3 py-2 text-sm text-white/85 min-h-11"
+                  className="mt-1 min-h-11 w-full rounded-xl border border-white/20 bg-black/45 px-3 py-2 text-sm text-white/85"
                   style={{ color: "#f5f5f7", backgroundColor: "#111318" }}
                   value={prefs.preferredPlatform}
                   onChange={(event) => void persist({ ...prefs, preferredPlatform: event.target.value as Platform, updatedAt: new Date().toISOString() })}
                   disabled={!prefs.enabled}
                 >
-                  <option value="multi" style={{ color: "#0f1116", backgroundColor: "#ffffff" }}>All Platforms</option>
-                  <option value="youtube" style={{ color: "#0f1116", backgroundColor: "#ffffff" }}>YouTube</option>
-                  <option value="instagram" style={{ color: "#0f1116", backgroundColor: "#ffffff" }}>Instagram</option>
-                  <option value="facebook" style={{ color: "#0f1116", backgroundColor: "#ffffff" }}>Facebook</option>
-                  <option value="twitch" style={{ color: "#0f1116", backgroundColor: "#ffffff" }}>Twitch</option>
+                  <option value="multi" style={{ color: "#0f1116", backgroundColor: "#ffffff" }}>
+                    All Platforms
+                  </option>
+                  <option value="youtube" style={{ color: "#0f1116", backgroundColor: "#ffffff" }}>
+                    YouTube
+                  </option>
+                  <option value="instagram" style={{ color: "#0f1116", backgroundColor: "#ffffff" }}>
+                    Instagram
+                  </option>
+                  <option value="facebook" style={{ color: "#0f1116", backgroundColor: "#ffffff" }}>
+                    Facebook
+                  </option>
+                  <option value="twitch" style={{ color: "#0f1116", backgroundColor: "#ffffff" }}>
+                    Twitch
+                  </option>
                 </select>
               </label>
               {notice && <p className="text-[11px] text-gold">{notice}</p>}
               {saving && <p className="text-[11px] text-white/55">Saving...</p>}
-              <p className="text-[11px] text-white/45">
-                Tip: connect Zapier/Make to your stream status and this alert list for automated blast notifications.
-              </p>
             </div>
           )}
         </aside>
-      </div>
 
-      <div className="mt-5 rounded-2xl border border-white/10 bg-black/35 p-4">
-        <p className="text-[10px] uppercase tracking-[0.28em] text-white/55">Simulcast Targets</p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {streamPlatforms.map((platform) => (
-            <a
-              key={platform.label}
-              href={platform.href}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex min-h-11 items-center rounded-full border border-white/20 px-3 py-2 text-[10px] uppercase tracking-[0.2em] text-white/75 hover:border-gold/45 hover:text-gold"
-            >
-              {platform.label}
-            </a>
-          ))}
+        <div className="space-y-5">
+          <div className="rounded-2xl border border-white/10 bg-black/35 p-4">
+            <p className="text-[10px] uppercase tracking-[0.28em] text-white/55">Simulcast Targets</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {streamPlatforms.map((platform) => (
+                <a
+                  key={platform.label}
+                  href={platform.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex min-h-11 items-center rounded-full border border-white/20 px-3 py-2 text-[10px] uppercase tracking-[0.2em] text-white/75 hover:border-gold/45 hover:text-gold"
+                >
+                  {platform.label}
+                </a>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-black/35 p-4">
+            <p className="text-[10px] uppercase tracking-[0.28em] text-white/55">Routing Notes</p>
+            <p className="mt-3 text-sm text-white/72">
+              Use the live operator console to start a session, then drive prompts, polls, and pinned posts directly from the companion rail.
+            </p>
+            <p className="mt-3 text-[11px] text-white/45">
+              Current source: {publicLive?.playbackId ? "Performa Live player active" : "Fallback stream embedded"}
+            </p>
+          </div>
         </div>
       </div>
 

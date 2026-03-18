@@ -943,6 +943,9 @@ create table if not exists public.fan_feed_posts (
   id bigserial primary key,
   user_id uuid not null references auth.users(id) on delete cascade,
   body text not null default '',
+  live_session_id uuid references public.live_sessions(id) on delete set null,
+  post_kind text not null default 'standard' check (post_kind in ('standard', 'live_chat', 'host_prompt', 'announcement', 'poll')),
+  is_pinned boolean not null default false,
   media_url text,
   media_type text check (media_type in ('image', 'video', 'link')),
   share_count integer not null default 0 check (share_count >= 0),
@@ -963,6 +966,14 @@ create table if not exists public.fan_feed_likes (
   user_id uuid not null references auth.users(id) on delete cascade,
   created_at timestamptz not null default now(),
   primary key (post_id, user_id)
+);
+
+create table if not exists public.live_session_reactions (
+  session_id uuid not null references public.live_sessions(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  reaction_type text not null check (reaction_type in ('fire', 'bolt', 'hands', 'heart')),
+  created_at timestamptz not null default now(),
+  primary key (session_id, user_id, reaction_type)
 );
 
 create table if not exists public.fan_feed_polls (
@@ -1173,6 +1184,14 @@ alter table public.fan_feed_posts
 alter table public.fan_feed_posts
   alter column moderation_status set default 'approved';
 alter table public.fan_feed_posts
+  add column if not exists live_session_id uuid references public.live_sessions(id) on delete set null;
+alter table public.fan_feed_posts
+  add column if not exists post_kind text not null default 'standard';
+alter table public.fan_feed_posts
+  alter column post_kind set default 'standard';
+alter table public.fan_feed_posts
+  add column if not exists is_pinned boolean not null default false;
+alter table public.fan_feed_posts
   add column if not exists moderation_reason text;
 alter table public.fan_feed_posts
   add column if not exists is_nsfw boolean not null default false;
@@ -1192,6 +1211,20 @@ alter table public.fan_feed_comments
   add column if not exists moderated_by uuid references auth.users(id) on delete set null;
 alter table public.fan_feed_comments
   add column if not exists moderated_at timestamptz;
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'fan_feed_posts_post_kind_check'
+  ) then
+    alter table public.fan_feed_posts
+      add constraint fan_feed_posts_post_kind_check
+      check (post_kind in ('standard', 'live_chat', 'host_prompt', 'announcement', 'poll'));
+  end if;
+end
+$$;
 
 create table if not exists public.fan_feed_reports (
   id bigserial primary key,
@@ -1310,9 +1343,22 @@ set moderation_status = 'approved'
 where moderation_status = 'pending'
   and moderated_by is null;
 
+update public.fan_feed_posts
+set post_kind = 'poll'
+where coalesce(post_kind, 'standard') = 'standard'
+  and exists (
+    select 1
+    from public.fan_feed_polls polls
+    where polls.post_id = fan_feed_posts.id
+  );
+
 create index if not exists idx_fan_feed_posts_created on public.fan_feed_posts(created_at desc);
+create index if not exists idx_fan_feed_posts_live_session_created on public.fan_feed_posts(live_session_id, created_at desc);
+create index if not exists idx_fan_feed_posts_live_session_pinned on public.fan_feed_posts(live_session_id, is_pinned desc, created_at desc);
 create index if not exists idx_fan_feed_comments_post on public.fan_feed_comments(post_id, created_at);
 create index if not exists idx_fan_feed_likes_post on public.fan_feed_likes(post_id);
+create index if not exists idx_live_session_reactions_session on public.live_session_reactions(session_id, created_at desc);
+create index if not exists idx_live_session_reactions_type on public.live_session_reactions(session_id, reaction_type, created_at desc);
 create index if not exists idx_fan_feed_polls_expires_at on public.fan_feed_polls(expires_at);
 create index if not exists idx_fan_feed_poll_options_poll on public.fan_feed_poll_options(poll_post_id, position);
 create index if not exists idx_fan_feed_poll_votes_poll on public.fan_feed_poll_votes(poll_post_id, option_id);
@@ -1334,6 +1380,7 @@ execute function public.touch_updated_at();
 alter table public.fan_feed_posts enable row level security;
 alter table public.fan_feed_comments enable row level security;
 alter table public.fan_feed_likes enable row level security;
+alter table public.live_session_reactions enable row level security;
 alter table public.fan_feed_reports enable row level security;
 alter table public.fan_feed_settings enable row level security;
 alter table public.fan_feed_polls enable row level security;
@@ -1365,6 +1412,9 @@ drop policy if exists "fan_feed_posts_insert_own" on public.fan_feed_posts;
 drop policy if exists "fan_feed_posts_update_own" on public.fan_feed_posts;
 drop policy if exists "fan_feed_posts_delete_own" on public.fan_feed_posts;
 drop policy if exists "fan_feed_posts_moderate_admin" on public.fan_feed_posts;
+drop policy if exists "live_session_reactions_select_authenticated" on public.live_session_reactions;
+drop policy if exists "live_session_reactions_insert_own" on public.live_session_reactions;
+drop policy if exists "live_session_reactions_delete_own_or_admin" on public.live_session_reactions;
 
 create policy "fan_feed_posts_select_authenticated"
 on public.fan_feed_posts for select
@@ -1383,6 +1433,13 @@ with check (
   auth.uid() = user_id
   and moderation_status = 'approved'
   and moderated_by is null
+  and (
+    public.is_store_admin()
+    or (
+      is_pinned = false
+      and post_kind in ('standard', 'live_chat', 'poll')
+    )
+  )
 );
 
 create policy "fan_feed_posts_update_own"
@@ -1392,6 +1449,13 @@ with check (
   auth.uid() = user_id
   and moderation_status = 'approved'
   and moderated_by is null
+  and (
+    public.is_store_admin()
+    or (
+      is_pinned = false
+      and post_kind in ('standard', 'live_chat', 'poll')
+    )
+  )
 );
 
 create policy "fan_feed_posts_delete_own"
@@ -1486,6 +1550,21 @@ with check (
 create policy "fan_feed_likes_delete_own"
 on public.fan_feed_likes for delete
 using (auth.uid() = user_id);
+
+create policy "live_session_reactions_select_authenticated"
+on public.live_session_reactions for select
+using (auth.role() = 'authenticated');
+
+create policy "live_session_reactions_insert_own"
+on public.live_session_reactions for insert
+with check (
+  auth.role() = 'authenticated'
+  and auth.uid() = user_id
+);
+
+create policy "live_session_reactions_delete_own_or_admin"
+on public.live_session_reactions for delete
+using (auth.uid() = user_id or public.is_store_admin());
 
 drop policy if exists "fan_feed_polls_select_authenticated" on public.fan_feed_polls;
 drop policy if exists "fan_feed_polls_insert_own" on public.fan_feed_polls;
@@ -1781,6 +1860,15 @@ begin
         and tablename = 'fan_feed_likes'
     ) then
       alter publication supabase_realtime add table public.fan_feed_likes;
+    end if;
+    if not exists (
+      select 1
+      from pg_publication_tables
+      where pubname = 'supabase_realtime'
+        and schemaname = 'public'
+        and tablename = 'live_session_reactions'
+    ) then
+      alter publication supabase_realtime add table public.live_session_reactions;
     end if;
     if not exists (
       select 1
