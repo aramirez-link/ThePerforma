@@ -1,5 +1,6 @@
-import type { BookingSession, EstimateBreakdown, PackageRecommendation } from "../components/booking/bookingEngine";
+import type { BookingSession, EstimateBreakdown, PackageRecommendation, ProposalBrief } from "../components/booking/bookingEngine";
 import { getBrowserSupabaseClient } from "./supabaseBrowser";
+import type { PerformancePricingProfile } from "./performancePricing";
 
 export type BookingClaudeMessage = {
   role: "user" | "assistant";
@@ -12,6 +13,8 @@ type BookingClaudeRequest = {
   aiSummary: string;
   recommendation: PackageRecommendation;
   estimate: EstimateBreakdown;
+  proposalBrief: ProposalBrief;
+  pricingProfile: PerformancePricingProfile;
 };
 
 const supabaseUrl = String(import.meta.env.PUBLIC_SUPABASE_URL || "").trim();
@@ -38,7 +41,9 @@ const toBookingContext = (
   session: BookingSession,
   aiSummary: string,
   recommendation: PackageRecommendation,
-  estimate: EstimateBreakdown
+  estimate: EstimateBreakdown,
+  proposalBrief: ProposalBrief,
+  pricingProfile: PerformancePricingProfile
 ) => ({
   summary: aiSummary,
   readiness: session.status,
@@ -65,6 +70,20 @@ const toBookingContext = (
     totalLow: estimate.totalLow,
     totalHigh: estimate.totalHigh,
     confidenceNote: estimate.confidenceNote
+  },
+  proposalBrief,
+  pricingProfile: {
+    profileKey: pricingProfile.profileKey,
+    profileName: pricingProfile.profileName,
+    artistName: pricingProfile.artistName,
+    baseOverview: pricingProfile.baseOverview,
+    aiGuidance: pricingProfile.aiGuidance,
+    currency: pricingProfile.currency,
+    eventTypeRates: pricingProfile.eventTypeRates,
+    packageTiers: pricingProfile.packageTiers,
+    commercialTerms: pricingProfile.commercialTerms,
+    proposalSections: pricingProfile.proposalSections,
+    metadata: pricingProfile.metadata
   }
 });
 
@@ -73,7 +92,9 @@ export const askBookingClaude = async ({
   session,
   aiSummary,
   recommendation,
-  estimate
+  estimate,
+  proposalBrief,
+  pricingProfile
 }: BookingClaudeRequest) => {
   const functionUrl = getFunctionUrl("booking-claude-chat");
   if (!functionUrl || !supabaseAnonKey) {
@@ -90,7 +111,7 @@ export const askBookingClaude = async ({
     },
     body: JSON.stringify({
       messages,
-      bookingContext: toBookingContext(session, aiSummary, recommendation, estimate)
+      bookingContext: toBookingContext(session, aiSummary, recommendation, estimate, proposalBrief, pricingProfile)
     })
   });
 

@@ -36,6 +36,11 @@ const streamPlatforms = [
 ];
 
 const streamEmbedUrl = "https://www.youtube.com/embed/PvrXChRa7LI?rel=0";
+const LIVE_ALERTS_ID = "live-alerts";
+
+const formatIcsDate = (value: Date) => value.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+
+const escapeIcsText = (value: string) => value.replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/,/g, "\\,").replace(/;/g, "\\;");
 
 const readLocalPreference = (userId: string): LiveAlertPreference => {
   try {
@@ -151,6 +156,8 @@ export default function LiveStreamHub() {
   }, []);
 
   const canSaveCloud = useMemo(() => isCloudVaultEnabled && !!user, [user]);
+  const emailReminderActive = Boolean(prefs.enabled && prefs.emailAlerts);
+  const smsReminderActive = Boolean(prefs.enabled && prefs.smsAlerts);
 
   const persist = async (next: LiveAlertPreference) => {
     if (!user) return;
@@ -180,6 +187,78 @@ export default function LiveStreamHub() {
     setNotice("Live alert preferences saved.");
   };
 
+  const openAlertSettings = () => {
+    document.getElementById(LIVE_ALERTS_ID)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const toggleEmailReminder = async () => {
+    if (!user) {
+      window.location.assign("/fan-club");
+      return;
+    }
+    const nextEmailAlerts = !emailReminderActive;
+    const nextSmsAlerts = smsReminderActive;
+    await persist({
+      ...prefs,
+      enabled: nextEmailAlerts || nextSmsAlerts,
+      emailAlerts: nextEmailAlerts,
+      smsAlerts: nextSmsAlerts,
+      updatedAt: new Date().toISOString()
+    });
+  };
+
+  const toggleSmsReminder = async () => {
+    if (!user) {
+      window.location.assign("/fan-club");
+      return;
+    }
+    if (!prefs.smsPhone.trim()) {
+      setNotice("Add an SMS number below to enable text reminders.");
+      openAlertSettings();
+      return;
+    }
+    const nextSmsAlerts = !smsReminderActive;
+    const nextEmailAlerts = emailReminderActive;
+    await persist({
+      ...prefs,
+      enabled: nextEmailAlerts || nextSmsAlerts,
+      emailAlerts: nextEmailAlerts,
+      smsAlerts: nextSmsAlerts,
+      updatedAt: new Date().toISOString()
+    });
+  };
+
+  const addSessionToCalendar = () => {
+    if (!publicLive?.scheduledFor) return;
+    const start = new Date(publicLive.scheduledFor);
+    if (Number.isNaN(start.getTime())) return;
+    const end = new Date(start.getTime() + 90 * 60_000);
+    const ics = [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "PRODID:-//The Performa//Live Session//EN",
+      "BEGIN:VEVENT",
+      `UID:live-${publicLive.sessionId}@theperforma.com`,
+      `DTSTAMP:${formatIcsDate(new Date())}`,
+      `DTSTART:${formatIcsDate(start)}`,
+      `DTEND:${formatIcsDate(end)}`,
+      `SUMMARY:${escapeIcsText(publicLive.title || "The Performa Live Session")}`,
+      `DESCRIPTION:${escapeIcsText("Watch live at https://theperforma.com/watch")}`,
+      "URL:https://theperforma.com/watch",
+      "END:VEVENT",
+      "END:VCALENDAR"
+    ].join("\r\n");
+
+    const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
+    const url = window.URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `the-performa-live-${publicLive.sessionId.slice(0, 8)}.ics`;
+    anchor.click();
+    window.URL.revokeObjectURL(url);
+    setNotice("Calendar invite downloaded.");
+  };
+
   return (
     <div className="rounded-[2rem] border border-white/15 bg-black/50 p-5 shadow-[0_0_70px_rgba(242,84,45,0.12)] md:p-7">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -203,11 +282,28 @@ export default function LiveStreamHub() {
       </div>
 
       <div className="mt-6">
-        <LiveCompanion session={publicLive} user={user} canModerate={canModerateLive} fallbackEmbedUrl={streamEmbedUrl} />
+        <LiveCompanion
+          session={publicLive}
+          user={user}
+          canModerate={canModerateLive}
+          fallbackEmbedUrl={streamEmbedUrl}
+          reminders={{
+            isLoggedIn,
+            saving,
+            emailActive: emailReminderActive,
+            smsActive: smsReminderActive,
+            hasSmsPhone: Boolean(prefs.smsPhone.trim()),
+            settingsHref: `#${LIVE_ALERTS_ID}`,
+            onAddToCalendar: addSessionToCalendar,
+            onToggleEmail: () => void toggleEmailReminder(),
+            onToggleSms: () => void toggleSmsReminder(),
+            onOpenSettings: openAlertSettings
+          }}
+        />
       </div>
 
       <div className="mt-5 grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
-        <aside className="rounded-2xl border border-white/15 bg-black/45 p-4">
+        <aside id={LIVE_ALERTS_ID} className="rounded-2xl border border-white/15 bg-black/45 p-4">
           <p className="text-[10px] uppercase tracking-[0.28em] text-white/55">On-Air Alerts</p>
           {loading && <p className="mt-3 text-sm text-white/65">Loading your alert settings...</p>}
           {!loading && !isLoggedIn && (

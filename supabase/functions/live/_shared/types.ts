@@ -26,6 +26,7 @@ export type LiveSessionRow = {
   created_at: string;
   started_at: string | null;
   ended_at: string | null;
+  scheduled_for: string | null;
 };
 
 export type DestinationRow = {

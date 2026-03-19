@@ -20,6 +20,18 @@ type Props = {
   user: VaultUser | null;
   canModerate: boolean;
   fallbackEmbedUrl?: string;
+  reminders?: {
+    isLoggedIn: boolean;
+    saving: boolean;
+    emailActive: boolean;
+    smsActive: boolean;
+    hasSmsPhone: boolean;
+    settingsHref: string;
+    onAddToCalendar?: () => void;
+    onToggleEmail?: () => void;
+    onToggleSms?: () => void;
+    onOpenSettings?: () => void;
+  };
 };
 
 type RailFilter = "all" | "chat" | "prompts" | "polls";
@@ -62,6 +74,33 @@ const formatTimestamp = (value: string) => {
   }
 };
 
+const formatScheduleDate = (value?: string | null) => {
+  if (!value) return "Date pending";
+  try {
+    return new Intl.DateTimeFormat("en-US", {
+      weekday: "short",
+      month: "long",
+      day: "numeric",
+      year: "numeric"
+    }).format(new Date(value));
+  } catch {
+    return value;
+  }
+};
+
+const formatScheduleTime = (value?: string | null) => {
+  if (!value) return "Time pending";
+  try {
+    return new Intl.DateTimeFormat("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      timeZoneName: "short"
+    }).format(new Date(value));
+  } catch {
+    return value;
+  }
+};
+
 const kindLabel = (post: FanFeedPost) => {
   if (post.poll) return "Crowd Poll";
   if (post.postKind === "host_prompt") return "Host Prompt";
@@ -78,7 +117,7 @@ const filterForComposerMode = (mode: ComposerMode): RailFilter => {
 
 const isCompactChatBubble = (post: FanFeedPost) => post.postKind === "live_chat" && !post.poll && !post.mediaUrl;
 
-export default function LiveCompanion({ session, user, canModerate, fallbackEmbedUrl }: Props) {
+export default function LiveCompanion({ session, user, canModerate, fallbackEmbedUrl, reminders }: Props) {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [actionBusy, setActionBusy] = useState("");
@@ -168,6 +207,10 @@ export default function LiveCompanion({ session, user, canModerate, fallbackEmbe
       return true;
     });
   }, [filter, pinnedPost?.id, posts]);
+
+  const showStandbyOverlay = !session?.isLive;
+  const sessionDateLabel = formatScheduleDate(session?.scheduledFor);
+  const sessionTimeLabel = formatScheduleTime(session?.scheduledFor);
 
   const submitPost = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -428,7 +471,121 @@ export default function LiveCompanion({ session, user, canModerate, fallbackEmbe
   const playerPanel = (
     <section className="space-y-4">
       <div className="overflow-hidden rounded-[1.8rem] border border-white/15 bg-black/45">
-        {session?.playbackId ? (
+        {showStandbyOverlay ? (
+          <div className="relative aspect-video w-full overflow-hidden">
+            <img src="/assets/img/134NewChip_4K.jpg" alt="" aria-hidden="true" className="absolute inset-0 h-full w-full scale-105 object-cover opacity-20" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(242,84,45,0.18),transparent_42%),linear-gradient(145deg,rgba(8,8,12,0.94),rgba(6,8,14,0.98))]" />
+            <div className="absolute -left-12 top-8 h-40 w-40 rounded-full bg-gold/15 blur-3xl animate-[pulse_8s_ease-in-out_infinite]" />
+            <div className="absolute -right-10 bottom-4 h-44 w-44 rounded-full bg-ember/20 blur-3xl animate-[pulse_10s_ease-in-out_infinite]" />
+            <div className="pointer-events-none absolute right-3 top-3 z-10">
+              <div className="pointer-events-auto">
+                <DonatePill source="live-companion-standby" />
+              </div>
+            </div>
+            <div className="relative flex h-full flex-col justify-between p-5 md:p-8">
+              <div className="flex items-center justify-between gap-3">
+                <span className="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[10px] uppercase tracking-[0.22em] text-white/65">
+                  {session?.scheduledFor ? "Next Session" : "Standby Mode"}
+                </span>
+                <a
+                  href={reminders?.settingsHref || "#live-alerts"}
+                  onClick={() => reminders?.onOpenSettings?.()}
+                  className="rounded-full border border-white/15 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white/70 hover:border-gold/45 hover:text-gold"
+                >
+                  Reminder Settings
+                </a>
+              </div>
+
+              <div className="mx-auto flex max-w-2xl flex-1 flex-col items-center justify-center text-center">
+                <div className="relative">
+                  <div className="absolute inset-[-18px] rounded-full border border-gold/25 animate-[spin_22s_linear_infinite]" />
+                  <div className="absolute inset-[-34px] rounded-full border border-white/10 animate-[spin_30s_linear_infinite_reverse]" />
+                  <div className="relative rounded-full border border-white/15 bg-white/5 p-5 shadow-[0_0_60px_rgba(243,211,139,0.16)] backdrop-blur">
+                    <img src="/assets/img/CHIPLEE_LOGO_Clear.png" alt="The Performa logo" className="h-20 w-20 object-contain animate-[pulse_6s_ease-in-out_infinite] md:h-24 md:w-24" />
+                  </div>
+                </div>
+
+                <p className="mt-8 text-[10px] uppercase tracking-[0.34em] text-gold/85">
+                  {session?.scheduledFor ? "Scheduled Broadcast" : "Next Session Programming"}
+                </p>
+                <h4 className="mt-3 font-display text-3xl leading-tight text-white md:text-5xl">
+                  {session?.title || "The next Performa live session is being programmed"}
+                </h4>
+                <div className="mt-5 flex flex-wrap justify-center gap-3">
+                  <span className="rounded-full border border-white/15 bg-black/30 px-4 py-2 text-[11px] uppercase tracking-[0.2em] text-white/78">
+                    {sessionDateLabel}
+                  </span>
+                  <span className="rounded-full border border-gold/35 bg-gold/10 px-4 py-2 text-[11px] uppercase tracking-[0.2em] text-gold">
+                    {sessionTimeLabel}
+                  </span>
+                </div>
+                <p className="mt-5 max-w-xl text-sm text-white/72 md:text-base">
+                  {session?.scheduledFor
+                    ? "No stream is live right now. The player will switch automatically when the next session starts. Set a reminder now so you do not miss the drop."
+                    : "No stream is live right now. As soon as the next session is scheduled, this standby deck will show the start window and reminder actions."}
+                </p>
+
+                <div className="mt-6 flex flex-wrap justify-center gap-3">
+                  {session?.scheduledFor && reminders?.onAddToCalendar && (
+                    <button
+                      type="button"
+                      onClick={reminders.onAddToCalendar}
+                      className="inline-flex min-h-11 items-center rounded-full border border-gold/45 bg-gold/10 px-4 py-2 text-[10px] uppercase tracking-[0.24em] text-gold"
+                    >
+                      Add To Calendar
+                    </button>
+                  )}
+                  {reminders?.isLoggedIn ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={reminders.onToggleEmail}
+                        disabled={reminders.saving}
+                        className={`inline-flex min-h-11 items-center rounded-full border px-4 py-2 text-[10px] uppercase tracking-[0.24em] ${
+                          reminders.emailActive ? "border-emerald-400/45 bg-emerald-500/10 text-emerald-300" : "border-white/20 text-white/75"
+                        }`}
+                      >
+                        {reminders.emailActive ? "Email Reminder On" : "Email Reminder"}
+                      </button>
+                      {reminders.hasSmsPhone ? (
+                        <button
+                          type="button"
+                          onClick={reminders.onToggleSms}
+                          disabled={reminders.saving}
+                          className={`inline-flex min-h-11 items-center rounded-full border px-4 py-2 text-[10px] uppercase tracking-[0.24em] ${
+                            reminders.smsActive ? "border-emerald-400/45 bg-emerald-500/10 text-emerald-300" : "border-white/20 text-white/75"
+                          }`}
+                        >
+                          {reminders.smsActive ? "Text Reminder On" : "Text Reminder"}
+                        </button>
+                      ) : (
+                        <a
+                          href={reminders.settingsHref}
+                          onClick={() => reminders.onOpenSettings?.()}
+                          className="inline-flex min-h-11 items-center rounded-full border border-white/20 px-4 py-2 text-[10px] uppercase tracking-[0.24em] text-white/75"
+                        >
+                          Add SMS Number
+                        </a>
+                      )}
+                    </>
+                  ) : (
+                    <a
+                      href="/fan-club"
+                      className="inline-flex min-h-11 items-center rounded-full bg-ember px-4 py-2 text-[10px] uppercase tracking-[0.24em] text-ink"
+                    >
+                      Open Fan Vault
+                    </a>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-3 text-[11px] text-white/45">
+                <span>{session?.sessionId ? `Session ${session.sessionId.slice(0, 8)}` : "Next session slot pending"}</span>
+                {reminders?.saving ? <span>Saving reminder settings...</span> : <span>Reminder controls stay synced with Fan Vault.</span>}
+              </div>
+            </div>
+          </div>
+        ) : session?.playbackId ? (
           <PerformaLivePlayer
             playbackId={session.playbackId}
             title={session.title || "Performa Live Stream"}
@@ -464,7 +621,11 @@ export default function LiveCompanion({ session, user, canModerate, fallbackEmbe
           <p className="text-[10px] uppercase tracking-[0.24em] text-white/45">Session</p>
           <p className="mt-2 text-sm text-white/88">{session?.title || "Waiting for the next live session"}</p>
           <p className="mt-2 text-[11px] text-white/55">
-            {session?.isLive ? "The Performa is live now." : "Standby mode. The player will switch when the next session starts."}
+            {session?.isLive
+              ? "The Performa is live now."
+              : session?.scheduledFor
+              ? `Scheduled ${sessionDateLabel} at ${sessionTimeLabel}.`
+              : "Standby mode. The player will switch when the next session starts."}
           </p>
         </div>
         <div className="rounded-2xl border border-white/12 bg-black/30 p-4">

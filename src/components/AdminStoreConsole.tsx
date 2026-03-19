@@ -22,6 +22,7 @@ import {
   type StoreReview,
   type StoreVariant
 } from "../lib/storefront";
+import PerformanceControlPanel from "./PerformanceControlPanel";
 
 type Snapshot = {
   products: StoreProduct[];
@@ -451,7 +452,7 @@ export default function AdminStoreConsole() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-xs uppercase tracking-[0.3em] text-gold/80">Store Admin</p>
-            <h1 className="mt-2 font-display text-3xl">Commerce Control</h1>
+            <h1 className="mt-2 font-display text-3xl">Commerce + Performance Control</h1>
             <p className="mt-1 text-sm text-white/70">{userEmail}</p>
           </div>
           <button
@@ -466,6 +467,10 @@ export default function AdminStoreConsole() {
             Sign out
           </button>
         </div>
+      </div>
+
+      <div className="mt-5 grid gap-4 lg:grid-cols-2">
+        <PerformanceControlPanel />
       </div>
 
       <div className="mt-5 grid gap-4 lg:grid-cols-2">

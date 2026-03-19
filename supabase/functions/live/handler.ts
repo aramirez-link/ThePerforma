@@ -40,6 +40,15 @@ const parseBearerToken = (authHeader: string | null) => {
 };
 
 const asText = (value: unknown) => String(value || "").trim();
+const INVALID_DATETIME = "__invalid_datetime__";
+
+const parseOptionalDateTime = (value: unknown) => {
+  const raw = asText(value);
+  if (!raw) return null;
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return INVALID_DATETIME;
+  return parsed.toISOString();
+};
 
 const isSessionProvider = (value: unknown): value is LiveProvider =>
   value === "cloudflare_stream" || value === "livepeer_studio";
@@ -169,6 +178,7 @@ const readSecretRef = async (supabase: SupabaseClient, secretRef: string, encryp
 type CreateSessionPayload = {
   title?: string;
   provider?: LiveProvider;
+  scheduledFor?: string;
 };
 
 type UpsertDestinationPayload = {
@@ -198,6 +208,10 @@ export const createLiveHandler = (deps: {
 
     const title = asText(body.title || "Performa Live Session");
     const provider: LiveProvider = isSessionProvider(body.provider) ? body.provider : "cloudflare_stream";
+    const scheduledFor = parseOptionalDateTime(body.scheduledFor);
+    if (scheduledFor === INVALID_DATETIME) {
+      return json(400, { error: "scheduledFor must be a valid ISO date/time." });
+    }
     const adapter = createProviderAdapter(provider);
 
     const { data: created, error: createError } = await deps.supabase
@@ -208,7 +222,8 @@ export const createLiveHandler = (deps: {
         status: "DRAFT",
         provider,
         ingest_type: "rtmp",
-        ingest_status: "IDLE"
+        ingest_status: "IDLE",
+        scheduled_for: scheduledFor
       })
       .select("*")
       .single();
@@ -267,20 +282,30 @@ export const createLiveHandler = (deps: {
   const routePublicStatus = async () => {
     const { data, error } = await deps.supabase
       .from("live_sessions")
-      .select("id,title,provider,status,ingest_status,ingest_type,provider_playback_id,last_webhook_at,ingest_last_heartbeat_at,started_at,created_at")
+      .select("id,title,provider,status,ingest_status,ingest_type,provider_playback_id,last_webhook_at,ingest_last_heartbeat_at,started_at,created_at,scheduled_for")
       .in("status", ["LIVE", "READY"])
-      .not("provider_playback_id", "is", null)
+      .order("scheduled_for", { ascending: true, nullsFirst: false })
       .order("created_at", { ascending: false })
-      .limit(10);
+      .limit(20);
 
     if (error) return json(500, { error: error.message });
 
     const rows = Array.isArray(data) ? data : [];
-    const picked =
+    const pickScore = (row: Record<string, unknown>) => {
+      const scheduledFor = row.scheduled_for ? Date.parse(String(row.scheduled_for)) : Number.POSITIVE_INFINITY;
+      return Number.isFinite(scheduledFor) ? scheduledFor : Number.POSITIVE_INFINITY;
+    };
+
+    const pickedLive =
       rows.find((row) => String((row as any).status || "").toUpperCase() === "LIVE") ||
       rows.find((row) => String((row as any).ingest_status || "").toUpperCase() === "LIVE") ||
-      rows[0] ||
       null;
+    const pickedUpcoming =
+      rows
+        .filter((row) => String((row as any).status || "").toUpperCase() === "READY")
+        .sort((a, b) => pickScore(a as Record<string, unknown>) - pickScore(b as Record<string, unknown>))[0] ||
+      null;
+    const picked = pickedLive || pickedUpcoming || rows[0] || null;
 
     if (!picked) {
       return json(200, { ok: true, session: null });
@@ -289,6 +314,7 @@ export const createLiveHandler = (deps: {
     const heartbeatAt = (picked as any).ingest_last_heartbeat_at
       ? String((picked as any).ingest_last_heartbeat_at)
       : null;
+    const scheduledFor = (picked as any).scheduled_for ? String((picked as any).scheduled_for) : null;
     const heartbeatAgeMs = heartbeatAt ? Date.now() - new Date(heartbeatAt).getTime() : Number.POSITIVE_INFINITY;
     const ingestStatus = String((picked as any).ingest_status || "CONNECTING");
     const sessionStatus = String((picked as any).status || "READY").toUpperCase();
@@ -314,7 +340,8 @@ export const createLiveHandler = (deps: {
         health,
         latencyMode: String((picked as any).ingest_type || "rtmp").toLowerCase() === "rtmp" ? "ll-hls" : "standard",
         lastWebhookAt: (picked as any).last_webhook_at ? String((picked as any).last_webhook_at) : null,
-        ingestHeartbeatAt: heartbeatAt
+        ingestHeartbeatAt: heartbeatAt,
+        scheduledFor
       }
     });
   };

@@ -3,6 +3,7 @@ import BookingBlueprintModal from "./BookingBlueprintModal";
 import BookingChatPanel, { type StepKey } from "./BookingChatPanel";
 import BookingClaudeDrawer from "./BookingClaudeDrawer";
 import {
+  buildProposalBrief,
   defaultBookingSession,
   formatCurrency,
   generateAiSummary,
@@ -14,6 +15,12 @@ import {
 } from "./bookingEngine";
 import { persistBookingConciergeSession } from "../../lib/bookingConcierge";
 import { sendBookingSubmissionEmail } from "../../lib/formSubmissionMailer";
+import {
+  clonePerformancePricingProfile,
+  DEFAULT_PERFORMANCE_PRICING_PROFILE,
+  loadActivePerformancePricingProfile,
+  type PerformancePricingProfile
+} from "../../lib/performancePricing";
 
 const STORAGE_KEY = "the-performa-booking-concierge-v1";
 const STEP_ORDER: StepKey[] = [
@@ -114,6 +121,9 @@ const getPrimaryActionConfig = (
 
 export default function BookingConciergeApp() {
   const [session, setSession] = useState<BookingSession>(defaultBookingSession());
+  const [pricingProfile, setPricingProfile] = useState<PerformancePricingProfile>(
+    clonePerformancePricingProfile(DEFAULT_PERFORMANCE_PRICING_PROFILE)
+  );
   const [currentStep, setCurrentStep] = useState<StepKey>("eventType");
   const [submissionState, setSubmissionState] = useState("");
   const [autosaveTick, setAutosaveTick] = useState(0);
@@ -124,6 +134,13 @@ export default function BookingConciergeApp() {
     const stored = readStoredSession();
     setSession(stored);
     setCurrentStep(getResumeStep(stored));
+
+    void (async () => {
+      const result = await loadActivePerformancePricingProfile();
+      if (result.ok) {
+        setPricingProfile(result.data);
+      }
+    })();
   }, []);
 
   useEffect(() => {
@@ -135,8 +152,8 @@ export default function BookingConciergeApp() {
 
   useEffect(() => {
     if (!autosaveTick) return;
-    void persistBookingConciergeSession(session, "autosave");
-  }, [autosaveTick, session]);
+    void persistBookingConciergeSession(session, "autosave", pricingProfile);
+  }, [autosaveTick, pricingProfile, session]);
 
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -149,9 +166,10 @@ export default function BookingConciergeApp() {
   }, [blueprintOpen, claudeOpen]);
 
   const progress = getProgressPercent(session);
-  const recommendation = getRecommendedPackage(session);
-  const estimate = getEstimateBreakdown(session);
-  const aiSummary = generateAiSummary(session);
+  const recommendation = getRecommendedPackage(session, pricingProfile);
+  const estimate = getEstimateBreakdown(session, pricingProfile);
+  const aiSummary = generateAiSummary(session, pricingProfile);
+  const proposalBrief = buildProposalBrief(session, recommendation, estimate, pricingProfile);
   const readinessLabel = getReadinessState(session);
   const isWelcomeState = progress === 0;
   const primaryAction = useMemo(
@@ -165,7 +183,7 @@ export default function BookingConciergeApp() {
       ...patch,
       updatedAt: new Date().toISOString()
     } as BookingSession;
-    nextSession.aiSummary = generateAiSummary(nextSession);
+    nextSession.aiSummary = generateAiSummary(nextSession, pricingProfile);
     nextSession.status = getProgressPercent(nextSession) >= 75 ? "estimate_ready" : nextSession.status;
     setSession(nextSession);
   };
@@ -190,7 +208,7 @@ export default function BookingConciergeApp() {
     }
 
     if (action === "copy-summary") {
-      const summary = `${aiSummary}\nEstimated range: ${formatCurrency(estimate.totalLow)} - ${formatCurrency(estimate.totalHigh)}`;
+      const summary = `${aiSummary}\nEstimated range: ${formatCurrency(estimate.totalLow, pricingProfile.currency)} - ${formatCurrency(estimate.totalHigh, pricingProfile.currency)}`;
       await navigator.clipboard.writeText(summary);
       setSubmissionState("Event summary copied.");
       return;
@@ -220,7 +238,7 @@ export default function BookingConciergeApp() {
     } as BookingSession;
 
     setSession(nextSession);
-    const result = await persistBookingConciergeSession(nextSession, mode);
+    const result = await persistBookingConciergeSession(nextSession, mode, pricingProfile);
     if (!result.ok) {
       setSubmissionState(result.error);
       return;
@@ -305,7 +323,14 @@ export default function BookingConciergeApp() {
             <StatusPill label={readinessLabel} />
             {session.eventType && <StatusPill label={recommendation.label} />}
             {progress > 0 && <StatusPill label={`${progress}% mapped`} />}
-            {progress >= 35 && <StatusPill label={`${formatCurrency(estimate.totalLow)} - ${formatCurrency(estimate.totalHigh)}`} />}
+            {progress >= 35 && (
+              <StatusPill
+                label={`${formatCurrency(estimate.totalLow, pricingProfile.currency)} - ${formatCurrency(
+                  estimate.totalHigh,
+                  pricingProfile.currency
+                )}`}
+              />
+            )}
           </div>
 
           {primaryAction?.helper && (
@@ -337,6 +362,7 @@ export default function BookingConciergeApp() {
         recommendation={recommendation}
         estimate={estimate}
         aiSummary={aiSummary}
+        currency={pricingProfile.currency}
         readinessLabel={readinessLabel}
         isWelcomeState={isWelcomeState}
         onAction={handleAction}
@@ -350,6 +376,8 @@ export default function BookingConciergeApp() {
         aiSummary={aiSummary}
         recommendation={recommendation}
         estimate={estimate}
+        proposalBrief={proposalBrief}
+        pricingProfile={pricingProfile}
       />
     </>
   );

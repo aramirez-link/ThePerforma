@@ -9,6 +9,7 @@ import {
   loadLiveSessionById,
   syncLiveSession,
   startLiveSession,
+  updateLiveSessionSchedule,
   upsertLiveDestination,
   type LiveDestination,
   type LiveSession
@@ -27,6 +28,14 @@ const getSessionIdFromPath = () => {
   return parts[parts.length - 1] || "";
 };
 
+const toLocalDateTimeInput = (value?: string | null) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 16);
+};
+
 export default function PerformaLiveConsole({ sessionId }: Props) {
   const effectiveSessionId = sessionId || getSessionIdFromPath();
   const [session, setSession] = useState<LiveSession | null>(null);
@@ -35,6 +44,7 @@ export default function PerformaLiveConsole({ sessionId }: Props) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [toast, setToast] = useState("");
+  const [scheduledForInput, setScheduledForInput] = useState("");
 
   const refresh = async () => {
     if (!effectiveSessionId) {
@@ -59,6 +69,10 @@ export default function PerformaLiveConsole({ sessionId }: Props) {
   useEffect(() => {
     void refresh();
   }, [effectiveSessionId]);
+
+  useEffect(() => {
+    setScheduledForInput(toLocalDateTimeInput(session?.scheduled_for));
+  }, [session?.scheduled_for]);
 
   useEffect(() => {
     if (!toast) return;
@@ -90,6 +104,19 @@ export default function PerformaLiveConsole({ sessionId }: Props) {
     }
     setToast("Session ended.");
     await refresh();
+  };
+
+  const runSaveSchedule = async () => {
+    if (!session) return;
+    setBusy(true);
+    const response = await updateLiveSessionSchedule(session.id, scheduledForInput ? new Date(scheduledForInput).toISOString() : null);
+    setBusy(false);
+    if (!response.ok) {
+      setToast(response.error);
+      return;
+    }
+    setSession(response.data.session);
+    setToast(scheduledForInput ? "Session schedule updated." : "Session schedule cleared.");
   };
 
   if (loading) {
@@ -137,6 +164,35 @@ export default function PerformaLiveConsole({ sessionId }: Props) {
         >
           Refresh
         </button>
+      </div>
+
+      <div className="rounded-2xl border border-white/12 bg-black/35 p-4">
+        <p className="text-[10px] uppercase tracking-[0.22em] text-white/55">Session Schedule</p>
+        <div className="mt-3 grid gap-3 md:grid-cols-[1fr_auto_auto]">
+          <input
+            type="datetime-local"
+            value={scheduledForInput}
+            onChange={(event) => setScheduledForInput(event.target.value)}
+            className="min-h-11 rounded-xl border border-white/20 bg-black/45 px-3 py-2 text-sm text-white/85"
+          />
+          <button
+            type="button"
+            onClick={() => void runSaveSchedule()}
+            disabled={busy}
+            className="min-h-11 rounded-full border border-gold/45 bg-gold/10 px-4 text-[10px] uppercase tracking-[0.22em] text-gold disabled:opacity-55"
+          >
+            Save Schedule
+          </button>
+          <button
+            type="button"
+            onClick={() => setScheduledForInput("")}
+            disabled={busy}
+            className="min-h-11 rounded-full border border-white/25 px-4 text-[10px] uppercase tracking-[0.22em] text-white/75 disabled:opacity-55"
+          >
+            Clear
+          </button>
+        </div>
+        <p className="mt-3 text-[11px] text-white/50">This timestamp powers the branded standby overlay and reminder actions on the watch page.</p>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1.1fr_1fr]">

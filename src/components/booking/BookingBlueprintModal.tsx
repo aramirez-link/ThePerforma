@@ -9,6 +9,7 @@ type Props = {
   recommendation: PackageRecommendation;
   estimate: EstimateBreakdown;
   aiSummary: string;
+  currency: string;
   readinessLabel: string;
   isWelcomeState: boolean;
   onAction: (action: "availability-review" | "schedule-call" | "email-package" | "save-follow-up" | "download-brief" | "copy-summary") => void;
@@ -22,6 +23,7 @@ export default function BookingBlueprintModal({
   recommendation,
   estimate,
   aiSummary,
+  currency,
   readinessLabel,
   isWelcomeState,
   onAction,
@@ -70,6 +72,7 @@ export default function BookingBlueprintModal({
               recommendation={recommendation}
               estimate={estimate}
               aiSummary={aiSummary}
+              currency={currency}
               readinessLabel={readinessLabel}
               isWelcomeState={isWelcomeState}
               onAction={onAction}

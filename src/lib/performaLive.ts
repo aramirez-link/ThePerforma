@@ -25,6 +25,7 @@ export type LiveSession = {
   created_at: string;
   started_at: string | null;
   ended_at: string | null;
+  scheduled_for: string | null;
   last_webhook_at: string | null;
   ingest_last_heartbeat_at: string | null;
 };
@@ -57,6 +58,7 @@ export type PublicLiveStatus = {
   latencyMode: "ll-hls" | "standard";
   lastWebhookAt: string | null;
   ingestHeartbeatAt: string | null;
+  scheduledFor: string | null;
 };
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string };
@@ -160,6 +162,7 @@ export const loadLiveSessions = async (): Promise<Result<LiveSession[]>> => {
     .from("live_sessions")
     .select("*")
     .eq("creator_id", user.id)
+    .order("scheduled_for", { ascending: true, nullsFirst: false })
     .order("created_at", { ascending: false });
   if (error) return { ok: false, error: error.message };
   return { ok: true, data: (data || []) as LiveSession[] };
@@ -188,8 +191,27 @@ export const loadLiveDestinations = async (sessionId: string): Promise<Result<Li
 export const createLiveSession = async (args: {
   title: string;
   provider: LiveProvider;
+  scheduledFor?: string;
 }): Promise<Result<{ session: LiveSession; ingest: { url: string; streamKey: string; revealOnce: true } }>> =>
   callLiveFunction("session.create", args);
+
+export const updateLiveSessionSchedule = async (
+  sessionId: string,
+  scheduledFor: string | null
+): Promise<Result<{ session: LiveSession }>> => {
+  const client = getLiveSupabaseBrowser();
+  const user = await getLiveUser();
+  if (!client || !user) return { ok: false, error: "Please sign in first." };
+  const { data, error } = await client
+    .from("live_sessions")
+    .update({ scheduled_for: scheduledFor })
+    .eq("id", sessionId)
+    .eq("creator_id", user.id)
+    .select("*")
+    .maybeSingle();
+  if (error || !data) return { ok: false, error: error?.message || "Unable to update session schedule." };
+  return { ok: true, data: { session: data as LiveSession } };
+};
 
 export const upsertLiveDestination = async (args: {
   sessionId: string;

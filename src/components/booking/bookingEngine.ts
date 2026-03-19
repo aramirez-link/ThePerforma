@@ -1,3 +1,5 @@
+import { DEFAULT_PERFORMANCE_PRICING_PROFILE, type PerformancePricingProfile } from "../../lib/performancePricing";
+
 export type EventType =
   | "club-night"
   | "festival-mainstage"
@@ -46,6 +48,50 @@ export type PackageRecommendation = {
   rationale: string;
   components: string[];
   nextStep: NextStepIntent;
+};
+
+export type ProposalBrief = {
+  title: string;
+  pricingProfileKey: string;
+  pricingProfileName: string;
+  artistName: string;
+  summary: string;
+  package: {
+    tier: PackageTier;
+    label: string;
+    rationale: string;
+    components: string[];
+  };
+  investment: {
+    currency: string;
+    totalLow: number;
+    totalHigh: number;
+    confidenceNote: string;
+    depositPercent: number;
+    balanceDueDays: number;
+    holdWindowDays: number;
+    proposalValidityDays: number;
+  };
+  staffingAssumptions: string[];
+  dependencies: string[];
+  proposalSections: Array<{ key: string; label: string; guidance: string }>;
+  bookingProfile: {
+    performanceFormats: string[];
+    deliverables: string[];
+    technicalRequirements: string[];
+    hospitalityRequirements: string[];
+    bookingRequirements: string[];
+    minimumLeadTimeDays: number;
+    defaultSetLengthMinutes: number;
+    typicalPerformanceWindowMinutes: number;
+    soundcheckRequired: boolean;
+    meetAndGreetAvailable: boolean;
+    contentCapturePolicy: string;
+  };
+  nextStep: {
+    value: NextStepIntent;
+    label: string;
+  };
 };
 
 export type BookingSession = {
@@ -170,50 +216,60 @@ export const CONTACT_PREFERENCE_OPTIONS: Array<{ value: ContactPreference; label
   { value: "text", label: "Text" }
 ];
 
-const BASE_FEES: Record<EventType, number> = {
-  "club-night": 18000,
-  "festival-mainstage": 34000,
-  "warehouse-afterhours": 24000,
-  "private-luxury-event": 26000,
-  "brand-experience": 32000,
-  "cultural-celebration": 21000,
-  "corporate-vip": 28000,
-  "custom-event": 30000
+const resolvePricingProfile = (profile?: PerformancePricingProfile | null) => profile || DEFAULT_PERFORMANCE_PRICING_PROFILE;
+
+const getEventRate = (eventType: EventType, profile?: PerformancePricingProfile | null) =>
+  resolvePricingProfile(profile).eventTypeRates.find((item) => item.eventType === eventType) ||
+  resolvePricingProfile(profile).eventTypeRates.find((item) => item.eventType === "custom-event") ||
+  resolvePricingProfile(profile).eventTypeRates[0];
+
+const getAttendanceMultiplier = (count: number | null, profile?: PerformancePricingProfile | null) => {
+  const attendance = count || 500;
+  return resolvePricingProfile(profile).attendanceBands.find((item) => attendance <= item.maxAttendees)?.multiplier || 1;
 };
 
-const ATTENDANCE_MULTIPLIER = [
-  { max: 250, value: 0.88 },
-  { max: 750, value: 1 },
-  { max: 1500, value: 1.16 },
-  { max: 3000, value: 1.34 },
-  { max: Infinity, value: 1.62 }
-];
+const getAmbitionMultiplier = (ambition: ProductionAmbition, profile?: PerformancePricingProfile | null) =>
+  resolvePricingProfile(profile).ambitionMultipliers.find((item) => item.ambition === ambition)?.multiplier || 1;
 
-const AMBITION_MULTIPLIER: Record<ProductionAmbition, number> = {
-  essential: 1,
-  elevated: 1.2,
-  headline: 1.42,
-  immersive: 1.72
+const getTravelZone = (zone: "local" | "regional" | "fly", profile?: PerformancePricingProfile | null) =>
+  resolvePricingProfile(profile).travelZones.find((item) => item.zone === zone) ||
+  resolvePricingProfile(profile).travelZones.find((item) => item.zone === "regional") ||
+  resolvePricingProfile(profile).travelZones[0];
+
+const sumAdders = (keys: string[], rows: Array<{ key: string; adderCents: number }>) =>
+  keys.reduce((sum, key) => sum + (rows.find((row) => row.key === key)?.adderCents || 0), 0);
+
+const getPermitAllowance = (eventType: EventType, profile?: PerformancePricingProfile | null) => {
+  const active = resolvePricingProfile(profile);
+  return (
+    active.permitAllowances.find((item) => item.eventTypes.includes(eventType)) ||
+    active.permitAllowances.find((item) => item.key === "default") ||
+    active.permitAllowances[0]
+  );
 };
 
-const TRAVEL_BASE = {
-  local: [1200, 2500],
-  regional: [4500, 9000],
-  fly: [11000, 24000]
-} as const;
-
-const SECURITY_ALLOWANCE = [
-  { max: 300, low: 1200, high: 2400 },
-  { max: 900, low: 2500, high: 4500 },
-  { max: 2000, low: 5000, high: 9000 },
-  { max: Infinity, low: 9000, high: 18000 }
-];
-
-const PACKAGE_LABELS: Record<PackageTier, string> = {
-  "signature-set": "Signature Set",
-  "elevated-experience": "Elevated Experience",
-  "full-performa-experience": "Full Performa Experience",
-  "custom-production-experience": "Custom Production Experience"
+const getPackageTierConfig = (
+  session: BookingSession,
+  attendeeCount: number,
+  ambition: ProductionAmbition,
+  liveCount: number,
+  productionCount: number,
+  profile?: PerformancePricingProfile | null
+) => {
+  const tiers = [...resolvePricingProfile(profile).packageTiers].sort((a, b) => a.routeRank - b.routeRank);
+  let selected = tiers[0];
+  for (const tier of tiers) {
+    const signals = [
+      tier.minimumAttendees > 0 ? attendeeCount > tier.minimumAttendees : false,
+      tier.minimumProductionNeeds > 0 ? productionCount >= tier.minimumProductionNeeds : false,
+      tier.minimumLiveElements > 0 ? liveCount >= tier.minimumLiveElements : false,
+      tier.requiredAmbitions.length ? tier.requiredAmbitions.includes(ambition) : false,
+      tier.requiredEventTypes.length && session.eventType ? tier.requiredEventTypes.includes(session.eventType) : false
+    ];
+    if (!signals.some(Boolean) && tier.routeRank !== 1) continue;
+    selected = tier;
+  }
+  return selected;
 };
 
 export const defaultBookingSession = (): BookingSession => {
@@ -285,82 +341,63 @@ const getTravelTier = (session: BookingSession) => {
   return "regional";
 };
 
-const getAttendanceMultiplier = (count: number | null) => {
-  const attendance = count || 500;
-  return ATTENDANCE_MULTIPLIER.find((item) => attendance <= item.max)?.value || 1;
-};
-
-export const getRecommendedPackage = (session: BookingSession): PackageRecommendation => {
+export const getRecommendedPackage = (session: BookingSession, profile?: PerformancePricingProfile | null): PackageRecommendation => {
   const attendeeCount = session.attendeeCount || 500;
-  const ambition = session.productionAmbition || "elevated";
+  const ambition = (session.productionAmbition || "elevated") as ProductionAmbition;
   const liveCount = session.liveElements.length;
   const productionCount = session.productionNeeds.length;
-
-  let tier: PackageTier = "signature-set";
-  if (ambition === "elevated" || attendeeCount > 700 || liveCount >= 2) tier = "elevated-experience";
-  if (ambition === "headline" || attendeeCount > 1600 || productionCount >= 4) tier = "full-performa-experience";
-  if (ambition === "immersive" || attendeeCount > 3500 || session.eventType === "brand-experience" || session.eventType === "festival-mainstage") {
-    tier = "custom-production-experience";
-  }
-
-  const componentsByTier: Record<PackageTier, string[]> = {
-    "signature-set": ["Core Performa performance", "Baseline production review", "Event flow recommendations"],
-    "elevated-experience": ["Performa performance + premium flow design", "Enhanced lighting / audience energy plan", "Pre-show production review"],
-    "full-performa-experience": ["Expanded stage architecture", "Live element integration", "Audience engagement choreography", "Producer-led run-of-show assumptions"],
-    "custom-production-experience": ["Custom event architecture", "Advanced production coordination", "Brand or festival adaptation", "Multi-layered live experience design"]
-  };
-
-  const rationale = {
-    "signature-set": "Best when the event needs a high-quality Performa booking with strong atmosphere and a disciplined production footprint.",
-    "elevated-experience": "Recommended when the room needs more visible shape, stronger crowd energy design, and a more layered performance environment.",
-    "full-performa-experience": "Strong fit for events that need a true room transformation with live elements, broader staffing assumptions, and deeper audience engagement.",
-    "custom-production-experience": "Best for premium, large-scale, or highly tailored events where thePerforma needs to function as a produced cultural centerpiece."
-  }[tier];
-
-  const nextStep: NextStepIntent =
-    tier === "custom-production-experience" || tier === "full-performa-experience" ? "schedule-call" : session.nextStepIntent || "availability-review";
+  const tierConfig = getPackageTierConfig(session, attendeeCount, ambition, liveCount, productionCount, profile);
+  const tier = String(tierConfig?.tier || "signature-set") as PackageTier;
+  const defaultNextStep = String(tierConfig?.defaultNextStep || "availability-review") as NextStepIntent;
+  const nextStep: NextStepIntent = defaultNextStep === "schedule-call" ? "schedule-call" : session.nextStepIntent || defaultNextStep;
 
   return {
     tier,
-    label: PACKAGE_LABELS[tier],
-    rationale,
-    components: componentsByTier[tier],
+    label: tierConfig?.label || "Signature Set",
+    rationale: tierConfig?.rationale || "Refined booking fit for the current scope.",
+    components: tierConfig?.components || ["Core Performa performance"],
     nextStep
   };
 };
 
-export const getEstimateBreakdown = (session: BookingSession): EstimateBreakdown => {
-  const eventType = session.eventType || "custom-event";
-  const ambition = session.productionAmbition || "elevated";
+export const getEstimateBreakdown = (session: BookingSession, profile?: PerformancePricingProfile | null): EstimateBreakdown => {
+  const active = resolvePricingProfile(profile);
+  const eventType = (session.eventType || "custom-event") as EventType;
+  const ambition = (session.productionAmbition || "elevated") as ProductionAmbition;
   const attendeeCount = session.attendeeCount || 500;
-  const attendanceMultiplier = getAttendanceMultiplier(attendeeCount);
-  const ambitionMultiplier = AMBITION_MULTIPLIER[ambition];
-  const performanceBase = BASE_FEES[eventType] * attendanceMultiplier * ambitionMultiplier;
+  const attendanceMultiplier = getAttendanceMultiplier(attendeeCount, active);
+  const ambitionMultiplier = getAmbitionMultiplier(ambition, active);
+  const eventRate = getEventRate(eventType, active);
+  const performanceBase = eventRate.baseFeeCents * attendanceMultiplier * ambitionMultiplier;
 
   const travelTier = getTravelTier(session);
-  const travelRange = TRAVEL_BASE[travelTier];
-  const liveElementAdder = session.liveElements.length * 2200;
-  const productionAdder = session.productionNeeds.length * 1800;
+  const travelRange = getTravelZone(travelTier, active);
+  const liveElementAdder = sumAdders(session.liveElements, active.liveElementRates);
+  const productionAdder = sumAdders(session.productionNeeds, active.productionNeedRates);
   const productionBaseLow = 6000 * (ambitionMultiplier - 0.05) + productionAdder + liveElementAdder;
   const productionBaseHigh = 10000 * ambitionMultiplier + productionAdder * 1.25 + liveElementAdder * 1.3;
-  const staffingLow = 2400 + Math.max(0, session.liveElements.length - 1) * 800 + (attendeeCount > 1200 ? 1800 : 0);
-  const staffingHigh = staffingLow + 2800 + session.productionNeeds.length * 600;
-  const security = SECURITY_ALLOWANCE.find((item) => attendeeCount <= item.max) || SECURITY_ALLOWANCE[SECURITY_ALLOWANCE.length - 1];
-  const permitsLow = session.eventType === "private-luxury-event" ? 1200 : 2200;
-  const permitsHigh = session.eventType === "festival-mainstage" || session.eventType === "brand-experience" ? 7200 : 4200;
+  const staffingLow =
+    active.staffingFormula.baseLowCents +
+    Math.max(0, session.liveElements.length - 1) * active.staffingFormula.liveElementSupportLowCents +
+    (attendeeCount > active.staffingFormula.largeRoomThreshold ? active.staffingFormula.largeRoomLowAdderCents : 0);
+  const staffingHigh = staffingLow + active.staffingFormula.baseHighCents + session.productionNeeds.length * active.staffingFormula.productionNeedHighAdderCents;
+  const security = active.securityBands.find((item) => attendeeCount <= item.maxAttendees) || active.securityBands[active.securityBands.length - 1];
+  const permitAllowance = getPermitAllowance(eventType, active);
+  const brandIntegrationRequested = Boolean(session.wantsBrandIntegration) || session.productionNeeds.includes("Brand integration");
+  const hostMomentsRequested = Boolean(session.wantsHostMoments) || session.liveElements.includes("MC / host moments");
 
   const lines: EstimateLine[] = [
     {
       label: "Artist / performance fee",
       low: Math.round(performanceBase * 0.92),
       high: Math.round(performanceBase * 1.14),
-      note: "Driven by event type, attendance, and performance ambition."
+      note: eventRate.note || "Driven by event type, attendance, and performance ambition."
     },
     {
       label: "Travel",
-      low: travelRange[0],
-      high: travelRange[1],
-      note: "Depends on routing, market, lodging, and transport requirements."
+      low: travelRange.lowCents,
+      high: travelRange.highCents,
+      note: travelRange.note || "Depends on routing, market, lodging, and transport requirements."
     },
     {
       label: "Production",
@@ -376,22 +413,40 @@ export const getEstimateBreakdown = (session: BookingSession): EstimateBreakdown
     },
     {
       label: "Security",
-      low: security.low,
-      high: security.high,
+      low: security.lowCents,
+      high: security.highCents,
       note: "Audience scale and event format affect crowd management coverage."
     },
     {
       label: "Insurance / permits allowance",
-      low: permitsLow,
-      high: permitsHigh,
+      low: permitAllowance.lowCents,
+      high: permitAllowance.highCents,
       note: "Preliminary placeholder for approvals, compliance, and insurance handling."
     }
   ];
 
+  if (brandIntegrationRequested) {
+    lines.push({
+      label: "Brand integration",
+      low: active.commercialTerms.brandIntegrationLowCents,
+      high: active.commercialTerms.brandIntegrationHighCents,
+      note: "Applies when the performance needs branded creative alignment, approvals, or custom activation handling."
+    });
+  }
+
+  if (hostMomentsRequested) {
+    lines.push({
+      label: "Host / MC moments",
+      low: active.commercialTerms.hostMomentsLowCents,
+      high: active.commercialTerms.hostMomentsHighCents,
+      note: "Applies when the run-of-show includes dedicated host cues, introductions, or audience command moments."
+    });
+  }
+
   const subtotalLow = lines.reduce((sum, line) => sum + line.low, 0);
   const subtotalHigh = lines.reduce((sum, line) => sum + line.high, 0);
-  const contingencyLow = Math.round(subtotalLow * 0.08);
-  const contingencyHigh = Math.round(subtotalHigh * 0.12);
+  const contingencyLow = Math.round(subtotalLow * (active.commercialTerms.contingencyLowPercent / 100));
+  const contingencyHigh = Math.round(subtotalHigh * (active.commercialTerms.contingencyHighPercent / 100));
 
   lines.push({
     label: "Contingency",
@@ -404,47 +459,104 @@ export const getEstimateBreakdown = (session: BookingSession): EstimateBreakdown
     lines,
     totalLow: subtotalLow + contingencyLow,
     totalHigh: subtotalHigh + contingencyHigh,
-    confidenceNote: "Preliminary estimate only. Final pricing is subject to human review, availability, routing, production scope, and contract."
+    confidenceNote: `Preliminary estimate only. Final pricing remains subject to human review, availability, routing, production scope, and contract. Commercial model assumes a ${active.commercialTerms.depositPercent}% deposit and a ${active.commercialTerms.proposalValidityDays}-day proposal validity window.`
   };
 };
 
-export const getStaffingAssumptions = (session: BookingSession) => {
+export const getStaffingAssumptions = (session: BookingSession, profile?: PerformancePricingProfile | null) => {
+  const active = resolvePricingProfile(profile);
   const attendeeCount = session.attendeeCount || 500;
   const liveCount = Math.max(1, session.liveElements.length);
   return [
-    `1 lead booking / production contact`,
+    active.staffingFormula.assumptionLines[0] || "1 lead booking / production contact",
     `${Math.max(1, Math.ceil(attendeeCount / 1000))} show caller / stage management role`,
     `${Math.max(2, liveCount + 1)} technical / performance support positions`,
     `${attendeeCount > 1500 ? "Expanded" : "Standard"} guest management and security coverage`
   ];
 };
 
-export const getDependencies = (session: BookingSession) => {
+export const getDependencies = (session: BookingSession, profile?: PerformancePricingProfile | null) => {
+  const active = resolvePricingProfile(profile);
   const items = [
     "Final availability review by the team",
     "Venue technical fit and production scope confirmation",
     "Travel and routing validation",
-    "Contracting, deposit, and final approval"
+    `Contracting, ${active.commercialTerms.depositPercent}% deposit, and final approval`
   ];
   if (session.productionNeeds.includes("Insurance / permits guidance")) items.push("Permit and insurance review");
   if (session.productionNeeds.includes("Brand integration")) items.push("Brand approvals and creative alignment");
   return items;
 };
 
-export const generateAiSummary = (session: BookingSession) => {
-  const packageFit = getRecommendedPackage(session);
+export const generateAiSummary = (session: BookingSession, profile?: PerformancePricingProfile | null) => {
+  const active = resolvePricingProfile(profile);
+  const packageFit = getRecommendedPackage(session, active);
+  const eventRate = session.eventType ? getEventRate(session.eventType, active) : null;
   const location = [session.locationCity, session.locationState, session.locationCountry].filter(Boolean).join(", ") || "location TBD";
   const attendance = session.attendeeCount ? `${session.attendeeCount.toLocaleString()} guests` : "attendance still being defined";
   const vibe = session.vibeProfile || "premium, audience-led atmosphere";
   const liveElements = session.liveElements.length ? session.liveElements.join(", ").toLowerCase() : "a tightly produced core performance";
 
-  return `This looks like a ${packageFit.label.toLowerCase()} fit for a ${session.eventType ? EVENT_TYPE_OPTIONS.find((item) => item.value === session.eventType)?.label?.toLowerCase() : "custom event"} in ${location}. The event is shaping toward ${attendance}, with a ${vibe.toLowerCase()} energy profile and ${liveElements}. Based on the current scope, the next best move is ${NEXT_STEP_OPTIONS.find((item) => item.value === packageFit.nextStep)?.label?.toLowerCase() || "a booking review request"}. Final confirmation remains subject to human review, availability, and contract.`;
+  return `This looks like a ${packageFit.label.toLowerCase()} fit for a ${eventRate?.label?.toLowerCase() || "custom event"} in ${location}. The event is shaping toward ${attendance}, with a ${vibe.toLowerCase()} energy profile and ${liveElements}. ${eventRate?.caption || active.baseOverview} Based on the current scope, the next best move is ${NEXT_STEP_OPTIONS.find((item) => item.value === packageFit.nextStep)?.label?.toLowerCase() || "a booking review request"}. Final confirmation remains subject to human review, availability, and contract.`;
 };
 
-export const formatCurrency = (value: number) =>
+export const buildProposalBrief = (
+  session: BookingSession,
+  recommendation: PackageRecommendation,
+  estimate: EstimateBreakdown,
+  profile?: PerformancePricingProfile | null
+): ProposalBrief => {
+  const active = resolvePricingProfile(profile);
+  const nextStepLabel = NEXT_STEP_OPTIONS.find((item) => item.value === recommendation.nextStep)?.label || recommendation.nextStep;
+  return {
+    title: session.eventName || recommendation.label,
+    pricingProfileKey: active.profileKey,
+    pricingProfileName: active.profileName,
+    artistName: active.artistName,
+    summary: generateAiSummary(session, active),
+    package: {
+      tier: recommendation.tier,
+      label: recommendation.label,
+      rationale: recommendation.rationale,
+      components: recommendation.components
+    },
+    investment: {
+      currency: active.currency,
+      totalLow: estimate.totalLow,
+      totalHigh: estimate.totalHigh,
+      confidenceNote: estimate.confidenceNote,
+      depositPercent: active.commercialTerms.depositPercent,
+      balanceDueDays: active.commercialTerms.balanceDueDays,
+      holdWindowDays: active.commercialTerms.holdWindowDays,
+      proposalValidityDays: active.commercialTerms.proposalValidityDays
+    },
+    staffingAssumptions: getStaffingAssumptions(session, active),
+    dependencies: getDependencies(session, active),
+    proposalSections: active.proposalSections,
+    bookingProfile: {
+      performanceFormats: active.metadata.performanceFormats,
+      deliverables: active.metadata.deliverables,
+      technicalRequirements: active.metadata.technicalRequirements,
+      hospitalityRequirements: active.metadata.hospitalityRequirements,
+      bookingRequirements: active.metadata.bookingRequirements,
+      minimumLeadTimeDays: active.metadata.minimumLeadTimeDays,
+      defaultSetLengthMinutes: active.metadata.defaultSetLengthMinutes,
+      typicalPerformanceWindowMinutes: active.metadata.typicalPerformanceWindowMinutes,
+      soundcheckRequired: active.metadata.soundcheckRequired,
+      meetAndGreetAvailable: active.metadata.meetAndGreetAvailable,
+      contentCapturePolicy: active.metadata.contentCapturePolicy
+    },
+    nextStep: {
+      value: recommendation.nextStep,
+      label: nextStepLabel
+    }
+  };
+};
+
+export const formatCurrency = (value: number, currency = "USD") =>
   new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "USD",
+    currency: currency.toUpperCase(),
     maximumFractionDigits: 0
   }).format(Math.round(value));
 

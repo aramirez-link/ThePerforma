@@ -7,6 +7,7 @@ type Props = {
   recommendation: PackageRecommendation;
   estimate: EstimateBreakdown;
   aiSummary: string;
+  currency: string;
   readinessLabel: string;
   isWelcomeState: boolean;
   onAction: (action: "availability-review" | "schedule-call" | "email-package" | "save-follow-up" | "download-brief" | "copy-summary") => void;
@@ -28,6 +29,7 @@ export default function BookingBlueprintPanel({
   recommendation,
   estimate,
   aiSummary,
+  currency,
   readinessLabel,
   isWelcomeState,
   onAction,
@@ -85,7 +87,7 @@ export default function BookingBlueprintPanel({
 
         <Panel title="Preliminary investment">
           <p className="text-2xl font-semibold text-white">
-            {formatCurrency(estimate.totalLow)} - {formatCurrency(estimate.totalHigh)}
+            {formatCurrency(estimate.totalLow, currency)} - {formatCurrency(estimate.totalHigh, currency)}
           </p>
           <p className="mt-2 text-sm leading-relaxed text-white/64">{estimate.confidenceNote}</p>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -93,7 +95,7 @@ export default function BookingBlueprintPanel({
               <div key={line.label} className="rounded-[1rem] border border-white/10 bg-black/22 p-3">
                 <p className="text-[10px] uppercase tracking-[0.22em] text-white/46">{line.label}</p>
                 <p className="mt-2 text-sm text-white/84">
-                  {formatCurrency(line.low)} - {formatCurrency(line.high)}
+                  {formatCurrency(line.low, currency)} - {formatCurrency(line.high, currency)}
                 </p>
               </div>
             ))}

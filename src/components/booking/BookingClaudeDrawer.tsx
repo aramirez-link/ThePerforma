@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { BookingSession, EstimateBreakdown, PackageRecommendation } from "./bookingEngine";
+import type { BookingSession, EstimateBreakdown, PackageRecommendation, ProposalBrief } from "./bookingEngine";
 import { formatCurrency } from "./bookingEngine";
 import { askBookingClaude, type BookingClaudeMessage } from "../../lib/bookingClaude";
+import type { PerformancePricingProfile } from "../../lib/performancePricing";
 
 type ClaudeUiMessage = {
   id: string;
@@ -16,6 +17,8 @@ type Props = {
   aiSummary: string;
   recommendation: PackageRecommendation;
   estimate: EstimateBreakdown;
+  proposalBrief: ProposalBrief;
+  pricingProfile: PerformancePricingProfile;
 };
 
 const STORAGE_KEY = "the-performa-booking-claude-drawer-v1";
@@ -40,7 +43,9 @@ export default function BookingClaudeDrawer({
   session,
   aiSummary,
   recommendation,
-  estimate
+  estimate,
+  proposalBrief,
+  pricingProfile
 }: Props) {
   const [messages, setMessages] = useState<ClaudeUiMessage[]>([welcomeMessage]);
   const [input, setInput] = useState("");
@@ -108,7 +113,9 @@ export default function BookingClaudeDrawer({
       session,
       aiSummary,
       recommendation,
-      estimate
+      estimate,
+      proposalBrief,
+      pricingProfile
     });
 
     if (!response.ok) {
@@ -180,7 +187,7 @@ export default function BookingClaudeDrawer({
               </span>
               {session.eventType && (
                 <span className="rounded-full border border-white/12 bg-black/30 px-3 py-2 text-[10px] uppercase tracking-[0.22em] text-white/58">
-                  {formatCurrency(estimate.totalLow)} - {formatCurrency(estimate.totalHigh)}
+                  {formatCurrency(estimate.totalLow, pricingProfile.currency)} - {formatCurrency(estimate.totalHigh, pricingProfile.currency)}
                 </span>
               )}
             </div>

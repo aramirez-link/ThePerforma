@@ -1,16 +1,32 @@
 import { getBrowserSupabaseClient } from "./supabaseBrowser";
 import type { BookingSession } from "../components/booking/bookingEngine";
 import {
+  buildProposalBrief,
   defaultBookingSession,
   generateAiSummary,
   getEstimateBreakdown,
   getRecommendedPackage
 } from "../components/booking/bookingEngine";
 import { sendBookingSubmissionEmail } from "./formSubmissionMailer";
+import {
+  clonePerformancePricingProfile,
+  DEFAULT_PERFORMANCE_PRICING_PROFILE,
+  loadActivePerformancePricingProfile,
+  type PerformancePricingProfile
+} from "./performancePricing";
 
-const mapSessionPayload = (session: BookingSession, submitMode: "autosave" | "submit" | "email" | "follow_up") => {
-  const estimate = getEstimateBreakdown(session);
-  const recommendation = getRecommendedPackage(session);
+const resolveProfile = (profile?: PerformancePricingProfile | null) =>
+  clonePerformancePricingProfile(profile || DEFAULT_PERFORMANCE_PRICING_PROFILE);
+
+const mapSessionPayload = (
+  session: BookingSession,
+  submitMode: "autosave" | "submit" | "email" | "follow_up",
+  profile?: PerformancePricingProfile | null
+) => {
+  const activeProfile = resolveProfile(profile);
+  const estimate = getEstimateBreakdown(session, activeProfile);
+  const recommendation = getRecommendedPackage(session, activeProfile);
+  const proposalBrief = buildProposalBrief(session, recommendation, estimate, activeProfile);
 
   return {
     session_token: session.sessionId,
@@ -47,10 +63,13 @@ const mapSessionPayload = (session: BookingSession, submitMode: "autosave" | "su
     contact_preference: session.contactPreference || null,
     follow_up_consent: session.followUpConsent,
     outreach_consent: session.outreachConsent,
-    ai_summary: generateAiSummary(session),
+    ai_summary: generateAiSummary(session, activeProfile),
     estimate_breakdown: estimate,
     total_range_low: estimate.totalLow,
     total_range_high: estimate.totalHigh,
+    pricing_profile_key: activeProfile.profileKey,
+    pricing_profile_snapshot: activeProfile,
+    proposal_brief: proposalBrief,
     metadata: {
       wantsBrandIntegration: session.wantsBrandIntegration,
       wantsHostMoments: session.wantsHostMoments,
@@ -63,12 +82,13 @@ const mapSessionPayload = (session: BookingSession, submitMode: "autosave" | "su
 
 export const persistBookingConciergeSession = async (
   session: BookingSession,
-  submitMode: "autosave" | "submit" | "email" | "follow_up" = "autosave"
+  submitMode: "autosave" | "submit" | "email" | "follow_up" = "autosave",
+  profile?: PerformancePricingProfile | null
 ) => {
   const supabase = getBrowserSupabaseClient();
   if (!supabase) return { ok: false as const, error: "Booking concierge storage is unavailable." };
 
-  const payload = mapSessionPayload(session, submitMode);
+  const payload = mapSessionPayload(session, submitMode, profile);
   const { error } = await supabase.from("booking_concierge_sessions").upsert(payload, {
     onConflict: "session_token"
   });
@@ -134,12 +154,14 @@ const buildLegacyBookingSession = (input: LegacyBookingInquiryInput): BookingSes
 
 export const submitLegacyBookingInquiry = async (input: LegacyBookingInquiryInput) => {
   const session = buildLegacyBookingSession(input);
-  const recommendation = getRecommendedPackage(session);
+  const pricingProfileResult = await loadActivePerformancePricingProfile();
+  const pricingProfile = pricingProfileResult.ok ? pricingProfileResult.data : DEFAULT_PERFORMANCE_PRICING_PROFILE;
+  const recommendation = getRecommendedPackage(session, pricingProfile);
   session.packagePreference = recommendation.tier;
-  session.aiSummary = generateAiSummary(session);
-  const estimate = getEstimateBreakdown(session);
+  session.aiSummary = generateAiSummary(session, pricingProfile);
+  const estimate = getEstimateBreakdown(session, pricingProfile);
 
-  const persistResult = await persistBookingConciergeSession(session, "submit");
+  const persistResult = await persistBookingConciergeSession(session, "submit", pricingProfile);
   if (!persistResult.ok) return persistResult;
 
   const emailResult = await sendBookingSubmissionEmail({

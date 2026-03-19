@@ -2,9 +2,15 @@ import { useState } from "react";
 import IngestCard from "./IngestCard";
 import { createLiveSession, type LiveProvider } from "../lib/performaLive";
 
+const toSchedulePreview = (value: string) => {
+  const date = new Date(new Date(value).toISOString());
+  return Number.isNaN(date.getTime()) ? "" : date.toLocaleString();
+};
+
 export default function PerformaLiveNewWizard() {
   const [title, setTitle] = useState("Performa Live Session");
   const [provider, setProvider] = useState<LiveProvider>("cloudflare_stream");
+  const [scheduledFor, setScheduledFor] = useState("");
   const [creating, setCreating] = useState(false);
   const [notice, setNotice] = useState("");
   const [created, setCreated] = useState<{
@@ -17,7 +23,11 @@ export default function PerformaLiveNewWizard() {
   const runCreate = async () => {
     setCreating(true);
     setNotice("");
-    const response = await createLiveSession({ title: title.trim(), provider });
+    const response = await createLiveSession({
+      title: title.trim(),
+      provider,
+      scheduledFor: scheduledFor ? new Date(scheduledFor).toISOString() : undefined
+    });
     setCreating(false);
     if (!response.ok) {
       setNotice(response.error);
@@ -59,6 +69,16 @@ export default function PerformaLiveNewWizard() {
               <option value="livepeer_studio">Livepeer Studio (adapter stub)</option>
             </select>
           </label>
+          <label className="text-xs text-white/75 md:col-span-2">
+            Scheduled For
+            <input
+              type="datetime-local"
+              value={scheduledFor}
+              onChange={(event) => setScheduledFor(event.target.value)}
+              className="mt-1 min-h-11 w-full rounded-xl border border-white/20 bg-black/45 px-3 py-2 text-sm"
+            />
+            <span className="mt-1 block text-[11px] text-white/45">Optional. This powers the standby overlay and reminder actions on the watch page.</span>
+          </label>
         </div>
 
         <div className="mt-4 rounded-xl border border-emerald-400/20 bg-emerald-500/5 p-4 text-xs text-white/72">
@@ -81,6 +101,7 @@ export default function PerformaLiveNewWizard() {
         {created && (
           <div className="mt-6 space-y-3">
             <IngestCard ingestUrl={created.ingestUrl} streamKeyOneTime={created.streamKey} ingestType={created.ingestType} />
+            {scheduledFor && <p className="text-xs text-white/60">Scheduled for {toSchedulePreview(scheduledFor)}.</p>}
             <a
               href={`/live/${created.sessionId}`}
               className="inline-flex min-h-11 items-center rounded-full border border-white/30 px-4 py-2 text-[10px] uppercase tracking-[0.2em] text-white/80"

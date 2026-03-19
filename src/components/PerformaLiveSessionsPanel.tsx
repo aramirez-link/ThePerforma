@@ -8,6 +8,11 @@ import {
   type LiveSession
 } from "../lib/performaLive";
 
+const formatSessionMeta = (session: LiveSession) => {
+  if (session.scheduled_for) return `Scheduled ${new Date(session.scheduled_for).toLocaleString()}`;
+  return new Date(session.created_at).toLocaleString();
+};
+
 export default function PerformaLiveSessionsPanel() {
   const [email, setEmail] = useState("");
   const [userEmail, setUserEmail] = useState("");
@@ -107,9 +112,7 @@ export default function PerformaLiveSessionsPanel() {
               {sessions.map((session) => (
                 <a key={session.id} href={`/live/${session.id}`} className="block rounded-xl border border-white/15 bg-black/35 p-3 hover:border-gold/35">
                   <p className="text-sm text-white">{session.title}</p>
-                  <p className="mt-1 text-[11px] uppercase tracking-[0.18em] text-white/55">
-                    {session.status} · {new Date(session.created_at).toLocaleString()}
-                  </p>
+                  <p className="mt-1 text-[11px] uppercase tracking-[0.18em] text-white/55">{session.status} | {formatSessionMeta(session)}</p>
                 </a>
               ))}
             </div>

@@ -161,7 +161,8 @@ create table if not exists public.live_sessions (
   ingest_last_heartbeat_at timestamptz,
   created_at timestamptz not null default now(),
   started_at timestamptz,
-  ended_at timestamptz
+  ended_at timestamptz,
+  scheduled_for timestamptz
 );
 
 create table if not exists public.live_destinations (
@@ -233,6 +234,88 @@ create table if not exists public.audit_log (
 
 create index if not exists idx_live_sessions_creator_created on public.live_sessions(creator_id, created_at desc);
 create index if not exists idx_live_sessions_status_created on public.live_sessions(status, created_at desc);
+create index if not exists idx_live_sessions_status_scheduled_for on public.live_sessions(status, scheduled_for asc, created_at desc);
+
+create table if not exists public.booking_concierge_sessions (
+  id bigserial primary key,
+  session_token text not null unique,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  status text not null default 'draft' check (status in ('draft', 'estimate_ready', 'submitted', 'emailed', 'follow_up')),
+  event_type text,
+  venue_type text,
+  event_name text,
+  location_city text,
+  location_state text,
+  location_country text,
+  target_date date,
+  attendee_count integer,
+  ticketing_model text,
+  audience_description text,
+  vibe_profile text,
+  package_preference text,
+  production_ambition text,
+  live_elements text[] not null default '{}',
+  production_needs text[] not null default '{}',
+  budget_signal text,
+  next_step_intent text,
+  contact_name text,
+  contact_email text,
+  contact_phone text,
+  organization text,
+  role text,
+  contact_preference text,
+  follow_up_consent boolean not null default false,
+  outreach_consent boolean not null default false,
+  ai_summary text,
+  estimate_breakdown jsonb not null default '{}'::jsonb,
+  total_range_low integer,
+  total_range_high integer,
+  pricing_profile_key text,
+  pricing_profile_snapshot jsonb not null default '{}'::jsonb,
+  proposal_brief jsonb not null default '{}'::jsonb,
+  metadata jsonb not null default '{}'::jsonb
+);
+
+create index if not exists idx_booking_concierge_sessions_created
+on public.booking_concierge_sessions(created_at desc);
+
+create index if not exists idx_booking_concierge_sessions_status
+on public.booking_concierge_sessions(status, created_at desc);
+
+create index if not exists idx_booking_concierge_sessions_contact_email
+on public.booking_concierge_sessions(lower(contact_email));
+
+create table if not exists public.performance_pricing_profiles (
+  id uuid primary key default gen_random_uuid(),
+  profile_key text not null unique,
+  profile_name text not null,
+  is_active boolean not null default true,
+  currency text not null default 'usd',
+  artist_name text not null default 'Chip Lee / The Performa',
+  base_overview text not null default '',
+  ai_guidance text not null default '',
+  event_type_rates jsonb not null default '[]'::jsonb,
+  package_tiers jsonb not null default '[]'::jsonb,
+  attendance_bands jsonb not null default '[]'::jsonb,
+  ambition_multipliers jsonb not null default '[]'::jsonb,
+  travel_zones jsonb not null default '[]'::jsonb,
+  live_element_rates jsonb not null default '[]'::jsonb,
+  production_need_rates jsonb not null default '[]'::jsonb,
+  security_bands jsonb not null default '[]'::jsonb,
+  permit_allowances jsonb not null default '[]'::jsonb,
+  staffing_formula jsonb not null default '{}'::jsonb,
+  commercial_terms jsonb not null default '{}'::jsonb,
+  proposal_sections jsonb not null default '[]'::jsonb,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  created_by uuid references auth.users(id) on delete set null,
+  updated_by uuid references auth.users(id) on delete set null
+);
+
+create index if not exists idx_performance_pricing_profiles_active
+on public.performance_pricing_profiles(is_active, updated_at desc);
 create index if not exists idx_live_destinations_session on public.live_destinations(session_id);
 create index if not exists idx_live_destinations_status on public.live_destinations(status);
 create index if not exists idx_audit_log_object on public.audit_log(object_type, object_id, created_at desc);
@@ -764,6 +847,44 @@ alter table public.store_reviews enable row level security;
 alter table public.store_orders enable row level security;
 alter table public.store_order_items enable row level security;
 alter table public.store_order_events enable row level security;
+alter table public.booking_concierge_sessions enable row level security;
+alter table public.performance_pricing_profiles enable row level security;
+
+drop policy if exists "booking_concierge_sessions_insert_public" on public.booking_concierge_sessions;
+drop policy if exists "booking_concierge_sessions_update_public" on public.booking_concierge_sessions;
+drop policy if exists "booking_concierge_sessions_select_admin" on public.booking_concierge_sessions;
+
+create policy "booking_concierge_sessions_insert_public"
+on public.booking_concierge_sessions for insert
+with check (true);
+
+create policy "booking_concierge_sessions_update_public"
+on public.booking_concierge_sessions for update
+using (true)
+with check (true);
+
+create policy "booking_concierge_sessions_select_admin"
+on public.booking_concierge_sessions for select
+using (public.is_store_admin());
+
+grant insert, update on public.booking_concierge_sessions to anon, authenticated;
+grant select on public.booking_concierge_sessions to authenticated;
+grant usage, select on sequence public.booking_concierge_sessions_id_seq to anon, authenticated;
+
+drop policy if exists "performance_pricing_profiles_select_active_or_admin" on public.performance_pricing_profiles;
+drop policy if exists "performance_pricing_profiles_manage_admin" on public.performance_pricing_profiles;
+
+create policy "performance_pricing_profiles_select_active_or_admin"
+on public.performance_pricing_profiles for select
+using (is_active = true or public.is_store_admin());
+
+create policy "performance_pricing_profiles_manage_admin"
+on public.performance_pricing_profiles for all
+using (public.is_store_admin())
+with check (public.is_store_admin());
+
+grant select on public.performance_pricing_profiles to anon, authenticated;
+grant insert, update, delete on public.performance_pricing_profiles to authenticated;
 
 drop policy if exists "store_admins_select_admin_only" on public.store_admins;
 drop policy if exists "store_admins_manage_owner_only" on public.store_admins;
