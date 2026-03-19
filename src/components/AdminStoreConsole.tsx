@@ -24,6 +24,10 @@ import {
 } from "../lib/storefront";
 import PerformanceControlPanel from "./PerformanceControlPanel";
 
+type Props = {
+  mode?: "store" | "performance";
+};
+
 type Snapshot = {
   products: StoreProduct[];
   variants: StoreVariant[];
@@ -61,7 +65,8 @@ const resolveProductThumb = (product: StoreProduct) => {
   return null;
 };
 
-export default function AdminStoreConsole() {
+export default function AdminStoreConsole({ mode = "store" }: Props) {
+  const isStoreMode = mode === "store";
   const [email, setEmail] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
@@ -95,6 +100,7 @@ export default function AdminStoreConsole() {
     catalog: false,
     reviews: false
   });
+  const adminRedirectPath = isStoreMode ? "/admin/store" : "/admin/performance";
 
   const refresh = async () => {
     const result = await loadAdminSnapshot();
@@ -115,7 +121,7 @@ export default function AdminStoreConsole() {
         if (admin) localStorage.setItem(ADMIN_NAV_KEY, "true");
         else localStorage.removeItem(ADMIN_NAV_KEY);
       }
-      if (admin) await refresh();
+      if (admin && isStoreMode) await refresh();
       setLoading(false);
     };
     run();
@@ -125,7 +131,7 @@ export default function AdminStoreConsole() {
       void run();
     });
     return () => subscription?.data.subscription.unsubscribe();
-  }, []);
+  }, [isStoreMode]);
 
   useEffect(() => {
     if (!notice) return;
@@ -167,13 +173,13 @@ export default function AdminStoreConsole() {
 
   const sendMagicLink = async () => {
     setBusy(true);
-    const result = await signInWithMagicLink(email);
+    const result = await signInWithMagicLink(email, adminRedirectPath);
     setBusy(false);
     setNotice(result.ok ? "Check your email for the magic link." : result.error);
   };
 
   const loginProvider = async (provider: "google" | "github" | "facebook" | "apple") => {
-    const result = await signInWithProvider(provider);
+    const result = await signInWithProvider(provider, adminRedirectPath);
     if (!result.ok) setNotice(result.error);
   };
 
@@ -380,7 +386,7 @@ export default function AdminStoreConsole() {
     return (
       <section className="mx-auto w-full max-w-6xl px-4 pb-20 pt-8 sm:px-6">
         <div className="rounded-3xl border border-white/15 bg-black/45 p-6">
-          <p className="text-sm text-white/70">Loading admin console...</p>
+          <p className="text-sm text-white/70">Loading {isStoreMode ? "store" : "performance"} admin console...</p>
         </div>
       </section>
     );
@@ -390,7 +396,7 @@ export default function AdminStoreConsole() {
     return (
       <section className="mx-auto w-full max-w-3xl px-4 pb-20 pt-8 sm:px-6">
         <div className="rounded-3xl border border-white/15 bg-black/45 p-6">
-          <p className="text-xs uppercase tracking-[0.3em] text-gold/80">Store Admin</p>
+          <p className="text-xs uppercase tracking-[0.3em] text-gold/80">{isStoreMode ? "Store Admin" : "Performance Admin"}</p>
           <h1 className="mt-2 font-display text-3xl">Sign In</h1>
           <p className="mt-2 text-sm text-white/70">Use a magic link or federated login. Access is restricted to users in `store_admins`.</p>
           <div className="mt-4 flex flex-wrap gap-2">
@@ -451,8 +457,8 @@ export default function AdminStoreConsole() {
       <div className="rounded-3xl border border-white/15 bg-black/45 p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-gold/80">Store Admin</p>
-            <h1 className="mt-2 font-display text-3xl">Commerce + Performance Control</h1>
+            <p className="text-xs uppercase tracking-[0.3em] text-gold/80">{isStoreMode ? "Store Admin" : "Performance Admin"}</p>
+            <h1 className="mt-2 font-display text-3xl">{isStoreMode ? "Commerce Control" : "Performance Control"}</h1>
             <p className="mt-1 text-sm text-white/70">{userEmail}</p>
           </div>
           <button
@@ -469,12 +475,16 @@ export default function AdminStoreConsole() {
         </div>
       </div>
 
-      <div className="mt-5 grid gap-4 lg:grid-cols-2">
-        <PerformanceControlPanel />
-      </div>
+      {!isStoreMode && (
+        <div className="mt-5 grid gap-4 lg:grid-cols-2">
+          <PerformanceControlPanel />
+        </div>
+      )}
 
-      <div className="mt-5 grid gap-4 lg:grid-cols-2">
-        <article className="rounded-3xl border border-white/15 bg-black/35 p-5 lg:col-span-2">
+      {isStoreMode && (
+        <>
+        <div className="mt-5 grid gap-4 lg:grid-cols-2">
+          <article className="rounded-3xl border border-white/15 bg-black/35 p-5 lg:col-span-2">
           <p className="text-xs uppercase tracking-[0.24em] text-white/55">Inventory Alerts</p>
           <p className="mt-1 text-xs text-white/55">Low stock threshold: {LOW_STOCK_THRESHOLD}</p>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -810,9 +820,9 @@ export default function AdminStoreConsole() {
         </article>
       </div>
 
-      <article className="mt-5 rounded-3xl border border-white/15 bg-black/35 p-5">
-        <p className="text-xs uppercase tracking-[0.24em] text-white/55">Orders</p>
-        <div className="mt-3 space-y-3">
+        <article className="mt-5 rounded-3xl border border-white/15 bg-black/35 p-5">
+          <p className="text-xs uppercase tracking-[0.24em] text-white/55">Orders</p>
+          <div className="mt-3 space-y-3">
           {snapshot.orders.map((order) => (
             <div key={order.id} className="rounded-xl border border-white/10 bg-black/20 p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -848,6 +858,8 @@ export default function AdminStoreConsole() {
           {!snapshot.orders.length && <p className="text-sm text-white/60">No orders synced yet. Configure webhook and run a checkout.</p>}
         </div>
       </article>
+        </>
+      )}
 
       {notice && <p className="mt-4 text-sm text-gold">{notice}</p>}
     </section>

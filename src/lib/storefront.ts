@@ -241,23 +241,29 @@ export const getCurrentUser = async () => {
   return data.user || null;
 };
 
-export const signInWithMagicLink = async (email: string): Promise<Result<{ sent: true }>> => {
+export const signInWithMagicLink = async (
+  email: string,
+  redirectPath = "/admin/store"
+): Promise<Result<{ sent: true }>> => {
   const supabase = getSupabaseBrowser();
   if (!supabase) return { ok: false, error: "Supabase is not configured." };
   const { error } = await supabase.auth.signInWithOtp({
     email: email.trim().toLowerCase(),
     options: {
-      emailRedirectTo: typeof window !== "undefined" ? `${window.location.origin}/admin/store` : undefined
+      emailRedirectTo: typeof window !== "undefined" ? `${window.location.origin}${redirectPath}` : undefined
     }
   });
   if (error) return { ok: false, error: error.message };
   return { ok: true, data: { sent: true } };
 };
 
-export const signInWithProvider = async (provider: "google" | "github" | "facebook" | "apple"): Promise<Result<{ redirected: true }>> => {
+export const signInWithProvider = async (
+  provider: "google" | "github" | "facebook" | "apple",
+  redirectPath = "/admin/store"
+): Promise<Result<{ redirected: true }>> => {
   const supabase = getSupabaseBrowser();
   if (!supabase) return { ok: false, error: "Supabase is not configured." };
-  const redirectTo = typeof window !== "undefined" ? `${window.location.origin}/admin/store` : undefined;
+  const redirectTo = typeof window !== "undefined" ? `${window.location.origin}${redirectPath}` : undefined;
   const { error } = await supabase.auth.signInWithOAuth({
     provider,
     options: { redirectTo }
