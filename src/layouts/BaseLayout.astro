@@ -12,12 +12,13 @@ const {
   description = "Cinematic entertainer experience.",
   canonical = "",
   image = "/media/og-default.svg",
-  schema = null
+  schema = null,
+  hideFloatingOverlays: hideFloatingOverlaysProp = false
 } = Astro.props;
 
 const normalizedPath = Astro.url.pathname.replace(/\/+$/, "") || "/";
 const isFeedRoute = normalizedPath === "/feed";
-const hideFloatingOverlays = isFeedRoute || normalizedPath === "/book";
+const hideFloatingOverlays = Boolean(hideFloatingOverlaysProp) || isFeedRoute || normalizedPath === "/book";
 const enablePartnerCredit = import.meta.env.PUBLIC_ENABLE_PARTNER_CREDIT !== "false";
 const partnerSchema = {
   "@context": "https://schema.org",
