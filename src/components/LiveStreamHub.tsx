@@ -311,16 +311,6 @@ export default function LiveStreamHub() {
               ))}
             </div>
           </div>
-
-          <div className="rounded-2xl border border-white/10 bg-black/35 p-4">
-            <p className="text-[10px] uppercase tracking-[0.28em] text-white/55">Routing Notes</p>
-            <p className="mt-3 text-sm text-white/72">
-              Use the live operator console to start a session, then drive prompts, polls, and pinned posts directly from the companion rail.
-            </p>
-            <p className="mt-3 text-[11px] text-white/45">
-              Current source: {publicLive?.playbackId ? "Performa Live player active" : "Fallback stream embedded"}
-            </p>
-          </div>
         </div>
       </div>
 
