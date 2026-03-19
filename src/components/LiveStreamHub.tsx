@@ -192,7 +192,7 @@ export default function LiveStreamHub() {
           )}
           <h3 className="mt-3 font-display text-2xl md:text-3xl">Live Companion Deck</h3>
           <p className="mt-3 max-w-3xl text-sm text-white/70">
-            Watch the stream on the left, run the Link Up Live rail on the right, and keep chat, prompts, reactions, and polls scoped to the active Performa session.
+            Publish into the live session on the left, keep the player centered, and let the session chat run in its own right-side window with independent scrolling.
           </p>
         </div>
         {canModerateLive && (
