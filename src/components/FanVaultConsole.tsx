@@ -13,12 +13,15 @@ import {
   registerUser,
   syncCloudBadgesFromLocal,
   subscribeToEngagementLeaderboard,
+  uploadProfileAvatar,
   updateCurrentUserProfile,
   type EngagementLeaderboardEntry,
   type FavoriteRecord,
   type VaultBadge,
   type VaultUser
 } from "../lib/fanVault";
+import UserAvatar from "./UserAvatar";
+import { AVATAR_IMAGE_GUIDANCE } from "../lib/avatarIdentity";
 import { defaultProfileBadgeId, profileBadges } from "../lib/profileBadges";
 
 type Mode = "register" | "login";
@@ -63,6 +66,8 @@ export default function FanVaultConsole() {
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
   const [quickSaving, setQuickSaving] = useState(false);
+  const [avatarWorking, setAvatarWorking] = useState(false);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [oauthWorking, setOauthWorking] = useState<"" | "google" | "github" | "facebook" | "apple">("");
   const [editOpen, setEditOpen] = useState(false);
   const [user, setUser] = useState<VaultUser | null>(null);
@@ -90,6 +95,7 @@ export default function FanVaultConsole() {
       setBadges([]);
       setBioDraft("");
       setBadgeDraft(defaultProfileBadgeId);
+      setAvatarFile(null);
       return;
     }
     if (isCloudVaultEnabled) {
@@ -338,6 +344,36 @@ export default function FanVaultConsole() {
     await sync();
   };
 
+  const uploadAvatar = async () => {
+    if (!avatarFile) {
+      setNotice("Choose an image first.");
+      return;
+    }
+    setAvatarWorking(true);
+    const result = await uploadProfileAvatar(avatarFile);
+    setAvatarWorking(false);
+    if (!result.ok) {
+      setNotice(result.error);
+      return;
+    }
+    setAvatarFile(null);
+    setNotice("Avatar updated.");
+    await sync();
+  };
+
+  const resetAvatar = async () => {
+    setAvatarWorking(true);
+    const updated = await updateCurrentUserProfile({ avatarUrl: null });
+    setAvatarWorking(false);
+    if (!updated) {
+      setNotice("Unable to reset avatar.");
+      return;
+    }
+    setAvatarFile(null);
+    setNotice("Graphical avatar restored.");
+    await sync();
+  };
+
   if (loading) {
     return (
       <div className="rounded-[2rem] border border-white/15 bg-black/55 p-6 backdrop-blur-md">
@@ -439,17 +475,19 @@ export default function FanVaultConsole() {
     <div className="rounded-[2rem] border border-white/15 bg-black/55 p-6 backdrop-blur-md">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-start gap-3">
-          <div className="mt-1 h-11 w-11 rounded-xl border border-gold/40 bg-black/40 p-2 text-gold">
-            <span dangerouslySetInnerHTML={{ __html: selectedBadge.svg }} />
-          </div>
+          <UserAvatar name={user.name} seed={user.id} imageUrl={user.avatarUrl} size="xl" className="mt-1" />
           <div>
           <p className="text-xs uppercase tracking-[0.34em] text-gold/85">Fan Vault Profile</p>
           <h3 className="mt-2 font-display text-3xl">{user.name}</h3>
           <p className="mt-2 text-sm text-white/70">{user.email}</p>
           <p className="mt-1 text-xs text-white/45">Mode: {isCloudVaultEnabled ? "Cloud Sync" : "Local Device"}</p>
-          <p className="mt-1 text-xs text-gold/80">
-            Badge: {selectedBadge.label}
-          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <div className="h-9 w-9 rounded-xl border border-gold/40 bg-black/40 p-2 text-gold">
+              <span dangerouslySetInnerHTML={{ __html: selectedBadge.svg }} />
+            </div>
+            <p className="text-xs text-gold/80">Badge: {selectedBadge.label}</p>
+            <p className="text-xs text-white/45">{user.avatarUrl ? "Photo avatar live" : "Graphical avatar live"}</p>
+          </div>
           <div className="mt-2 flex items-center gap-2">
             <select
               value={quickBadgeId}
@@ -499,11 +537,52 @@ export default function FanVaultConsole() {
       {editOpen && (
         <div className="mt-6 rounded-2xl border border-white/15 bg-black/45 p-4">
           <p className="text-xs uppercase tracking-[0.28em] text-white/55">Edit Profile Configuration</p>
+          <div className="mt-4 grid gap-4 lg:grid-cols-[12rem,1fr]">
+            <div className="rounded-2xl border border-white/15 bg-black/35 p-4 text-center">
+              <UserAvatar name={user.name} seed={user.id} imageUrl={user.avatarUrl} size="xl" className="mx-auto" />
+              <p className="mt-3 text-xs uppercase tracking-[0.22em] text-white/55">Feed Identity</p>
+              <p className="mt-2 text-xs text-white/65">
+                {user.avatarUrl ? "This photo will appear beside your posts and comments." : "A generated avatar will appear until you upload a photo."}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-white/15 bg-black/35 p-4">
+              <p className="text-xs uppercase tracking-[0.22em] text-white/55">Avatar Photo</p>
+              <p className="mt-2 text-xs text-white/60">
+                Best results: {AVATAR_IMAGE_GUIDANCE.recommendedPx} x {AVATAR_IMAGE_GUIDANCE.recommendedPx}px square. Minimum {AVATAR_IMAGE_GUIDANCE.minimumPx} x {AVATAR_IMAGE_GUIDANCE.minimumPx}px. Max {AVATAR_IMAGE_GUIDANCE.maxFileSizeMb}MB.
+              </p>
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+                onChange={(event) => setAvatarFile(event.target.files?.[0] || null)}
+                className="mt-3 block w-full text-xs text-white/75 file:mr-4 file:min-h-10 file:rounded-full file:border file:border-white/25 file:bg-black/40 file:px-4 file:py-2 file:text-[10px] file:uppercase file:tracking-[0.22em] file:text-white/85"
+              />
+              {avatarFile && <p className="mt-2 text-[11px] text-white/55">Ready to upload: {avatarFile.name}</p>}
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={uploadAvatar}
+                  disabled={avatarWorking || !avatarFile}
+                  className="rounded-full border border-gold/40 px-5 py-2 text-xs uppercase tracking-[0.25em] text-gold disabled:opacity-60"
+                >
+                  {avatarWorking ? "Uploading..." : "Upload Avatar"}
+                </button>
+                <button
+                  type="button"
+                  onClick={resetAvatar}
+                  disabled={avatarWorking || !user.avatarUrl}
+                  className="rounded-full border border-white/30 px-5 py-2 text-xs uppercase tracking-[0.25em] text-white/75 disabled:opacity-50"
+                >
+                  Use Graphical Avatar
+                </button>
+              </div>
+              <p className="mt-3 text-[11px] text-white/45">Avatar photos and generated fallbacks are featured with your username on every post and comment.</p>
+            </div>
+          </div>
           <textarea
             value={bioDraft}
             onChange={(e) => setBioDraft(e.target.value)}
             rows={3}
-            className="mt-3 w-full rounded-2xl border border-white/20 bg-black/40 px-4 py-3 text-white placeholder:text-white/40"
+            className="mt-4 w-full rounded-2xl border border-white/20 bg-black/40 px-4 py-3 text-white placeholder:text-white/40"
             placeholder="Add a short fan bio..."
           />
           <p className="mt-4 text-xs uppercase tracking-[0.28em] text-white/55">Profile Badge</p>
@@ -539,6 +618,7 @@ export default function FanVaultConsole() {
               onClick={() => {
                 setBioDraft(user.bio || "");
                 setBadgeDraft(user.profileBadgeId || defaultProfileBadgeId);
+                setAvatarFile(null);
                 setEditOpen(false);
               }}
               className="rounded-full border border-white/30 px-5 py-2 text-xs uppercase tracking-[0.25em] text-white/75"

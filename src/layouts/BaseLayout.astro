@@ -18,7 +18,9 @@ const {
 
 const normalizedPath = Astro.url.pathname.replace(/\/+$/, "") || "/";
 const isFeedRoute = normalizedPath === "/feed";
-const hideFloatingOverlays = Boolean(hideFloatingOverlaysProp) || isFeedRoute || normalizedPath === "/book";
+const isAdminRoute = normalizedPath === "/admin" || normalizedPath.startsWith("/admin/");
+const hideFloatingOverlays =
+  Boolean(hideFloatingOverlaysProp) || isFeedRoute || normalizedPath === "/book" || isAdminRoute;
 const enablePartnerCredit = import.meta.env.PUBLIC_ENABLE_PARTNER_CREDIT !== "false";
 const partnerSchema = {
   "@context": "https://schema.org",

@@ -1,6 +1,7 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { getBrowserSupabaseClient } from "./supabaseBrowser";
 import { defaultProfileBadgeId } from "./profileBadges";
+import { AVATAR_IMAGE_GUIDANCE, buildAvatarSeed, displayNameFromEmail, isDefaultDisplayName, normalizeDisplayName } from "./avatarIdentity";
 
 export type FavoriteType = "gallery" | "watch" | "listen";
 
@@ -26,6 +27,7 @@ export type VaultUser = {
   email: string;
   createdAt: string;
   bio: string;
+  avatarUrl?: string | null;
   profileBadgeId?: string;
   favorites: FavoriteRecord[];
 };
@@ -94,6 +96,8 @@ export type FanFeedComment = {
   postId: string;
   userId: string;
   authorName: string;
+  authorAvatarUrl?: string | null;
+  authorAvatarSeed: string;
   body: string;
   moderationStatus: FeedModerationStatus;
   moderationReason: string | null;
@@ -162,6 +166,8 @@ export type FanFeedPost = {
   id: string;
   userId: string;
   authorName: string;
+  authorAvatarUrl?: string | null;
+  authorAvatarSeed: string;
   body: string;
   liveSessionId: string | null;
   postKind: LiveFeedPostKind;
@@ -181,10 +187,12 @@ export type FanFeedPost = {
 };
 
 const FAN_FEED_MEDIA_BUCKET = "fan-feed-media";
+const FAN_AVATAR_MEDIA_BUCKET = "fan-avatar-media";
 const FEED_MAX_POST_BODY_LEN = 4000;
 const FEED_MAX_COMMENT_BODY_LEN = 600;
 const FEED_MAX_MEDIA_URL_LEN = 2048;
 const FEED_MAX_IMAGE_BYTES = 15 * 1024 * 1024;
+const AVATAR_MAX_IMAGE_BYTES = AVATAR_IMAGE_GUIDANCE.maxFileSizeMb * 1024 * 1024;
 const FEED_MAX_POLL_QUESTION_LEN = 280;
 const FEED_MAX_POLL_OPTION_LEN = 120;
 const FEED_MIN_POLL_OPTIONS = 2;
@@ -231,6 +239,25 @@ export const isCloudVaultEnabled = Boolean(url && anonKey);
 
 let supabaseClient: SupabaseClient | null = null;
 let authListenerBound = false;
+
+const resolveDisplayName = (preferred?: string | null, email?: string | null) => {
+  const cleanPreferred = normalizeDisplayName(preferred, "");
+  if (cleanPreferred && !isDefaultDisplayName(cleanPreferred)) return cleanPreferred;
+  const derivedFromEmail = normalizeDisplayName(displayNameFromEmail(email), "");
+  if (derivedFromEmail) return derivedFromEmail;
+  return normalizeDisplayName(preferred);
+};
+
+const resolveAuthDisplayName = (authUser: User, profileName?: string | null) => {
+  const metadata = authUser.user_metadata || {};
+  const metadataName =
+    typeof metadata.name === "string" && metadata.name.trim()
+      ? metadata.name
+      : typeof metadata.full_name === "string"
+      ? metadata.full_name
+      : "";
+  return resolveDisplayName(profileName || metadataName, resolveAuthEmail(authUser));
+};
 
 const parseAuthErrorFromUrl = () => {
   if (typeof window === "undefined") return "";
@@ -380,7 +407,7 @@ const getLocalCurrentUser = (): VaultUser | null => {
 };
 
 const localRegisterUser = (name: string, email: string, password: string): Result<{ user: VaultUser }> => {
-  const cleanName = name.trim();
+  const cleanName = resolveDisplayName(name, email);
   const cleanEmail = email.trim().toLowerCase();
   if (!cleanName || !cleanEmail || !password) {
     return { ok: false, error: "All fields are required." };
@@ -398,6 +425,7 @@ const localRegisterUser = (name: string, email: string, password: string): Resul
     password,
     createdAt: nowIso(),
     bio: "",
+    avatarUrl: null,
     profileBadgeId: defaultProfileBadgeId,
     favorites: []
   };
@@ -426,7 +454,7 @@ const localLogoutUser = () => {
   emitChange();
 };
 
-const localUpdateCurrentUserProfile = (patch: Partial<Pick<VaultUser, "name" | "bio" | "profileBadgeId">>) => {
+const localUpdateCurrentUserProfile = (patch: Partial<Pick<VaultUser, "name" | "bio" | "avatarUrl" | "profileBadgeId">>) => {
   const current = getLocalCurrentUser();
   if (!current) return null;
   const users = getUsers();
@@ -434,8 +462,9 @@ const localUpdateCurrentUserProfile = (patch: Partial<Pick<VaultUser, "name" | "
     user.id === current.id
       ? {
           ...user,
-          name: patch.name?.trim() ? patch.name.trim() : user.name,
+          name: patch.name?.trim() ? normalizeDisplayName(patch.name, user.name) : user.name,
           bio: typeof patch.bio === "string" ? patch.bio : user.bio,
+          avatarUrl: patch.avatarUrl === undefined ? user.avatarUrl || null : patch.avatarUrl || null,
           profileBadgeId: typeof patch.profileBadgeId === "string" ? patch.profileBadgeId : user.profileBadgeId
         }
       : user
@@ -486,14 +515,28 @@ const mapCloudFavorite = (row: any): FavoriteRecord => ({
 const ensureCloudProfile = async (userId: string, email: string, fallbackName = "Fan") => {
   const supabase = getSupabase();
   if (!supabase) return;
-  const { data } = await supabase.from("fan_profiles").select("id,name,bio,created_at").eq("id", userId).maybeSingle();
+  let { data, error } = await supabase.from("fan_profiles").select("id,name,bio,avatar_url,created_at").eq("id", userId).maybeSingle();
+  if (error && hasMissingColumnError(error, "avatar_url")) {
+    const fallback = await supabase.from("fan_profiles").select("id,name,bio,created_at").eq("id", userId).maybeSingle();
+    data = fallback.data as any;
+  }
   if (data) return;
-  await supabase.from("fan_profiles").insert({
+  const insertPayload = {
     id: userId,
     email,
-    name: fallbackName,
-    bio: ""
-  });
+    name: resolveDisplayName(fallbackName, email),
+    bio: "",
+    avatar_url: null
+  };
+  const insert = await supabase.from("fan_profiles").insert(insertPayload);
+  if (insert.error && hasMissingColumnError(insert.error, "avatar_url")) {
+    await supabase.from("fan_profiles").insert({
+      id: userId,
+      email,
+      name: resolveDisplayName(fallbackName, email),
+      bio: ""
+    });
+  }
 };
 
 const migrateLegacyLocalToCloud = async (cloudUserId: string, cloudEmail: string) => {
@@ -505,12 +548,21 @@ const migrateLegacyLocalToCloud = async (cloudUserId: string, cloudEmail: string
   const legacy = legacyUsers.find((entry) => entry.id === sessionId) || legacyUsers.find((entry) => entry.email === cloudEmail.toLowerCase());
   if (!legacy) return;
 
-  await supabase.from("fan_profiles").upsert({
+  const legacyUpsert = await supabase.from("fan_profiles").upsert({
     id: cloudUserId,
     email: cloudEmail,
-    name: legacy.name,
-    bio: legacy.bio || ""
+    name: resolveDisplayName(legacy.name, cloudEmail),
+    bio: legacy.bio || "",
+    avatar_url: legacy.avatarUrl || null
   });
+  if (legacyUpsert.error && hasMissingColumnError(legacyUpsert.error, "avatar_url")) {
+    await supabase.from("fan_profiles").upsert({
+      id: cloudUserId,
+      email: cloudEmail,
+      name: resolveDisplayName(legacy.name, cloudEmail),
+      bio: legacy.bio || ""
+    });
+  }
 
   if (legacy.profileBadgeId) {
     await supabase.auth.updateUser({
@@ -547,19 +599,60 @@ const getCloudUserAndProfile = async (): Promise<VaultUser | null> => {
   if (!authUser) return null;
   const resolvedEmail = resolveAuthEmail(authUser);
 
-  await ensureCloudProfile(authUser.id, resolvedEmail, (authUser.user_metadata?.name as string) || "Fan");
+  await ensureCloudProfile(authUser.id, resolvedEmail, resolveAuthDisplayName(authUser));
 
-  const [{ data: profile }, { data: favorites }] = await Promise.all([
-    supabase.from("fan_profiles").select("id,name,email,bio,created_at").eq("id", authUser.id).maybeSingle(),
+  let profileQuery = supabase.from("fan_profiles").select("id,name,email,bio,avatar_url,created_at").eq("id", authUser.id).maybeSingle();
+  const [{ data: rawProfile, error: profileError }, { data: favorites }] = await Promise.all([
+    profileQuery,
     supabase.from("fan_favorites").select("type,item_id,title,href,image,saved_at").eq("user_id", authUser.id).order("saved_at", { ascending: false })
   ]);
+  let profile: any = rawProfile;
+  if (profileError && hasMissingColumnError(profileError, "avatar_url")) {
+    const fallback = await supabase.from("fan_profiles").select("id,name,email,bio,created_at").eq("id", authUser.id).maybeSingle();
+    profile = fallback.data;
+  }
+  const resolvedName = resolveAuthDisplayName(authUser, profile?.name);
+
+  if (!profile || profile?.name !== resolvedName || (profile?.email || resolvedEmail) !== resolvedEmail) {
+    const syncPayload = {
+      id: authUser.id,
+      email: resolvedEmail,
+      name: resolvedName,
+      bio: profile?.bio || "",
+      avatar_url: profile?.avatar_url || null
+    };
+    const sync = await supabase.from("fan_profiles").upsert(syncPayload);
+    if (!sync.error) {
+      profile = {
+        ...profile,
+        ...syncPayload,
+        created_at: profile?.created_at || authUser.created_at || nowIso()
+      };
+    } else if (hasMissingColumnError(sync.error, "avatar_url")) {
+      await supabase.from("fan_profiles").upsert({
+        id: authUser.id,
+        email: resolvedEmail,
+        name: resolvedName,
+        bio: profile?.bio || ""
+      });
+      profile = {
+        ...profile,
+        id: authUser.id,
+        email: resolvedEmail,
+        name: resolvedName,
+        bio: profile?.bio || "",
+        created_at: profile?.created_at || authUser.created_at || nowIso()
+      };
+    }
+  }
 
   return {
     id: authUser.id,
-    name: profile?.name || (authUser.user_metadata?.name as string) || "Fan",
+    name: resolvedName,
     email: profile?.email || resolvedEmail,
     createdAt: profile?.created_at || authUser.created_at || nowIso(),
     bio: profile?.bio || "",
+    avatarUrl: profile?.avatar_url || null,
     profileBadgeId: (authUser.user_metadata?.profileBadgeId as string) || defaultProfileBadgeId,
     favorites: (favorites || []).map(mapCloudFavorite)
   };
@@ -611,7 +704,7 @@ export const registerUser = async (name: string, email: string, password: string
   const supabase = getSupabase();
   if (!supabase) return { ok: false, error: "Vault is not configured." };
 
-  const cleanName = name.trim();
+  const cleanName = resolveDisplayName(name, email);
   const cleanEmail = email.trim().toLowerCase();
   if (!cleanName || !cleanEmail || !password) {
     return { ok: false, error: "All fields are required." };
@@ -642,6 +735,7 @@ export const registerUser = async (name: string, email: string, password: string
         email: cleanEmail,
         createdAt: data.user.created_at || nowIso(),
         bio: "",
+        avatarUrl: null,
         profileBadgeId: defaultProfileBadgeId,
         favorites: []
       }
@@ -705,7 +799,38 @@ export const logoutUser = async () => {
   emitChange();
 };
 
-export const updateCurrentUserProfile = async (patch: Partial<Pick<VaultUser, "name" | "bio" | "profileBadgeId">>) => {
+const syncFeedAuthorIdentityForUser = async (
+  supabase: SupabaseClient,
+  userId: string,
+  authorName: string,
+  authorAvatarUrl: string | null
+) => {
+  const postUpdate = await supabase
+    .from("fan_feed_posts")
+    .update({
+      author_name: authorName,
+      author_avatar_url: authorAvatarUrl
+    })
+    .eq("user_id", userId);
+
+  if (postUpdate.error && (hasMissingColumnError(postUpdate.error, "author_name") || hasMissingColumnError(postUpdate.error, "author_avatar_url"))) {
+    return;
+  }
+
+  const commentUpdate = await supabase
+    .from("fan_feed_comments")
+    .update({
+      author_name: authorName,
+      author_avatar_url: authorAvatarUrl
+    })
+    .eq("user_id", userId);
+
+  if (commentUpdate.error && (hasMissingColumnError(commentUpdate.error, "author_name") || hasMissingColumnError(commentUpdate.error, "author_avatar_url"))) {
+    return;
+  }
+};
+
+export const updateCurrentUserProfile = async (patch: Partial<Pick<VaultUser, "name" | "bio" | "avatarUrl" | "profileBadgeId">>) => {
   if (!isCloudVaultEnabled) return localUpdateCurrentUserProfile(patch);
 
   const supabase = getSupabase();
@@ -713,12 +838,24 @@ export const updateCurrentUserProfile = async (patch: Partial<Pick<VaultUser, "n
   const current = await getCloudUserAndProfile();
   if (!current) return null;
 
-  await supabase.from("fan_profiles").upsert({
+  const nextName = patch.name?.trim() ? normalizeDisplayName(patch.name, current.name) : current.name;
+  const nextAvatarUrl = patch.avatarUrl === undefined ? current.avatarUrl || null : patch.avatarUrl || null;
+  const upsertPayload = {
     id: current.id,
     email: current.email,
-    name: patch.name?.trim() ? patch.name.trim() : current.name,
-    bio: typeof patch.bio === "string" ? patch.bio : current.bio
-  });
+    name: nextName,
+    bio: typeof patch.bio === "string" ? patch.bio : current.bio,
+    avatar_url: nextAvatarUrl
+  };
+  const upsert = await supabase.from("fan_profiles").upsert(upsertPayload);
+  if (upsert.error && hasMissingColumnError(upsert.error, "avatar_url")) {
+    await supabase.from("fan_profiles").upsert({
+      id: current.id,
+      email: current.email,
+      name: nextName,
+      bio: typeof patch.bio === "string" ? patch.bio : current.bio
+    });
+  }
 
   if (typeof patch.profileBadgeId === "string") {
     await supabase.auth.updateUser({
@@ -727,6 +864,8 @@ export const updateCurrentUserProfile = async (patch: Partial<Pick<VaultUser, "n
       }
     });
   }
+
+  await syncFeedAuthorIdentityForUser(supabase, current.id, nextName, nextAvatarUrl);
 
   const updated = await getCloudUserAndProfile();
   emitChange();
@@ -979,45 +1118,68 @@ export const subscribeToEngagementLeaderboard = (onChange: () => void): (() => v
   };
 };
 
-const mapFeedComment = (row: any, names: Map<string, string>): FanFeedComment => ({
-  id: String(row.id),
-  postId: String(row.post_id),
-  userId: row.user_id,
-  authorName: names.get(row.user_id) || "Fan",
-  body: row.body || "",
-  moderationStatus: (row.moderation_status as FeedModerationStatus) || "approved",
-  moderationReason: row.moderation_reason || null,
-  createdAt: row.created_at || nowIso()
-});
+const resolveFeedAuthorIdentity = (
+  row: any,
+  identities: Map<string, { name: string; avatarUrl: string | null }>
+) => {
+  const fallbackIdentity = identities.get(row.user_id);
+  const authorName = normalizeDisplayName(row.author_name || fallbackIdentity?.name);
+  return {
+    authorName,
+    authorAvatarUrl: row.author_avatar_url || fallbackIdentity?.avatarUrl || null,
+    authorAvatarSeed: buildAvatarSeed(row.user_id, authorName)
+  };
+};
+
+const mapFeedComment = (row: any, identities: Map<string, { name: string; avatarUrl: string | null }>): FanFeedComment => {
+  const identity = resolveFeedAuthorIdentity(row, identities);
+  return {
+    id: String(row.id),
+    postId: String(row.post_id),
+    userId: row.user_id,
+    authorName: identity.authorName,
+    authorAvatarUrl: identity.authorAvatarUrl,
+    authorAvatarSeed: identity.authorAvatarSeed,
+    body: row.body || "",
+    moderationStatus: (row.moderation_status as FeedModerationStatus) || "approved",
+    moderationReason: row.moderation_reason || null,
+    createdAt: row.created_at || nowIso()
+  };
+};
 
 const mapFeedPost = (
   row: any,
-  names: Map<string, string>,
+  identities: Map<string, { name: string; avatarUrl: string | null }>,
   comments: FanFeedComment[],
   likeCount: number,
   viewerHasLiked: boolean,
   poll: FanFeedPoll | null
-): FanFeedPost => ({
-  id: String(row.id),
-  userId: row.user_id,
-  authorName: names.get(row.user_id) || "Fan",
-  body: row.body || "",
-  liveSessionId: row.live_session_id || null,
-  postKind: normalizeLivePostKind(row.post_kind, Boolean(poll)),
-  isPinned: Boolean(row.is_pinned),
-  mediaUrl: row.media_url || null,
-  mediaType: (row.media_type as FanFeedMediaType | null) || null,
-  moderationStatus: (row.moderation_status as FeedModerationStatus) || "approved",
-  moderationReason: row.moderation_reason || null,
-  isNsfw: Boolean(row.is_nsfw),
-  shareCount: Number(row.share_count || 0),
-  likeCount,
-  viewerHasLiked,
-  poll,
-  comments,
-  createdAt: row.created_at || nowIso(),
-  updatedAt: row.updated_at || row.created_at || nowIso()
-});
+): FanFeedPost => {
+  const identity = resolveFeedAuthorIdentity(row, identities);
+  return {
+    id: String(row.id),
+    userId: row.user_id,
+    authorName: identity.authorName,
+    authorAvatarUrl: identity.authorAvatarUrl,
+    authorAvatarSeed: identity.authorAvatarSeed,
+    body: row.body || "",
+    liveSessionId: row.live_session_id || null,
+    postKind: normalizeLivePostKind(row.post_kind, Boolean(poll)),
+    isPinned: Boolean(row.is_pinned),
+    mediaUrl: row.media_url || null,
+    mediaType: (row.media_type as FanFeedMediaType | null) || null,
+    moderationStatus: (row.moderation_status as FeedModerationStatus) || "approved",
+    moderationReason: row.moderation_reason || null,
+    isNsfw: Boolean(row.is_nsfw),
+    shareCount: Number(row.share_count || 0),
+    likeCount,
+    viewerHasLiked,
+    poll,
+    comments,
+    createdAt: row.created_at || nowIso(),
+    updatedAt: row.updated_at || row.created_at || nowIso()
+  };
+};
 
 const sanitizeExternalUrl = (value: string): string | null => {
   try {
@@ -1235,7 +1397,7 @@ const loadFeedPosts = async (
 
   let postQuery = supabase
     .from("fan_feed_posts")
-    .select("id,user_id,body,live_session_id,post_kind,is_pinned,media_url,media_type,moderation_status,moderation_reason,is_nsfw,share_count,created_at,updated_at")
+    .select("id,user_id,author_name,author_avatar_url,body,live_session_id,post_kind,is_pinned,media_url,media_type,moderation_status,moderation_reason,is_nsfw,share_count,created_at,updated_at")
     .order("created_at", { ascending: false })
     .limit(boundedLimit);
 
@@ -1258,7 +1420,9 @@ const loadFeedPosts = async (
       hasMissingColumnError(postsError, "moderation_status") ||
       hasMissingColumnError(postsError, "moderation_reason") ||
       hasMissingColumnError(postsError, "post_kind") ||
-      hasMissingColumnError(postsError, "is_pinned"));
+      hasMissingColumnError(postsError, "is_pinned") ||
+      hasMissingColumnError(postsError, "author_name") ||
+      hasMissingColumnError(postsError, "author_avatar_url"));
 
   if (postSelectMissingFallbackCols) {
     let fallback = supabase
@@ -1278,19 +1442,21 @@ const loadFeedPosts = async (
 
   const postIds = posts.map((row: any) => Number(row.id));
   const userIds = Array.from(new Set(posts.map((row: any) => row.user_id)));
-
-  const [{ data: profileRows }, { data: likeRows }] = await Promise.all([
-    supabase.from("fan_profiles").select("id,name").in("id", userIds),
-    supabase.from("fan_feed_likes").select("post_id,user_id").in("post_id", postIds)
-  ]);
+  const { data: likeRows } = await supabase.from("fan_feed_likes").select("post_id,user_id").in("post_id", postIds);
 
   let { data: commentRows, error: commentsError } = await supabase
     .from("fan_feed_comments")
-    .select("id,post_id,user_id,body,moderation_status,moderation_reason,created_at")
+    .select("id,post_id,user_id,author_name,author_avatar_url,body,moderation_status,moderation_reason,created_at")
     .in("post_id", postIds)
     .order("created_at", { ascending: true });
 
-  if (commentsError && (hasMissingColumnError(commentsError, "moderation_status") || hasMissingColumnError(commentsError, "moderation_reason"))) {
+  if (
+    commentsError &&
+    (hasMissingColumnError(commentsError, "moderation_status") ||
+      hasMissingColumnError(commentsError, "moderation_reason") ||
+      hasMissingColumnError(commentsError, "author_name") ||
+      hasMissingColumnError(commentsError, "author_avatar_url"))
+  ) {
     const fallbackComments = await supabase
       .from("fan_feed_comments")
       .select("id,post_id,user_id,body,created_at")
@@ -1302,23 +1468,29 @@ const loadFeedPosts = async (
 
   if (commentsError) return { ok: false, error: commentsError.message };
 
-  const commentUserIds = Array.from(new Set((commentRows || []).map((row: any) => row.user_id)));
-  const missingCommentUserIds = commentUserIds.filter((id) => !userIds.includes(id));
-  let commentProfileRows: Array<{ id: string; name: string }> = [];
-  if (missingCommentUserIds.length) {
-    const { data } = await supabase.from("fan_profiles").select("id,name").in("id", missingCommentUserIds);
-    commentProfileRows = (data || []) as Array<{ id: string; name: string }>;
-  }
+  const identityMap = new Map<string, { name: string; avatarUrl: string | null }>();
+  const rowsMissingIdentity = [...posts, ...(commentRows || [])].filter((row: any) => !String(row.author_name || "").trim() || !("author_avatar_url" in row));
+  const identityFallbackUserIds = Array.from(new Set([...userIds, ...rowsMissingIdentity.map((row: any) => row.user_id)]));
 
-  const nameMap = new Map<string, string>();
-  (profileRows || []).forEach((row: any) => nameMap.set(row.id, row.name || "Fan"));
-  commentProfileRows.forEach((row) => nameMap.set(row.id, row.name || "Fan"));
+  if (identityFallbackUserIds.length) {
+    const profileRes = await supabase.from("fan_profiles").select("id,name,avatar_url").in("id", identityFallbackUserIds);
+    if (!profileRes.error) {
+      (profileRes.data || []).forEach((row: any) =>
+        identityMap.set(row.id, { name: normalizeDisplayName(row.name), avatarUrl: row.avatar_url || null })
+      );
+    } else if (hasMissingColumnError(profileRes.error, "avatar_url")) {
+      const fallbackProfiles = await supabase.from("fan_profiles").select("id,name").in("id", identityFallbackUserIds);
+      (fallbackProfiles.data || []).forEach((row: any) =>
+        identityMap.set(row.id, { name: normalizeDisplayName(row.name), avatarUrl: null })
+      );
+    }
+  }
 
   const commentsByPost = new Map<string, FanFeedComment[]>();
   (commentRows || []).forEach((row: any) => {
     const key = String(row.post_id);
     const list = commentsByPost.get(key) || [];
-    list.push(mapFeedComment(row, nameMap));
+    list.push(mapFeedComment(row, identityMap));
     commentsByPost.set(key, list);
   });
 
@@ -1415,7 +1587,7 @@ const loadFeedPosts = async (
     posts: posts.map((row: any) =>
       mapFeedPost(
         row,
-        nameMap,
+        identityMap,
         commentsByPost.get(String(row.id)) || [],
         likeCountByPost.get(String(row.id)) || 0,
         viewerLikeSet.has(String(row.id)),
@@ -1652,6 +1824,8 @@ export const createFeedPost = async (input: {
 
   const insertPayload = {
     user_id: viewer.id,
+    author_name: viewer.name,
+    author_avatar_url: viewer.avatarUrl || null,
     body,
     live_session_id: liveSessionId,
     post_kind: requestedPostKind,
@@ -1699,6 +1873,7 @@ export const createFeedPost = async (input: {
       hasMissingColumnError(error, "is_nsfw") ||
       hasMissingColumnError(error, "moderation_status") ||
       hasMissingColumnError(error, "moderation_reason");
+    const missingAuthorIdentityCols = hasMissingColumnError(error, "author_name") || hasMissingColumnError(error, "author_avatar_url");
 
     const missingLiveCols =
       hasMissingColumnError(error, "live_session_id") ||
@@ -1712,7 +1887,7 @@ export const createFeedPost = async (input: {
       };
     }
 
-    if (!missingModerationCols) return { ok: false, error: error.message };
+    if (!missingModerationCols && !missingAuthorIdentityCols) return { ok: false, error: error.message };
 
     const legacyInsert = await supabase.from("fan_feed_posts").insert({
       user_id: viewer.id,
@@ -1990,6 +2165,8 @@ export const createFeedComment = async (postId: string, body: string): Promise<R
   const insertPayload = {
     post_id: Number(postId),
     user_id: viewer.id,
+    author_name: viewer.name,
+    author_avatar_url: viewer.avatarUrl || null,
     body: cleanBody,
     moderation_status: moderationStatus,
     moderation_reason: moderationReason
@@ -2011,6 +2188,17 @@ export const createFeedComment = async (postId: string, body: string): Promise<R
         moderation_reason: null
       });
       if (!pendingInsert.error) return { ok: true, created: true };
+    }
+
+    if (hasMissingColumnError(error, "author_name") || hasMissingColumnError(error, "author_avatar_url")) {
+      const legacyInsert = await supabase.from("fan_feed_comments").insert({
+        post_id: Number(postId),
+        user_id: viewer.id,
+        body: cleanBody,
+        moderation_status: moderationStatus,
+        moderation_reason: moderationReason
+      });
+      if (!legacyInsert.error) return { ok: true, created: true };
     }
 
     return { ok: false, error: error.message };
@@ -2632,6 +2820,78 @@ export const subscribeToLiveSessionFeed = (sessionId: string, onChange: () => vo
   return () => {
     supabase.removeChannel(channel);
   };
+};
+
+const readImageDimensions = async (file: File): Promise<{ width: number; height: number }> => {
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => reject(new Error("Image could not be decoded."));
+      image.src = objectUrl;
+    });
+    return { width: img.naturalWidth || 0, height: img.naturalHeight || 0 };
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+};
+
+export const uploadProfileAvatar = async (file: File): Promise<Result<{ url: string; user: VaultUser }>> => {
+  if (!isCloudVaultEnabled) return { ok: false, error: "Avatar upload requires Supabase cloud mode." };
+  const supabase = getSupabase();
+  if (!supabase) return { ok: false, error: "Vault is not configured." };
+  const viewer = await getCloudUserAndProfile();
+  if (!viewer) return { ok: false, error: "Log in to Fan Vault to upload an avatar." };
+
+  if (!file || !file.type.startsWith("image/")) {
+    return { ok: false, error: "Please choose an image file." };
+  }
+  if (!FEED_ALLOWED_IMAGE_MIME.has(file.type)) {
+    return { ok: false, error: "Unsupported image format. Use JPG, PNG, WEBP, GIF, or AVIF." };
+  }
+  if (file.size > AVATAR_MAX_IMAGE_BYTES) {
+    return { ok: false, error: `Avatar image is too large. Max ${AVATAR_IMAGE_GUIDANCE.maxFileSizeMb}MB.` };
+  }
+
+  const header = new Uint8Array(await file.slice(0, 32).arrayBuffer());
+  const detectedMime = detectImageMimeByHeader(header);
+  if (!detectedMime || !FEED_ALLOWED_IMAGE_MIME.has(detectedMime)) {
+    return { ok: false, error: "Image content did not pass validation." };
+  }
+  if (file.type !== detectedMime) {
+    return { ok: false, error: "File type mismatch detected. Re-export and upload again." };
+  }
+
+  const dimensions = await readImageDimensions(file);
+  if (dimensions.width < AVATAR_IMAGE_GUIDANCE.minimumPx || dimensions.height < AVATAR_IMAGE_GUIDANCE.minimumPx) {
+    return {
+      ok: false,
+      error: `Avatar image is too small. Use at least ${AVATAR_IMAGE_GUIDANCE.minimumPx} x ${AVATAR_IMAGE_GUIDANCE.minimumPx}px.`
+    };
+  }
+
+  const ext = extByMime[detectedMime] || "jpg";
+  const objectId =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  const path = `${viewer.id}/${objectId}.${ext}`;
+
+  const upload = await supabase.storage.from(FAN_AVATAR_MEDIA_BUCKET).upload(path, file, {
+    cacheControl: "3600",
+    upsert: false,
+    contentType: detectedMime
+  });
+  if (upload.error) return { ok: false, error: upload.error.message };
+
+  const { data } = supabase.storage.from(FAN_AVATAR_MEDIA_BUCKET).getPublicUrl(path);
+  const updated = await updateCurrentUserProfile({ avatarUrl: data.publicUrl });
+  if (!updated) {
+    return { ok: false, error: "Avatar uploaded but the profile could not be updated." };
+  }
+
+  return { ok: true, url: data.publicUrl, user: updated };
 };
 
 export const uploadFeedPhoto = async (file: File): Promise<Result<{ url: string }>> => {

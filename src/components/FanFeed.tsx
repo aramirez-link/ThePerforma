@@ -1,5 +1,6 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
 import SignalCommandCenter from "./SignalCommandCenter";
+import UserAvatar from "./UserAvatar";
 import {
   createFeedComment,
   createFeedPost,
@@ -1150,18 +1151,21 @@ export default function FanFeed() {
               }`}
             >
               <div className={`flex items-start justify-between gap-3 ${isImmersiveMediaPost ? "max-sm:hidden" : ""}`}>
-                <div>
-                  <p className="text-xs uppercase tracking-[0.24em] text-gold/85">{post.authorName || "Fan"}</p>
-                  {viewer && post.userId === viewer.id && <p className="mt-1 inline-flex rounded-full border border-gold/35 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-gold/90">{rank.current}</p>}
-                  <p className="mt-1 text-[11px] text-white/50">{prettyDate(post.createdAt)}</p>
-                  {moderationPill(post.moderationStatus) && (
-                    <p className="mt-1 inline-flex rounded-full border border-amber-300/35 bg-amber-300/10 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-amber-100/90">
-                      {moderationPill(post.moderationStatus)}
-                    </p>
-                  )}
-                  {post.moderationReason && post.moderationStatus !== "approved" && (
-                    <p className="mt-1 text-[11px] text-white/45">{post.moderationReason}</p>
-                  )}
+                <div className="flex items-start gap-3">
+                  <UserAvatar name={post.authorName} seed={post.authorAvatarSeed} imageUrl={post.authorAvatarUrl} />
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.24em] text-gold/85">{post.authorName || "Fan"}</p>
+                    {viewer && post.userId === viewer.id && <p className="mt-1 inline-flex rounded-full border border-gold/35 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-gold/90">{rank.current}</p>}
+                    <p className="mt-1 text-[11px] text-white/50">{prettyDate(post.createdAt)}</p>
+                    {moderationPill(post.moderationStatus) && (
+                      <p className="mt-1 inline-flex rounded-full border border-amber-300/35 bg-amber-300/10 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-amber-100/90">
+                        {moderationPill(post.moderationStatus)}
+                      </p>
+                    )}
+                    {post.moderationReason && post.moderationStatus !== "approved" && (
+                      <p className="mt-1 text-[11px] text-white/45">{post.moderationReason}</p>
+                    )}
+                  </div>
                 </div>
                 <div className="flex flex-wrap items-center justify-end gap-2">
                   {viewer && post.userId === viewer.id && (
@@ -1522,8 +1526,13 @@ export default function FanFeed() {
                           <span className="text-white/45">|</span>
                           <span>Next Drop</span>
                         </div>
-                        <p className="mt-3 text-[10px] uppercase tracking-[0.22em] text-gold/90">{post.authorName || "Fan"}</p>
-                        <p className="mt-1 text-[11px] text-white/55">{prettyDate(post.createdAt)}</p>
+                        <div className="mt-3 flex items-center gap-2">
+                          <UserAvatar name={post.authorName} seed={post.authorAvatarSeed} imageUrl={post.authorAvatarUrl} size="sm" />
+                          <div>
+                            <p className="text-[10px] uppercase tracking-[0.22em] text-gold/90">{post.authorName || "Fan"}</p>
+                            <p className="mt-1 text-[11px] text-white/55">{prettyDate(post.createdAt)}</p>
+                          </div>
+                        </div>
                         {post.cleanBody && (
                           <p className="mt-2 max-w-[95%] text-sm leading-5 text-white/92">{post.cleanBody}</p>
                         )}
@@ -1577,13 +1586,16 @@ export default function FanFeed() {
                 {(expandedComments[post.id] ? post.comments : post.comments.slice(0, 2)).map((comment) => (
                   <div key={comment.id} className="rounded-2xl border border-white/12 bg-black/35 px-4 py-3">
                     <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="text-[11px] uppercase tracking-[0.2em] text-white/50">{comment.authorName || "Fan"}</p>
-                        {moderationPill(comment.moderationStatus) && (
-                          <p className="mt-1 inline-flex rounded-full border border-amber-300/35 bg-amber-300/10 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-amber-100/90">
-                            {moderationPill(comment.moderationStatus)}
-                          </p>
-                        )}
+                      <div className="flex items-start gap-3">
+                        <UserAvatar name={comment.authorName} seed={comment.authorAvatarSeed} imageUrl={comment.authorAvatarUrl} size="sm" />
+                        <div>
+                          <p className="text-[11px] uppercase tracking-[0.2em] text-white/50">{comment.authorName || "Fan"}</p>
+                          {moderationPill(comment.moderationStatus) && (
+                            <p className="mt-1 inline-flex rounded-full border border-amber-300/35 bg-amber-300/10 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-amber-100/90">
+                              {moderationPill(comment.moderationStatus)}
+                            </p>
+                          )}
+                        </div>
                       </div>
                       <button
                         type="button"

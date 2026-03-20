@@ -14,6 +14,7 @@ import {
 import type { PublicLiveStatus } from "../lib/performaLive";
 import DonatePill from "./DonatePill";
 import PerformaLivePlayer from "./PerformaLivePlayer";
+import UserAvatar from "./UserAvatar";
 
 type Props = {
   session: PublicLiveStatus | null;
@@ -454,7 +455,10 @@ export default function LiveCompanion({ session, user, canModerate, fallbackEmbe
           </div>
 
           <div className="mt-auto pt-4">
-            <p className="text-[11px] text-white/45">Signed in as {user.name}. New posts appear at the top of the chat window.</p>
+            <div className="flex items-center gap-3">
+              <UserAvatar name={user.name} seed={user.id} imageUrl={user.avatarUrl} size="sm" />
+              <p className="text-[11px] text-white/45">Signed in as {user.name}. New posts appear at the top of the chat window.</p>
+            </div>
             <button
               type="submit"
               disabled={submitting}
@@ -705,9 +709,12 @@ export default function LiveCompanion({ session, user, canModerate, fallbackEmbe
           {pinnedPost && (
             <div className="rounded-2xl border border-gold/35 bg-gold/10 p-4">
               <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-[10px] uppercase tracking-[0.24em] text-gold/90">Pinned On Air</p>
-                  <p className="mt-2 text-sm font-semibold text-white">{kindLabel(pinnedPost)}</p>
+                <div className="flex items-start gap-3">
+                  <UserAvatar name={pinnedPost.authorName} seed={pinnedPost.authorAvatarSeed} imageUrl={pinnedPost.authorAvatarUrl} size="sm" />
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.24em] text-gold/90">Pinned On Air</p>
+                    <p className="mt-2 text-sm font-semibold text-white">{kindLabel(pinnedPost)}</p>
+                  </div>
                 </div>
                 {canModerate && (
                   <button
@@ -754,9 +761,12 @@ export default function LiveCompanion({ session, user, canModerate, fallbackEmbe
                 }`}
               >
                 <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-[10px] uppercase tracking-[0.24em] text-gold/80">{kindLabel(post)}</p>
-                    <p className="mt-2 text-sm text-white/90">{post.authorName}</p>
+                  <div className="flex items-start gap-3">
+                    <UserAvatar name={post.authorName} seed={post.authorAvatarSeed} imageUrl={post.authorAvatarUrl} size="sm" />
+                    <div>
+                      <p className="text-[10px] uppercase tracking-[0.24em] text-gold/80">{kindLabel(post)}</p>
+                      <p className="mt-2 text-sm text-white/90">{post.authorName}</p>
+                    </div>
                   </div>
                   <div className="text-right">
                     <p className="text-[11px] text-white/45">{formatTimestamp(post.createdAt)}</p>
