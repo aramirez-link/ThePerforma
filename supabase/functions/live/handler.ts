@@ -127,13 +127,21 @@ const insertAudit = async (
   });
 };
 
-const loadOwnedSession = async (supabase: SupabaseClient, sessionId: string, creatorId: string) => {
-  const { data, error } = await supabase
-    .from("live_sessions")
-    .select("*")
-    .eq("id", sessionId)
-    .eq("creator_id", creatorId)
-    .maybeSingle();
+const isStoreAdminUser = async (supabase: SupabaseClient, userId: string) => {
+  const { count, error } = await supabase
+    .from("store_admins")
+    .select("user_id", { count: "exact", head: true })
+    .eq("user_id", userId);
+  if (error) return false;
+  return Number(count || 0) > 0;
+};
+
+const loadAccessibleSession = async (supabase: SupabaseClient, sessionId: string, actorId: string) => {
+  const isAdmin = await isStoreAdminUser(supabase, actorId);
+  const query = isAdmin
+    ? supabase.from("live_sessions").select("*").eq("id", sessionId)
+    : supabase.from("live_sessions").select("*").eq("id", sessionId).eq("creator_id", actorId);
+  const { data, error } = await query.maybeSingle();
   if (error || !data) return null;
   return data as LiveSessionRow;
 };
@@ -353,7 +361,7 @@ export const createLiveHandler = (deps: {
     const sessionId = asText(body.sessionId);
     if (!sessionId) return json(400, { error: "sessionId is required." });
 
-    const session = await loadOwnedSession(deps.supabase, sessionId, actor.id);
+    const session = await loadAccessibleSession(deps.supabase, sessionId, actor.id);
     if (!session) return json(404, { error: "Session not found." });
 
     const destinationId = asText(body.destinationId);
@@ -457,7 +465,7 @@ export const createLiveHandler = (deps: {
     const sessionId = asText(body.sessionId);
     if (!sessionId) return json(400, { error: "sessionId is required." });
 
-    const session = await loadOwnedSession(deps.supabase, sessionId, actor.id);
+    const session = await loadAccessibleSession(deps.supabase, sessionId, actor.id);
     if (!session) return json(404, { error: "Session not found." });
 
     const adapter = createProviderAdapter(session.provider);
@@ -498,7 +506,7 @@ export const createLiveHandler = (deps: {
     if (!actor) return json(401, { error: "Unauthorized." });
     const sessionId = asText(body.sessionId);
     if (!sessionId) return json(400, { error: "sessionId is required." });
-    const session = await loadOwnedSession(deps.supabase, sessionId, actor.id);
+    const session = await loadAccessibleSession(deps.supabase, sessionId, actor.id);
     if (!session) return json(404, { error: "Session not found." });
 
     if (session.status === "LIVE") return json(200, { ok: true, session, idempotent: true });
@@ -561,7 +569,7 @@ export const createLiveHandler = (deps: {
     if (!actor) return json(401, { error: "Unauthorized." });
     const sessionId = asText(body.sessionId);
     if (!sessionId) return json(400, { error: "sessionId is required." });
-    const session = await loadOwnedSession(deps.supabase, sessionId, actor.id);
+    const session = await loadAccessibleSession(deps.supabase, sessionId, actor.id);
     if (!session) return json(404, { error: "Session not found." });
     if (session.status === "ENDED") return json(200, { ok: true, session, idempotent: true });
 

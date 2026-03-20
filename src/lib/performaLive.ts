@@ -168,6 +168,18 @@ export const loadLiveSessions = async (): Promise<Result<LiveSession[]>> => {
   return { ok: true, data: (data || []) as LiveSession[] };
 };
 
+export const loadAdminLiveSessions = async (): Promise<Result<LiveSession[]>> => {
+  const client = getLiveSupabaseBrowser();
+  const user = await getLiveUser();
+  if (!client || !user) return { ok: true, data: [] };
+  const { data, error } = await client
+    .from("live_sessions")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, data: (data || []) as LiveSession[] };
+};
+
 export const loadLiveSessionById = async (id: string): Promise<Result<LiveSession | null>> => {
   const client = getLiveSupabaseBrowser();
   if (!client) return { ok: false, error: "Supabase is not configured." };
@@ -206,7 +218,6 @@ export const updateLiveSessionSchedule = async (
     .from("live_sessions")
     .update({ scheduled_for: scheduledFor })
     .eq("id", sessionId)
-    .eq("creator_id", user.id)
     .select("*")
     .maybeSingle();
   if (error || !data) return { ok: false, error: error?.message || "Unable to update session schedule." };
