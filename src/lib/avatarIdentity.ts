@@ -1,6 +1,6 @@
 export const AVATAR_IMAGE_GUIDANCE = {
   recommendedPx: 1024,
-  minimumPx: 512,
+  minimumPx: 256,
   maxFileSizeMb: 8
 } as const;
 

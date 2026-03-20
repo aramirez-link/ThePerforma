@@ -2844,54 +2844,57 @@ export const uploadProfileAvatar = async (file: File): Promise<Result<{ url: str
   const viewer = await getCloudUserAndProfile();
   if (!viewer) return { ok: false, error: "Log in to Fan Vault to upload an avatar." };
 
-  if (!file || !file.type.startsWith("image/")) {
+  const declaredMime = String(file?.type || "").trim().toLowerCase();
+  if (!file || (declaredMime && !declaredMime.startsWith("image/"))) {
     return { ok: false, error: "Please choose an image file." };
-  }
-  if (!FEED_ALLOWED_IMAGE_MIME.has(file.type)) {
-    return { ok: false, error: "Unsupported image format. Use JPG, PNG, WEBP, GIF, or AVIF." };
   }
   if (file.size > AVATAR_MAX_IMAGE_BYTES) {
     return { ok: false, error: `Avatar image is too large. Max ${AVATAR_IMAGE_GUIDANCE.maxFileSizeMb}MB.` };
   }
 
-  const header = new Uint8Array(await file.slice(0, 32).arrayBuffer());
-  const detectedMime = detectImageMimeByHeader(header);
-  if (!detectedMime || !FEED_ALLOWED_IMAGE_MIME.has(detectedMime)) {
-    return { ok: false, error: "Image content did not pass validation." };
+  try {
+    const header = new Uint8Array(await file.slice(0, 32).arrayBuffer());
+    const detectedMime = detectImageMimeByHeader(header);
+    if (!detectedMime || !FEED_ALLOWED_IMAGE_MIME.has(detectedMime)) {
+      return { ok: false, error: "Unsupported image format. Use JPG, PNG, WEBP, GIF, or AVIF." };
+    }
+
+    const dimensions = await readImageDimensions(file);
+    if (!dimensions.width || !dimensions.height) {
+      return { ok: false, error: "Image dimensions could not be read. Try another file export." };
+    }
+    if (dimensions.width < AVATAR_IMAGE_GUIDANCE.minimumPx || dimensions.height < AVATAR_IMAGE_GUIDANCE.minimumPx) {
+      return {
+        ok: false,
+        error: `Avatar image is too small. Use at least ${AVATAR_IMAGE_GUIDANCE.minimumPx} x ${AVATAR_IMAGE_GUIDANCE.minimumPx}px.`
+      };
+    }
+
+    const ext = extByMime[detectedMime] || "jpg";
+    const objectId =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    const path = `${viewer.id}/${objectId}.${ext}`;
+
+    const upload = await supabase.storage.from(FAN_AVATAR_MEDIA_BUCKET).upload(path, file, {
+      cacheControl: "3600",
+      upsert: false,
+      contentType: detectedMime
+    });
+    if (upload.error) return { ok: false, error: upload.error.message };
+
+    const { data } = supabase.storage.from(FAN_AVATAR_MEDIA_BUCKET).getPublicUrl(path);
+    const updated = await updateCurrentUserProfile({ avatarUrl: data.publicUrl });
+    if (!updated) {
+      return { ok: false, error: "Avatar uploaded but the profile could not be updated." };
+    }
+
+    return { ok: true, url: data.publicUrl, user: updated };
+  } catch (error) {
+    const message = error instanceof Error && error.message ? error.message : "Avatar upload failed before reaching storage.";
+    return { ok: false, error: message };
   }
-  if (file.type !== detectedMime) {
-    return { ok: false, error: "File type mismatch detected. Re-export and upload again." };
-  }
-
-  const dimensions = await readImageDimensions(file);
-  if (dimensions.width < AVATAR_IMAGE_GUIDANCE.minimumPx || dimensions.height < AVATAR_IMAGE_GUIDANCE.minimumPx) {
-    return {
-      ok: false,
-      error: `Avatar image is too small. Use at least ${AVATAR_IMAGE_GUIDANCE.minimumPx} x ${AVATAR_IMAGE_GUIDANCE.minimumPx}px.`
-    };
-  }
-
-  const ext = extByMime[detectedMime] || "jpg";
-  const objectId =
-    typeof crypto !== "undefined" && "randomUUID" in crypto
-      ? crypto.randomUUID()
-      : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-  const path = `${viewer.id}/${objectId}.${ext}`;
-
-  const upload = await supabase.storage.from(FAN_AVATAR_MEDIA_BUCKET).upload(path, file, {
-    cacheControl: "3600",
-    upsert: false,
-    contentType: detectedMime
-  });
-  if (upload.error) return { ok: false, error: upload.error.message };
-
-  const { data } = supabase.storage.from(FAN_AVATAR_MEDIA_BUCKET).getPublicUrl(path);
-  const updated = await updateCurrentUserProfile({ avatarUrl: data.publicUrl });
-  if (!updated) {
-    return { ok: false, error: "Avatar uploaded but the profile could not be updated." };
-  }
-
-  return { ok: true, url: data.publicUrl, user: updated };
 };
 
 export const uploadFeedPhoto = async (file: File): Promise<Result<{ url: string }>> => {

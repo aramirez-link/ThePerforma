@@ -68,6 +68,7 @@ export default function FanVaultConsole() {
   const [quickSaving, setQuickSaving] = useState(false);
   const [avatarWorking, setAvatarWorking] = useState(false);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarStatus, setAvatarStatus] = useState<{ tone: "error" | "success"; message: string } | null>(null);
   const [oauthWorking, setOauthWorking] = useState<"" | "google" | "github" | "facebook" | "apple">("");
   const [editOpen, setEditOpen] = useState(false);
   const [user, setUser] = useState<VaultUser | null>(null);
@@ -346,19 +347,28 @@ export default function FanVaultConsole() {
 
   const uploadAvatar = async () => {
     if (!avatarFile) {
-      setNotice("Choose an image first.");
+      setAvatarStatus({ tone: "error", message: "Choose an image first." });
       return;
     }
     setAvatarWorking(true);
-    const result = await uploadProfileAvatar(avatarFile);
-    setAvatarWorking(false);
-    if (!result.ok) {
-      setNotice(result.error);
-      return;
+    try {
+      const result = await uploadProfileAvatar(avatarFile);
+      setAvatarWorking(false);
+      if (!result.ok) {
+        setAvatarStatus({ tone: "error", message: result.error });
+        return;
+      }
+      setAvatarFile(null);
+      setAvatarStatus({ tone: "success", message: "Avatar updated." });
+      setNotice("Avatar updated.");
+      await sync();
+    } catch (error) {
+      setAvatarWorking(false);
+      setAvatarStatus({
+        tone: "error",
+        message: error instanceof Error && error.message ? error.message : "Avatar upload failed."
+      });
     }
-    setAvatarFile(null);
-    setNotice("Avatar updated.");
-    await sync();
   };
 
   const resetAvatar = async () => {
@@ -366,10 +376,11 @@ export default function FanVaultConsole() {
     const updated = await updateCurrentUserProfile({ avatarUrl: null });
     setAvatarWorking(false);
     if (!updated) {
-      setNotice("Unable to reset avatar.");
+      setAvatarStatus({ tone: "error", message: "Unable to reset avatar." });
       return;
     }
     setAvatarFile(null);
+    setAvatarStatus({ tone: "success", message: "Graphical avatar restored." });
     setNotice("Graphical avatar restored.");
     await sync();
   };
@@ -551,9 +562,14 @@ export default function FanVaultConsole() {
                 Best results: {AVATAR_IMAGE_GUIDANCE.recommendedPx} x {AVATAR_IMAGE_GUIDANCE.recommendedPx}px square. Minimum {AVATAR_IMAGE_GUIDANCE.minimumPx} x {AVATAR_IMAGE_GUIDANCE.minimumPx}px. Max {AVATAR_IMAGE_GUIDANCE.maxFileSizeMb}MB.
               </p>
               <input
+                id="fan-avatar-file"
+                name="fan-avatar-file"
                 type="file"
                 accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
-                onChange={(event) => setAvatarFile(event.target.files?.[0] || null)}
+                onChange={(event) => {
+                  setAvatarFile(event.target.files?.[0] || null);
+                  setAvatarStatus(null);
+                }}
                 className="mt-3 block w-full text-xs text-white/75 file:mr-4 file:min-h-10 file:rounded-full file:border file:border-white/25 file:bg-black/40 file:px-4 file:py-2 file:text-[10px] file:uppercase file:tracking-[0.22em] file:text-white/85"
               />
               {avatarFile && <p className="mt-2 text-[11px] text-white/55">Ready to upload: {avatarFile.name}</p>}
@@ -575,6 +591,17 @@ export default function FanVaultConsole() {
                   Use Graphical Avatar
                 </button>
               </div>
+              {avatarStatus && (
+                <p
+                  className={`mt-3 rounded-2xl border px-3 py-2 text-[11px] ${
+                    avatarStatus.tone === "error"
+                      ? "border-rose-400/35 bg-rose-500/10 text-rose-200"
+                      : "border-emerald-400/35 bg-emerald-500/10 text-emerald-200"
+                  }`}
+                >
+                  {avatarStatus.message}
+                </p>
+              )}
               <p className="mt-3 text-[11px] text-white/45">Avatar photos and generated fallbacks are featured with your username on every post and comment.</p>
             </div>
           </div>
@@ -619,6 +646,7 @@ export default function FanVaultConsole() {
                 setBioDraft(user.bio || "");
                 setBadgeDraft(user.profileBadgeId || defaultProfileBadgeId);
                 setAvatarFile(null);
+                setAvatarStatus(null);
                 setEditOpen(false);
               }}
               className="rounded-full border border-white/30 px-5 py-2 text-xs uppercase tracking-[0.25em] text-white/75"
