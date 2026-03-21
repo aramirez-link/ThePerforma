@@ -26,6 +26,7 @@ export const resolveRoute = (pathname: string) => {
   const clean = pathname.replace(/^\/+/, "");
   if (clean.endsWith("public.status")) return "public.status";
   if (clean.endsWith("session.create")) return "session.create";
+  if (clean.endsWith("session.delete")) return "session.delete";
   if (clean.endsWith("session.sync")) return "session.sync";
   if (clean.endsWith("destination.upsert")) return "destination.upsert";
   if (clean.endsWith("session.start")) return "session.start";
@@ -564,6 +565,64 @@ export const createLiveHandler = (deps: {
     return json(200, { ok: true, session: updatedSession });
   };
 
+  const routeSessionDelete = async (req: Request, body: SessionMutationPayload) => {
+    const actor = await getActor(deps.supabase, req);
+    if (!actor) return json(401, { error: "Unauthorized." });
+    const sessionId = asText(body.sessionId);
+    if (!sessionId) return json(400, { error: "sessionId is required." });
+
+    const session = await loadAccessibleSession(deps.supabase, sessionId, actor.id);
+    if (!session) return json(404, { error: "Session not found." });
+    if (session.status === "LIVE") {
+      return json(409, { error: "End the session before deleting it." });
+    }
+
+    const destinations = await loadDestinations(deps.supabase, session.id);
+    const adapter = createProviderAdapter(session.provider);
+    try {
+      for (const destination of destinations) {
+        if (destination.provider_output_id && adapter.deleteOutput) {
+          await adapter.deleteOutput({
+            session,
+            destination
+          });
+        }
+      }
+      if (session.provider_input_id && adapter.deleteLiveInput) {
+        await adapter.deleteLiveInput({ session });
+      }
+    } catch (error) {
+      return json(502, {
+        error: error instanceof Error ? error.message : "Unable to clean up provider resources before deleting session."
+      });
+    }
+
+    const secretRefs = Array.from(
+      new Set(
+        [
+          session.ingest_stream_key_secret_ref,
+          ...destinations.map((destination) => destination.stream_key_secret_ref)
+        ].filter(Boolean)
+      )
+    ) as string[];
+
+    const { error: deleteError } = await deps.supabase
+      .from("live_sessions")
+      .delete()
+      .eq("id", session.id);
+    if (deleteError) return json(500, { error: deleteError.message || "Unable to delete session." });
+
+    if (secretRefs.length) {
+      await deps.supabase.from("secret_store").delete().in("id", secretRefs);
+    }
+
+    await insertAudit(deps.supabase, actor.id, "live_session_deleted", "live_session", session.id, {
+      provider: session.provider,
+      destination_count: destinations.length
+    });
+    return json(200, { ok: true, deleted: true, sessionId: session.id });
+  };
+
   const routeSessionEnd = async (req: Request, body: SessionMutationPayload) => {
     const actor = await getActor(deps.supabase, req);
     if (!actor) return json(401, { error: "Unauthorized." });
@@ -678,6 +737,7 @@ export const createLiveHandler = (deps: {
 
       if (route === "session.create") return routeSessionCreate(req, body);
       if (route === "public.status") return routePublicStatus();
+      if (route === "session.delete") return routeSessionDelete(req, body);
       if (route === "session.sync") return routeSessionSync(req, body);
       if (route === "destination.upsert") return routeDestinationUpsert(req, body);
       if (route === "session.start") return routeSessionStart(req, body);

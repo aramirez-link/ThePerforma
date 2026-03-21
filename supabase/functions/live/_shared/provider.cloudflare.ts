@@ -47,6 +47,22 @@ const cfFetch = async <T>(
   return assertSuccess(payload);
 };
 
+const cfDelete = async (cfg: CloudflareConfig, path: string) => {
+  const response = await fetch(`${CF_ROOT}/accounts/${cfg.accountId}${path}`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${cfg.apiToken}`,
+      "Content-Type": "application/json"
+    }
+  });
+  const payload = (await response.json().catch(() => ({}))) as CloudflareApiResponse<Record<string, unknown> | null>;
+  if (!payload.success) {
+    const reason = payload.errors?.[0]?.message || "Cloudflare API call failed.";
+    throw new Error(reason);
+  }
+  return { ok: true as const };
+};
+
 const inferDestinationStatus = (state: string | undefined): DestinationStatus => {
   const value = String(state || "").toLowerCase();
   if (value.includes("connected") || value === "live") return "LIVE";
@@ -164,6 +180,28 @@ export const createCloudflareAdapter = (cfg: CloudflareConfig): LiveProviderAdap
     return { ok: true as const };
   };
 
+  const deleteOutput = async (args: {
+    session: LiveSessionRow;
+    destination: DestinationRow;
+  }) => {
+    if (!args.session.provider_input_id || !args.destination.provider_output_id) {
+      return { ok: true as const };
+    }
+    await cfDelete(
+      cfg,
+      `/stream/live_inputs/${encodeURIComponent(args.session.provider_input_id)}/outputs/${encodeURIComponent(args.destination.provider_output_id)}`
+    );
+    return { ok: true as const };
+  };
+
+  const deleteLiveInput = async (args: { session: LiveSessionRow }) => {
+    if (!args.session.provider_input_id) {
+      return { ok: true as const };
+    }
+    await cfDelete(cfg, `/stream/live_inputs/${encodeURIComponent(args.session.provider_input_id)}`);
+    return { ok: true as const };
+  };
+
   const getIngestStatus = async (args: { session: LiveSessionRow }) => {
     if (!args.session.provider_input_id) {
       return { ingestStatus: "CONNECTING" as const, heartbeatAt: null };
@@ -223,6 +261,8 @@ export const createCloudflareAdapter = (cfg: CloudflareConfig): LiveProviderAdap
     createLiveInput,
     createOrUpdateOutput,
     setOutputEnabled,
+    deleteOutput,
+    deleteLiveInput,
     getIngestStatus,
     mapWebhookToStatus
   };

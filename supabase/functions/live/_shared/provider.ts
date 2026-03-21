@@ -23,6 +23,12 @@ const createMockAdapter = (): LiveProviderAdapter => ({
   async setOutputEnabled() {
     return { ok: true as const };
   },
+  async deleteOutput() {
+    return { ok: true as const };
+  },
+  async deleteLiveInput() {
+    return { ok: true as const };
+  },
   mapWebhookToStatus(payload) {
     if (!payload || typeof payload !== "object") return null;
     const body = payload as Record<string, unknown>;
@@ -48,4 +54,3 @@ export const createProviderAdapter = (provider: LiveProvider): LiveProviderAdapt
   }
   return createCloudflareAdapter({ accountId, apiToken });
 };
-

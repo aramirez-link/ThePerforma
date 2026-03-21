@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  deleteLiveSession,
+  endLiveSession,
   loadAdminLiveSessions,
   type LiveSession
 } from "../lib/performaLive";
@@ -74,6 +76,8 @@ export default function AdminLiveConsole() {
   const [selectedSessionId, setSelectedSessionId] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | LiveSession["status"]>("all");
   const [query, setQuery] = useState("");
+  const [actionSessionId, setActionSessionId] = useState("");
+  const [actionKind, setActionKind] = useState<"" | "ending" | "deleting">("");
 
   const refresh = async (preferredSessionId = selectedSessionId) => {
     const result = await loadAdminLiveSessions();
@@ -164,6 +168,41 @@ export default function AdminLiveConsole() {
     const ageMs = Date.now() - new Date(session.ingest_last_heartbeat_at).getTime();
     return Number.isFinite(ageMs) && ageMs > 300_000 && session.status !== "ENDED";
   }).length;
+
+  const runEndSession = async (session: LiveSession) => {
+    setActionSessionId(session.id);
+    setActionKind("ending");
+    const result = await endLiveSession(session.id);
+    setActionSessionId("");
+    setActionKind("");
+    if (!result.ok) {
+      setNotice(result.error);
+      return;
+    }
+    setNotice(`Ended "${session.title}".`);
+    await refresh(session.id);
+  };
+
+  const runDeleteSession = async (session: LiveSession) => {
+    if (session.status === "LIVE") {
+      setNotice("End the live session before deleting it.");
+      return;
+    }
+    const approved = window.confirm(`Delete "${session.title}"? This removes the session record and associated stream resources.`);
+    if (!approved) return;
+
+    setActionSessionId(session.id);
+    setActionKind("deleting");
+    const result = await deleteLiveSession(session.id);
+    setActionSessionId("");
+    setActionKind("");
+    if (!result.ok) {
+      setNotice(result.error);
+      return;
+    }
+    setNotice(`Deleted "${session.title}".`);
+    await refresh();
+  };
 
   if (loading) {
     return (
@@ -316,34 +355,59 @@ export default function AdminLiveConsole() {
               visibleSessions.map((session) => {
                 const isSelected = session.id === selectedSession?.id;
                 const timeline = getTimelineLabel(session);
+                const isWorking = actionSessionId === session.id;
                 return (
-                  <button
+                  <article
                     key={session.id}
-                    type="button"
-                    onClick={() => setSelectedSessionId(session.id)}
                     className={`rounded-2xl border p-4 text-left transition ${
                       isSelected ? "border-gold/45 bg-gold/10" : "border-white/12 bg-black/30 hover:border-white/25"
                     }`}
                   >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm text-white">{session.title}</p>
-                        <p className="mt-1 text-[11px] uppercase tracking-[0.2em] text-white/45">{compactId(session.id)}</p>
+                    <button type="button" onClick={() => setSelectedSessionId(session.id)} className="w-full text-left">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm text-white">{session.title}</p>
+                          <p className="mt-1 text-[11px] uppercase tracking-[0.2em] text-white/45">{compactId(session.id)}</p>
+                        </div>
+                        <span className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.22em] ${statusTone[session.status] || statusTone.DRAFT}`}>
+                          {session.status}
+                        </span>
                       </div>
-                      <span className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.22em] ${statusTone[session.status] || statusTone.DRAFT}`}>
-                        {session.status}
-                      </span>
+                      <div className="mt-3 grid gap-2 text-xs text-white/60 sm:grid-cols-2">
+                        <p>Provider: {session.provider.replace(/_/g, " ")}</p>
+                        <p>Ingest: {String(session.ingest_type || "rtmp").toUpperCase()}</p>
+                        <p>Creator: {compactId(session.creator_id)}</p>
+                        <p className={getHeartbeatTone(session.ingest_last_heartbeat_at)}>
+                          Heartbeat: {formatDateTime(session.ingest_last_heartbeat_at)}
+                        </p>
+                      </div>
+                      <p className="mt-3 text-sm text-white/75">{timeline}</p>
+                    </button>
+                    <div className="mt-4 flex flex-wrap gap-2 border-t border-white/10 pt-4">
+                      <button
+                        type="button"
+                        onClick={() => void runEndSession(session)}
+                        disabled={isWorking || session.status === "ENDED"}
+                        className="min-h-10 rounded-full border border-rose-400/35 bg-rose-500/10 px-4 py-2 text-[10px] uppercase tracking-[0.2em] text-rose-200 disabled:opacity-45"
+                      >
+                        {isWorking && actionKind === "ending" ? "Ending..." : "End Session"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void runDeleteSession(session)}
+                        disabled={isWorking || session.status === "LIVE"}
+                        className="min-h-10 rounded-full border border-white/20 px-4 py-2 text-[10px] uppercase tracking-[0.2em] text-white/75 disabled:opacity-45"
+                      >
+                        {isWorking && actionKind === "deleting" ? "Deleting..." : "Delete Session"}
+                      </button>
+                      <a
+                        href={`/live/session?id=${session.id}`}
+                        className="min-h-10 rounded-full border border-gold/40 bg-gold/10 px-4 py-2 text-[10px] uppercase tracking-[0.2em] text-gold"
+                      >
+                        Open Stream Console
+                      </a>
                     </div>
-                    <div className="mt-3 grid gap-2 text-xs text-white/60 sm:grid-cols-2">
-                      <p>Provider: {session.provider.replace(/_/g, " ")}</p>
-                      <p>Ingest: {String(session.ingest_type || "rtmp").toUpperCase()}</p>
-                      <p>Creator: {compactId(session.creator_id)}</p>
-                      <p className={getHeartbeatTone(session.ingest_last_heartbeat_at)}>
-                        Heartbeat: {formatDateTime(session.ingest_last_heartbeat_at)}
-                      </p>
-                    </div>
-                    <p className="mt-3 text-sm text-white/75">{timeline}</p>
-                  </button>
+                  </article>
                 );
               })
             ) : (

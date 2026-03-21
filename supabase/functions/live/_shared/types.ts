@@ -95,6 +95,13 @@ export type LiveProviderAdapter = {
     destination: DestinationRow;
     enabled: boolean;
   }) => Promise<{ ok: true }>;
+  deleteOutput?: (args: {
+    session: LiveSessionRow;
+    destination: DestinationRow;
+  }) => Promise<{ ok: true }>;
+  deleteLiveInput?: (args: {
+    session: LiveSessionRow;
+  }) => Promise<{ ok: true }>;
   getIngestStatus?: (args: {
     session: LiveSessionRow;
   }) => Promise<{ ingestStatus: IngestStatus; heartbeatAt?: string | null }>;
