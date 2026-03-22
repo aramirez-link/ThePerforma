@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "supabase": "^2.78.1"
+    "supabase": "^2.83.0"
   },
   "_npx": {
     "packages": [
