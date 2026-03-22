@@ -579,23 +579,34 @@ export const createLiveHandler = (deps: {
 
     const destinations = await loadDestinations(deps.supabase, session.id);
     const adapter = createProviderAdapter(session.provider);
+    const cleanupWarnings: string[] = [];
     try {
       for (const destination of destinations) {
         if (destination.provider_output_id && adapter.deleteOutput) {
-          await adapter.deleteOutput({
-            session,
-            destination
-          });
+          try {
+            await adapter.deleteOutput({
+              session,
+              destination
+            });
+          } catch (error) {
+            cleanupWarnings.push(
+              error instanceof Error
+                ? `${destination.display_name}: ${error.message}`
+                : `${destination.display_name}: output cleanup failed.`
+            );
+          }
         }
       }
       if (session.provider_input_id && adapter.deleteLiveInput) {
-        await adapter.deleteLiveInput({ session });
+        try {
+          await adapter.deleteLiveInput({ session });
+        } catch (error) {
+          cleanupWarnings.push(
+            error instanceof Error ? `input cleanup: ${error.message}` : "input cleanup failed."
+          );
+        }
       }
-    } catch (error) {
-      return json(502, {
-        error: error instanceof Error ? error.message : "Unable to clean up provider resources before deleting session."
-      });
-    }
+    } catch {}
 
     const secretRefs = Array.from(
       new Set(
@@ -618,9 +629,15 @@ export const createLiveHandler = (deps: {
 
     await insertAudit(deps.supabase, actor.id, "live_session_deleted", "live_session", session.id, {
       provider: session.provider,
-      destination_count: destinations.length
+      destination_count: destinations.length,
+      cleanup_warnings: cleanupWarnings
     });
-    return json(200, { ok: true, deleted: true, sessionId: session.id });
+    return json(200, {
+      ok: true,
+      deleted: true,
+      sessionId: session.id,
+      cleanupWarnings
+    });
   };
 
   const routeSessionEnd = async (req: Request, body: SessionMutationPayload) => {

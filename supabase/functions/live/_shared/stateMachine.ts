@@ -1,8 +1,8 @@
 import type { DestinationStatus, SessionStatus } from "./types.ts";
 
 const FORWARD_TRANSITIONS: Record<SessionStatus, SessionStatus[]> = {
-  DRAFT: ["READY"],
-  READY: ["LIVE"],
+  DRAFT: ["READY", "ENDED"],
+  READY: ["LIVE", "ENDED"],
   LIVE: ["ENDED"],
   ENDED: []
 };
@@ -25,4 +25,3 @@ export const desiredDestinationStatus = (enabled: boolean, sessionStatus: Sessio
   if (sessionStatus === "ENDED") return "DISABLED";
   return "CONNECTING";
 };
-
