@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  adminForceDeleteLiveSession,
+  adminForceEndLiveSession,
   deleteLiveSession,
   endLiveSession,
   loadAdminLiveSessions,
@@ -128,7 +130,7 @@ export default function AdminLiveConsole() {
 
   useEffect(() => {
     if (!notice) return;
-    const timer = window.setTimeout(() => setNotice(""), 3200);
+    const timer = window.setTimeout(() => setNotice(""), 7000);
     return () => window.clearTimeout(timer);
   }, [notice]);
 
@@ -172,15 +174,34 @@ export default function AdminLiveConsole() {
   const runEndSession = async (session: LiveSession) => {
     setActionSessionId(session.id);
     setActionKind("ending");
-    const result = await endLiveSession(session.id);
-    setActionSessionId("");
-    setActionKind("");
-    if (!result.ok) {
-      setNotice(result.error);
-      return;
+    try {
+      let result;
+      try {
+        result = await endLiveSession(session.id);
+      } catch (error) {
+        result = {
+          ok: false as const,
+          error: error instanceof Error ? error.message : "Edge Function end failed."
+        };
+      }
+
+      if (!result.ok) {
+        const fallback = await adminForceEndLiveSession(session.id);
+        if (!fallback.ok) {
+          setNotice(fallback.error || result.error);
+          return;
+        }
+        setNotice(`Ended "${session.title}" via direct admin fallback.`);
+        await refresh(session.id);
+        return;
+      }
+
+      setNotice(`Ended "${session.title}".`);
+      await refresh(session.id);
+    } finally {
+      setActionSessionId("");
+      setActionKind("");
     }
-    setNotice(`Ended "${session.title}".`);
-    await refresh(session.id);
   };
 
   const runDeleteSession = async (session: LiveSession) => {
@@ -193,15 +214,34 @@ export default function AdminLiveConsole() {
 
     setActionSessionId(session.id);
     setActionKind("deleting");
-    const result = await deleteLiveSession(session.id);
-    setActionSessionId("");
-    setActionKind("");
-    if (!result.ok) {
-      setNotice(result.error);
-      return;
+    try {
+      let result;
+      try {
+        result = await deleteLiveSession(session.id);
+      } catch (error) {
+        result = {
+          ok: false as const,
+          error: error instanceof Error ? error.message : "Edge Function delete failed."
+        };
+      }
+
+      if (!result.ok) {
+        const fallback = await adminForceDeleteLiveSession(session.id);
+        if (!fallback.ok) {
+          setNotice(fallback.error || result.error);
+          return;
+        }
+        setNotice(`Deleted "${session.title}" via direct admin fallback.`);
+        await refresh();
+        return;
+      }
+
+      setNotice(`Deleted "${session.title}".`);
+      await refresh();
+    } finally {
+      setActionSessionId("");
+      setActionKind("");
     }
-    setNotice(`Deleted "${session.title}".`);
-    await refresh();
   };
 
   if (loading) {

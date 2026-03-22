@@ -244,6 +244,51 @@ export const endLiveSession = async (sessionId: string): Promise<Result<{ sessio
 export const deleteLiveSession = async (sessionId: string): Promise<Result<{ deleted: true; sessionId: string }>> =>
   callLiveFunction("session.delete", { sessionId });
 
+export const adminForceEndLiveSession = async (sessionId: string): Promise<Result<{ session: LiveSession }>> => {
+  const client = getLiveSupabaseBrowser();
+  const user = await getLiveUser();
+  if (!client || !user) return { ok: false, error: "Please sign in first." };
+
+  const endedAt = new Date().toISOString();
+  const { data, error } = await client
+    .from("live_sessions")
+    .update({
+      status: "ENDED",
+      ended_at: endedAt,
+      ingest_status: "IDLE"
+    })
+    .eq("id", sessionId)
+    .select("*")
+    .maybeSingle();
+
+  if (error || !data) {
+    return { ok: false, error: error?.message || "Unable to end session." };
+  }
+
+  await client
+    .from("live_destinations")
+    .update({
+      enabled: false,
+      status: "DISABLED",
+      destination_heartbeat_at: endedAt
+    })
+    .eq("session_id", sessionId);
+
+  return { ok: true, data: { session: data as LiveSession } };
+};
+
+export const adminForceDeleteLiveSession = async (sessionId: string): Promise<Result<{ deleted: true; sessionId: string }>> => {
+  const client = getLiveSupabaseBrowser();
+  const user = await getLiveUser();
+  if (!client || !user) return { ok: false, error: "Please sign in first." };
+
+  const { error } = await client.from("live_sessions").delete().eq("id", sessionId);
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+  return { ok: true, data: { deleted: true, sessionId } };
+};
+
 export const syncLiveSession = async (sessionId: string): Promise<Result<{ session: LiveSession }>> =>
   callLiveFunction("session.sync", { sessionId });
 
