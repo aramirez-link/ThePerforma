@@ -5,15 +5,15 @@
 4 silly config load:file:C:\Projects\The-Performa\.npmrc
 5 silly config load:file:C:\Users\arami\.npmrc
 6 silly config load:file:C:\Users\arami\AppData\Roaming\npm\etc\npmrc
-7 verbose title npm exec supabase functions deploy live --project-ref iahvjkodgrwatcpjdxna
-8 verbose argv "exec" "--" "supabase" "functions" "deploy" "live" "--project-ref" "iahvjkodgrwatcpjdxna"
-9 verbose logfile logs-max:10 dir:C:\Projects\The-Performa\.npm-cache\_logs\2026-03-22T21_32_05_454Z-
-10 verbose logfile C:\Projects\The-Performa\.npm-cache\_logs\2026-03-22T21_32_05_454Z-debug-0.log
+7 verbose title npm exec supabase db --help
+8 verbose argv "exec" "--" "supabase" "db" "--help"
+9 verbose logfile logs-max:10 dir:C:\Projects\The-Performa\.npm-cache\_logs\2026-03-23T03_56_57_951Z-
+10 verbose logfile C:\Projects\The-Performa\.npm-cache\_logs\2026-03-23T03_56_57_951Z-debug-0.log
 11 silly logfile start cleaning logs, removing 1 files
 12 silly logfile done cleaning log files
 13 silly packumentCache heap:4496293888 maxSize:1124073472 maxEntrySize:562036736
 14 verbose shrinkwrap failed to load node_modules/.package-lock.json out of date, updated: node_modules
-15 http fetch GET 200 https://registry.npmjs.org/supabase 152ms (cache revalidated)
+15 http fetch GET 200 https://registry.npmjs.org/supabase 115ms (cache revalidated)
 16 silly packumentCache heap:4496293888 maxSize:1124073472 maxEntrySize:562036736
 17 silly packumentCache heap:4496293888 maxSize:1124073472 maxEntrySize:562036736
 18 verbose cwd C:\Projects\The-Performa
