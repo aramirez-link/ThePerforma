@@ -40,6 +40,14 @@ type DisplayPost = FanFeedPost & {
   triviaMeta: TriviaPostMeta | null;
 };
 
+type CommentBubbleTone = {
+  shell: string;
+  bubble: string;
+  name: string;
+  meta: string;
+  report: string;
+};
+
 type PollOptionDraft = {
   label: string;
   imageUrl: string;
@@ -96,6 +104,51 @@ const RUN_BUN_MAX_MINUTES = 15;
 const BOOK_BLUEPRINT_POLL_OPTIONS: PollOptionDraft[] = [
   { label: "Run It", imageUrl: "" },
   { label: "Bun It", imageUrl: "" }
+];
+
+const commentBubbleTones: CommentBubbleTone[] = [
+  {
+    shell: "border-cyan-300/22 bg-cyan-400/6",
+    bubble: "border-cyan-300/35 bg-cyan-400/12",
+    name: "text-cyan-100",
+    meta: "text-cyan-50/75",
+    report: "border-cyan-300/28 text-cyan-100/80"
+  },
+  {
+    shell: "border-gold/22 bg-gold/6",
+    bubble: "border-gold/35 bg-gold/12",
+    name: "text-gold",
+    meta: "text-gold/80",
+    report: "border-gold/28 text-gold/85"
+  },
+  {
+    shell: "border-rose-300/22 bg-rose-400/6",
+    bubble: "border-rose-300/35 bg-rose-400/12",
+    name: "text-rose-100",
+    meta: "text-rose-100/72",
+    report: "border-rose-300/28 text-rose-100/80"
+  },
+  {
+    shell: "border-emerald-300/22 bg-emerald-400/6",
+    bubble: "border-emerald-300/35 bg-emerald-400/12",
+    name: "text-emerald-100",
+    meta: "text-emerald-100/72",
+    report: "border-emerald-300/28 text-emerald-100/80"
+  },
+  {
+    shell: "border-fuchsia-300/22 bg-fuchsia-400/6",
+    bubble: "border-fuchsia-300/35 bg-fuchsia-400/12",
+    name: "text-fuchsia-100",
+    meta: "text-fuchsia-100/72",
+    report: "border-fuchsia-300/28 text-fuchsia-100/80"
+  },
+  {
+    shell: "border-sky-300/22 bg-sky-400/6",
+    bubble: "border-sky-300/35 bg-sky-400/12",
+    name: "text-sky-100",
+    meta: "text-sky-100/74",
+    report: "border-sky-300/28 text-sky-100/80"
+  }
 ];
 
 const ranks: RankDef[] = [
@@ -260,6 +313,17 @@ const moderationPill = (status: string) => {
 const formatIdentityLine = (label: string, names: string[]) => {
   if (!names.length) return "";
   return `${label} ${names.join(", ")}`;
+};
+
+const buildCommentToneMap = (comments: DisplayPost["comments"]) => {
+  const toneMap = new Map<string, CommentBubbleTone>();
+  let nextToneIndex = 0;
+  comments.forEach((comment) => {
+    if (toneMap.has(comment.userId)) return;
+    toneMap.set(comment.userId, commentBubbleTones[nextToneIndex % commentBubbleTones.length]);
+    nextToneIndex += 1;
+  });
+  return toneMap;
 };
 
 const rankFromXp = (xp: number) => {
@@ -1595,35 +1659,47 @@ export default function FanFeed() {
               )}
 
               <div className="mt-4 space-y-3">
-                {(expandedComments[post.id] ? post.comments : post.comments.slice(0, 2)).map((comment) => (
-                  <div key={comment.id} className="rounded-2xl border border-white/12 bg-black/35 px-4 py-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-start gap-3">
-                        <UserAvatar name={comment.authorName} seed={comment.authorAvatarSeed} imageUrl={comment.authorAvatarUrl} size="sm" />
-                        <div>
-                          <p className="text-[11px] uppercase tracking-[0.2em] text-white/50">{comment.authorName || "Fan"}</p>
-                          {moderationPill(comment.moderationStatus) && (
-                            <p className="mt-1 inline-flex rounded-full border border-amber-300/35 bg-amber-300/10 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-amber-100/90">
-                              {moderationPill(comment.moderationStatus)}
-                            </p>
-                          )}
+                {(() => {
+                  const visibleComments = expandedComments[post.id] ? post.comments : post.comments.slice(0, 2);
+                  const toneMap = buildCommentToneMap(post.comments);
+                  return visibleComments.map((comment) => {
+                    const tone = toneMap.get(comment.userId) || commentBubbleTones[0];
+                    const isViewerComment = viewer?.id === comment.userId;
+                    return (
+                      <div key={comment.id} className={`flex ${isViewerComment ? "justify-end" : "justify-start"}`}>
+                        <div className={`w-full max-w-[94%] rounded-[1.65rem] border px-3 py-3 shadow-[0_14px_34px_rgba(0,0,0,0.18)] ${tone.shell}`}>
+                          <div className={`rounded-[1.35rem] border px-4 py-3 ${tone.bubble}`}>
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex items-start gap-3">
+                                <UserAvatar name={comment.authorName} seed={comment.authorAvatarSeed} imageUrl={comment.authorAvatarUrl} size="sm" />
+                                <div>
+                                  <p className={`text-[11px] uppercase tracking-[0.2em] ${tone.name}`}>{comment.authorName || "Fan"}</p>
+                                  {moderationPill(comment.moderationStatus) && (
+                                    <p className="mt-1 inline-flex rounded-full border border-amber-300/35 bg-amber-300/10 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-amber-100/90">
+                                      {moderationPill(comment.moderationStatus)}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => onReportComment(comment.id)}
+                                className={`min-h-9 rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.18em] ${tone.report}`}
+                              >
+                                Report
+                              </button>
+                            </div>
+                            <p className="mt-2 text-sm leading-6 text-white/90">{comment.body}</p>
+                            {comment.moderationReason && comment.moderationStatus !== "approved" && (
+                              <p className="mt-2 text-[11px] text-white/50">{comment.moderationReason}</p>
+                            )}
+                            <p className={`mt-2 text-[11px] ${tone.meta}`}>{prettyDate(comment.createdAt)}</p>
+                          </div>
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => onReportComment(comment.id)}
-                        className="min-h-9 rounded-full border border-white/20 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white/65"
-                      >
-                        Report
-                      </button>
-                    </div>
-                    <p className="mt-1 text-sm text-white/80">{comment.body}</p>
-                    {comment.moderationReason && comment.moderationStatus !== "approved" && (
-                      <p className="mt-1 text-[11px] text-white/45">{comment.moderationReason}</p>
-                    )}
-                    <p className="mt-1 text-[11px] text-white/40">{prettyDate(comment.createdAt)}</p>
-                  </div>
-                ))}
+                    );
+                  });
+                })()}
                 {post.comments.length > 2 && (
                   <button
                     type="button"
