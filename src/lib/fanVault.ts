@@ -179,6 +179,8 @@ export type FanFeedPost = {
   isNsfw: boolean;
   shareCount: number;
   likeCount: number;
+  likedBy: string[];
+  sharedBy: string[];
   viewerHasLiked: boolean;
   poll: FanFeedPoll | null;
   comments: FanFeedComment[];
@@ -1152,6 +1154,9 @@ const mapFeedPost = (
   identities: Map<string, { name: string; avatarUrl: string | null }>,
   comments: FanFeedComment[],
   likeCount: number,
+  likedBy: string[],
+  shareCount: number,
+  sharedBy: string[],
   viewerHasLiked: boolean,
   poll: FanFeedPoll | null
 ): FanFeedPost => {
@@ -1171,8 +1176,10 @@ const mapFeedPost = (
     moderationStatus: (row.moderation_status as FeedModerationStatus) || "approved",
     moderationReason: row.moderation_reason || null,
     isNsfw: Boolean(row.is_nsfw),
-    shareCount: Number(row.share_count || 0),
+    shareCount,
     likeCount,
+    likedBy,
+    sharedBy,
     viewerHasLiked,
     poll,
     comments,
@@ -1442,7 +1449,25 @@ const loadFeedPosts = async (
 
   const postIds = posts.map((row: any) => Number(row.id));
   const userIds = Array.from(new Set(posts.map((row: any) => row.user_id)));
-  const { data: likeRows } = await supabase.from("fan_feed_likes").select("post_id,user_id").in("post_id", postIds);
+  const likeRes = await supabase
+    .from("fan_feed_likes")
+    .select("post_id,user_id,created_at")
+    .in("post_id", postIds)
+    .order("created_at", { ascending: false });
+  if (likeRes.error) return { ok: false, error: likeRes.error.message };
+  const likeRows = likeRes.data || [];
+
+  let shareRows: any[] = [];
+  const shareRes = await supabase
+    .from("fan_feed_shares")
+    .select("post_id,user_id,created_at")
+    .in("post_id", postIds)
+    .order("created_at", { ascending: false });
+  if (!shareRes.error) {
+    shareRows = shareRes.data || [];
+  } else if (!hasMissingRelationError(shareRes.error, "fan_feed_shares")) {
+    return { ok: false, error: shareRes.error.message };
+  }
 
   let { data: commentRows, error: commentsError } = await supabase
     .from("fan_feed_comments")
@@ -1470,7 +1495,14 @@ const loadFeedPosts = async (
 
   const identityMap = new Map<string, { name: string; avatarUrl: string | null }>();
   const rowsMissingIdentity = [...posts, ...(commentRows || [])].filter((row: any) => !String(row.author_name || "").trim() || !("author_avatar_url" in row));
-  const identityFallbackUserIds = Array.from(new Set([...userIds, ...rowsMissingIdentity.map((row: any) => row.user_id)]));
+  const identityFallbackUserIds = Array.from(
+    new Set([
+      ...userIds,
+      ...rowsMissingIdentity.map((row: any) => row.user_id),
+      ...likeRows.map((row: any) => row.user_id),
+      ...shareRows.map((row: any) => row.user_id)
+    ])
+  );
 
   if (identityFallbackUserIds.length) {
     const profileRes = await supabase.from("fan_profiles").select("id,name,avatar_url").in("id", identityFallbackUserIds);
@@ -1495,11 +1527,27 @@ const loadFeedPosts = async (
   });
 
   const likeCountByPost = new Map<string, number>();
+  const likedByPost = new Map<string, string[]>();
   const viewerLikeSet = new Set<string>();
   (likeRows || []).forEach((row: any) => {
     const key = String(row.post_id);
     likeCountByPost.set(key, (likeCountByPost.get(key) || 0) + 1);
     if (row.user_id === viewer.id) viewerLikeSet.add(key);
+    const currentNames = likedByPost.get(key) || [];
+    const likerName = normalizeDisplayName(identityMap.get(row.user_id)?.name, "Fan");
+    currentNames.push(likerName);
+    likedByPost.set(key, currentNames);
+  });
+
+  const shareCountByPost = new Map<string, number>();
+  const sharedByPost = new Map<string, string[]>();
+  shareRows.forEach((row: any) => {
+    const key = String(row.post_id);
+    shareCountByPost.set(key, (shareCountByPost.get(key) || 0) + 1);
+    const currentNames = sharedByPost.get(key) || [];
+    const sharerName = normalizeDisplayName(identityMap.get(row.user_id)?.name, "Fan");
+    currentNames.push(sharerName);
+    sharedByPost.set(key, currentNames);
   });
 
   const pollByPost = new Map<string, FanFeedPoll>();
@@ -1590,6 +1638,9 @@ const loadFeedPosts = async (
         identityMap,
         commentsByPost.get(String(row.id)) || [],
         likeCountByPost.get(String(row.id)) || 0,
+        likedByPost.get(String(row.id)) || [],
+        Math.max(Number(row.share_count || 0), shareCountByPost.get(String(row.id)) || 0),
+        sharedByPost.get(String(row.id)) || [],
         viewerLikeSet.has(String(row.id)),
         pollByPost.get(String(row.id)) || null
       )
@@ -2368,9 +2419,44 @@ export const incrementFeedShare = async (postId: string): Promise<Result<{ share
   if (readError) return { ok: false, error: readError.message };
   if (!row) return { ok: false, error: "Post not found." };
 
+  const existingShare = await supabase
+    .from("fan_feed_shares")
+    .select("post_id")
+    .eq("post_id", post)
+    .eq("user_id", viewer.id)
+    .maybeSingle();
+
+  if (existingShare.error && !hasMissingRelationError(existingShare.error, "fan_feed_shares")) {
+    return { ok: false, error: existingShare.error.message };
+  }
+
+  if (hasMissingRelationError(existingShare.error, "fan_feed_shares")) {
+    const { error: updateError } = await supabase
+      .from("fan_feed_posts")
+      .update({ share_count: Number(row.share_count || 0) + 1 })
+      .eq("id", post);
+
+    if (updateError) return { ok: false, error: updateError.message };
+    return { ok: true, shared: true };
+  }
+
+  if (!existingShare.data) {
+    const insertShare = await supabase.from("fan_feed_shares").insert({
+      post_id: post,
+      user_id: viewer.id
+    });
+    if (insertShare.error) return { ok: false, error: insertShare.error.message };
+  }
+
+  const shareCountRes = await supabase
+    .from("fan_feed_shares")
+    .select("post_id", { count: "exact", head: true })
+    .eq("post_id", post);
+
+  const nextShareCount = shareCountRes.error ? Number(row.share_count || 0) + (existingShare.data ? 0 : 1) : Number(shareCountRes.count || 0);
   const { error: updateError } = await supabase
     .from("fan_feed_posts")
-    .update({ share_count: Number(row.share_count || 0) + 1 })
+    .update({ share_count: nextShareCount })
     .eq("id", post);
 
   if (updateError) return { ok: false, error: updateError.message };
@@ -2772,6 +2858,7 @@ export const subscribeToFanFeed = (onChange: () => void): (() => void) | null =>
     .on("postgres_changes", { event: "*", schema: "public", table: "fan_feed_posts" }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "fan_feed_comments" }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "fan_feed_likes" }, onChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "fan_feed_shares" }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "fan_feed_polls" }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "fan_feed_poll_options" }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "fan_feed_poll_votes" }, onChange)
@@ -2802,6 +2889,7 @@ export const subscribeToLiveSessionFeed = (sessionId: string, onChange: () => vo
       },
       onChange
     )
+    .on("postgres_changes", { event: "*", schema: "public", table: "fan_feed_shares" }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "fan_feed_polls" }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "fan_feed_poll_options" }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "fan_feed_poll_votes" }, onChange)

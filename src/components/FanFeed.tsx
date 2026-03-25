@@ -257,6 +257,11 @@ const moderationPill = (status: string) => {
   return null;
 };
 
+const formatIdentityLine = (label: string, names: string[]) => {
+  if (!names.length) return "";
+  return `${label} ${names.join(", ")}`;
+};
+
 const rankFromXp = (xp: number) => {
   const current = [...ranks].reverse().find((rank) => xp >= rank.minXp) || ranks[0];
   const idx = ranks.findIndex((rank) => rank.label === current.label);
@@ -1581,6 +1586,13 @@ export default function FanFeed() {
                   Comments {post.comments.length}
                 </button>
               </div>
+
+              {(post.likedBy.length > 0 || post.sharedBy.length > 0) && (
+                <div className="mt-3 space-y-1 text-xs text-white/55">
+                  {post.likedBy.length > 0 && <p className="leading-relaxed">{formatIdentityLine("Liked by", post.likedBy)}</p>}
+                  {post.sharedBy.length > 0 && <p className="leading-relaxed">{formatIdentityLine("Shared by", post.sharedBy)}</p>}
+                </div>
+              )}
 
               <div className="mt-4 space-y-3">
                 {(expandedComments[post.id] ? post.comments : post.comments.slice(0, 2)).map((comment) => (
