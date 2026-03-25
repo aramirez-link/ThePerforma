@@ -5,6 +5,7 @@ import {
   createFeedComment,
   createFeedPost,
   deleteFeedPost,
+  toggleFeedCommentReaction,
   getCurrentUser,
   getFanFeed,
   incrementFeedShare,
@@ -14,6 +15,7 @@ import {
   updateFeedPost,
   uploadFeedPhoto,
   voteFeedPoll,
+  type FeedCommentReactionType,
   type FanFeedMediaType,
   type FanFeedPost,
   type VaultUser
@@ -149,6 +151,15 @@ const commentBubbleTones: CommentBubbleTone[] = [
     meta: "text-sky-100/74",
     report: "border-sky-300/28 text-sky-100/80"
   }
+];
+
+const commentReactionDefs: { type: FeedCommentReactionType; icon: string; label: string }[] = [
+  { type: "thumbs_up", icon: "👍", label: "Thumbs up" },
+  { type: "smile", icon: "😄", label: "Smiley face" },
+  { type: "mad", icon: "😠", label: "Mad face" },
+  { type: "surprised", icon: "😮", label: "Surprised face" },
+  { type: "thinking", icon: "🤔", label: "Thinking face" },
+  { type: "exclaim", icon: "❗", label: "Exclamation mark" }
 ];
 
 const ranks: RankDef[] = [
@@ -908,6 +919,22 @@ export default function FanFeed() {
     setNotice("Report submitted. Thank you.");
   };
 
+  const onCommentReaction = async (commentId: string, reactionType: FeedCommentReactionType) => {
+    if (!viewer) {
+      setNotice("Log in to Fan Vault to react to comments.");
+      return;
+    }
+
+    const result = await toggleFeedCommentReaction(commentId, reactionType);
+    if (!result.ok) {
+      setNotice(result.error);
+      return;
+    }
+
+    setNotice(result.active ? "Comment reaction added." : "Comment reaction removed.");
+    await loadFeed();
+  };
+
   const focusComposer = () => {
     const section = document.getElementById("link-up-composer");
     section?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1665,6 +1692,7 @@ export default function FanFeed() {
                   return visibleComments.map((comment) => {
                     const tone = toneMap.get(comment.userId) || commentBubbleTones[0];
                     const isViewerComment = viewer?.id === comment.userId;
+                    const reactionMap = new Map(comment.reactions.map((reaction) => [reaction.reactionType, reaction]));
                     return (
                       <div key={comment.id} className={`flex ${isViewerComment ? "justify-end" : "justify-start"}`}>
                         <div className={`w-full max-w-[94%] rounded-[1.65rem] border px-3 py-3 shadow-[0_14px_34px_rgba(0,0,0,0.18)] ${tone.shell}`}>
@@ -1690,6 +1718,30 @@ export default function FanFeed() {
                               </button>
                             </div>
                             <p className="mt-2 text-sm leading-6 text-white/90">{comment.body}</p>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {commentReactionDefs.map((reactionDef) => {
+                                const summary = reactionMap.get(reactionDef.type);
+                                const count = summary?.count || 0;
+                                const isActive = Boolean(summary?.viewerHasReacted);
+                                return (
+                                  <button
+                                    key={reactionDef.type}
+                                    type="button"
+                                    title={reactionDef.label}
+                                    aria-label={`${reactionDef.label} on ${comment.authorName || "Fan"}'s comment`}
+                                    onClick={() => onCommentReaction(comment.id, reactionDef.type)}
+                                    className={`flex min-h-[3.4rem] min-w-[3.15rem] flex-col items-center justify-center rounded-2xl border px-2 py-2 text-center transition ${
+                                      isActive
+                                        ? "border-white/55 bg-white/16 text-white shadow-[0_10px_24px_rgba(255,255,255,0.08)]"
+                                        : "border-white/14 bg-black/18 text-white/78 hover:border-white/32 hover:bg-white/8"
+                                    }`}
+                                  >
+                                    <span className="text-base leading-none">{reactionDef.icon}</span>
+                                    <span className="mt-1 text-[10px] font-semibold uppercase tracking-[0.18em]">{count}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
                             {comment.moderationReason && comment.moderationStatus !== "approved" && (
                               <p className="mt-2 text-[11px] text-white/50">{comment.moderationReason}</p>
                             )}

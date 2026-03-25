@@ -99,9 +99,24 @@ export type FanFeedComment = {
   authorAvatarUrl?: string | null;
   authorAvatarSeed: string;
   body: string;
+  reactions: FanFeedCommentReactionSummary[];
   moderationStatus: FeedModerationStatus;
   moderationReason: string | null;
   createdAt: string;
+};
+
+export type FeedCommentReactionType =
+  | "thumbs_up"
+  | "smile"
+  | "mad"
+  | "surprised"
+  | "thinking"
+  | "exclaim";
+
+export type FanFeedCommentReactionSummary = {
+  reactionType: FeedCommentReactionType;
+  count: number;
+  viewerHasReacted: boolean;
 };
 
 export type FanFeedPollOption = {
@@ -201,6 +216,7 @@ const FEED_MIN_POLL_OPTIONS = 2;
 const FEED_MAX_POLL_OPTIONS = 6;
 const LIVE_POST_KINDS = new Set<LiveFeedPostKind>(["standard", "live_chat", "host_prompt", "announcement", "poll"]);
 const LIVE_SESSION_REACTION_TYPES: LiveSessionReactionType[] = ["fire", "bolt", "hands", "heart"];
+const FEED_COMMENT_REACTION_TYPES: FeedCommentReactionType[] = ["thumbs_up", "smile", "mad", "surprised", "thinking", "exclaim"];
 const FEED_ALLOWED_IMAGE_MIME = new Set([
   "image/jpeg",
   "image/png",
@@ -1192,6 +1208,7 @@ const mapFeedComment = (row: any, identities: Map<string, { name: string; avatar
     authorAvatarUrl: identity.authorAvatarUrl,
     authorAvatarSeed: identity.authorAvatarSeed,
     body: row.body || "",
+    reactions: Array.isArray(row.reactions) ? row.reactions : [],
     moderationStatus: (row.moderation_status as FeedModerationStatus) || "approved",
     moderationReason: row.moderation_reason || null,
     createdAt: row.created_at || nowIso()
@@ -1422,6 +1439,11 @@ const normalizeLivePostKind = (value: unknown, hasPoll: boolean): LiveFeedPostKi
   return hasPoll ? "poll" : "standard";
 };
 
+const normalizeFeedCommentReactionType = (value: unknown): FeedCommentReactionType | null => {
+  const reactionType = String(value || "").trim().toLowerCase() as FeedCommentReactionType;
+  return FEED_COMMENT_REACTION_TYPES.includes(reactionType) ? reactionType : null;
+};
+
 const isViewerStoreAdmin = async (supabase: SupabaseClient): Promise<boolean> => {
   const rpc = await supabase.rpc("is_store_admin");
   return !rpc.error && typeof rpc.data === "boolean" ? rpc.data : false;
@@ -1542,6 +1564,22 @@ const loadFeedPosts = async (
 
   if (commentsError) return { ok: false, error: commentsError.message };
 
+  const commentIds = (commentRows || []).map((row: any) => Number(row.id)).filter((value) => Number.isFinite(value));
+  let commentReactionRows: any[] = [];
+  if (commentIds.length) {
+    const commentReactionRes = await supabase
+      .from("fan_feed_comment_reactions")
+      .select("comment_id,user_id,reaction_type,created_at")
+      .in("comment_id", commentIds)
+      .order("created_at", { ascending: false });
+
+    if (!commentReactionRes.error) {
+      commentReactionRows = commentReactionRes.data || [];
+    } else if (!hasMissingRelationError(commentReactionRes.error, "fan_feed_comment_reactions")) {
+      return { ok: false, error: commentReactionRes.error.message };
+    }
+  }
+
   const rowsMissingIdentity = [...posts, ...(commentRows || [])].filter((row: any) => !String(row.author_name || "").trim() || !("author_avatar_url" in row));
   const identityFallbackUserIds = Array.from(
     new Set([
@@ -1553,11 +1591,47 @@ const loadFeedPosts = async (
   );
   const identityMap = await loadFeedIdentityMap(supabase, identityFallbackUserIds);
 
+  const commentReactionsByComment = new Map<string, FanFeedCommentReactionSummary[]>();
+  const commentReactionAccumulator = new Map<string, Map<FeedCommentReactionType, FanFeedCommentReactionSummary>>();
+  commentReactionRows.forEach((row: any) => {
+    const commentKey = String(row.comment_id);
+    const reactionType = normalizeFeedCommentReactionType(row.reaction_type);
+    if (!reactionType) return;
+
+    let reactionMap = commentReactionAccumulator.get(commentKey);
+    if (!reactionMap) {
+      reactionMap = new Map<FeedCommentReactionType, FanFeedCommentReactionSummary>();
+      commentReactionAccumulator.set(commentKey, reactionMap);
+    }
+
+    const existing = reactionMap.get(reactionType) || {
+      reactionType,
+      count: 0,
+      viewerHasReacted: false
+    };
+
+    existing.count += 1;
+    if (row.user_id === viewer.id) existing.viewerHasReacted = true;
+    reactionMap.set(reactionType, existing);
+  });
+
+  commentReactionAccumulator.forEach((reactionMap, commentKey) => {
+    commentReactionsByComment.set(commentKey, FEED_COMMENT_REACTION_TYPES.map((reactionType) => reactionMap.get(reactionType)).filter(Boolean) as FanFeedCommentReactionSummary[]);
+  });
+
   const commentsByPost = new Map<string, FanFeedComment[]>();
   (commentRows || []).forEach((row: any) => {
     const key = String(row.post_id);
     const list = commentsByPost.get(key) || [];
-    list.push(mapFeedComment(row, identityMap));
+    list.push(
+      mapFeedComment(
+        {
+          ...row,
+          reactions: commentReactionsByComment.get(String(row.id)) || []
+        },
+        identityMap
+      )
+    );
     commentsByPost.set(key, list);
   });
 
@@ -2325,6 +2399,71 @@ export const toggleFeedLike = async (postId: string): Promise<Result<{ liked: bo
   return { ok: true, liked: true };
 };
 
+export const toggleFeedCommentReaction = async (
+  commentId: string,
+  reactionType: FeedCommentReactionType
+): Promise<Result<{ active: boolean }>> => {
+  if (!isCloudVaultEnabled) return { ok: false, error: "Fan Feed requires Supabase cloud mode." };
+  const supabase = getSupabase();
+  if (!supabase) return { ok: false, error: "Vault is not configured." };
+  const viewer = await getCloudUserAndProfile();
+  if (!viewer) return { ok: false, error: "Log in to Fan Vault to react to comments." };
+
+  const numericCommentId = Number(commentId);
+  if (!Number.isFinite(numericCommentId)) return { ok: false, error: "Invalid comment id." };
+  if (!FEED_COMMENT_REACTION_TYPES.includes(reactionType)) {
+    return { ok: false, error: "Invalid comment reaction." };
+  }
+
+  const { data: existing, error: existingError } = await supabase
+    .from("fan_feed_comment_reactions")
+    .select("comment_id")
+    .eq("comment_id", numericCommentId)
+    .eq("user_id", viewer.id)
+    .eq("reaction_type", reactionType)
+    .maybeSingle();
+
+  if (existingError) {
+    if (hasMissingRelationError(existingError, "fan_feed_comment_reactions")) {
+      return {
+        ok: false,
+        error: "Comment reactions are not installed yet. Run the latest Supabase migration and reload schema cache."
+      };
+    }
+    return { ok: false, error: existingError.message };
+  }
+
+  if (existing) {
+    const { error } = await supabase
+      .from("fan_feed_comment_reactions")
+      .delete()
+      .eq("comment_id", numericCommentId)
+      .eq("user_id", viewer.id)
+      .eq("reaction_type", reactionType);
+
+    if (error) return { ok: false, error: error.message };
+    return { ok: true, active: false };
+  }
+
+  const { error } = await supabase.from("fan_feed_comment_reactions").insert({
+    comment_id: numericCommentId,
+    user_id: viewer.id,
+    reaction_type: reactionType
+  });
+
+  if (error) {
+    if (hasMissingRelationError(error, "fan_feed_comment_reactions")) {
+      return {
+        ok: false,
+        error: "Comment reactions are not installed yet. Run the latest Supabase migration and reload schema cache."
+      };
+    }
+    return { ok: false, error: error.message };
+  }
+
+  return { ok: true, active: true };
+};
+
 export const toggleLiveSessionReaction = async (
   sessionId: string,
   reactionType: LiveSessionReactionType
@@ -2893,6 +3032,7 @@ export const subscribeToFanFeed = (onChange: () => void): (() => void) | null =>
     .on("postgres_changes", { event: "*", schema: "public", table: "fan_feed_posts" }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "fan_feed_comments" }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "fan_feed_likes" }, onChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "fan_feed_comment_reactions" }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "fan_feed_shares" }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "fan_feed_polls" }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "fan_feed_poll_options" }, onChange)
@@ -2924,6 +3064,8 @@ export const subscribeToLiveSessionFeed = (sessionId: string, onChange: () => vo
       },
       onChange
     )
+    .on("postgres_changes", { event: "*", schema: "public", table: "fan_feed_comments" }, onChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "fan_feed_comment_reactions" }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "fan_feed_shares" }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "fan_feed_polls" }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "fan_feed_poll_options" }, onChange)

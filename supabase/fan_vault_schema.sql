@@ -1185,6 +1185,14 @@ create table if not exists public.fan_feed_shares (
   primary key (post_id, user_id)
 );
 
+create table if not exists public.fan_feed_comment_reactions (
+  comment_id bigint not null references public.fan_feed_comments(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  reaction_type text not null check (reaction_type in ('thumbs_up', 'smile', 'mad', 'surprised', 'thinking', 'exclaim')),
+  created_at timestamptz not null default now(),
+  primary key (comment_id, user_id, reaction_type)
+);
+
 create table if not exists public.live_session_reactions (
   session_id uuid not null references public.live_sessions(id) on delete cascade,
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -1715,6 +1723,8 @@ create index if not exists idx_fan_feed_comments_post on public.fan_feed_comment
 create index if not exists idx_fan_feed_likes_post on public.fan_feed_likes(post_id);
 create index if not exists idx_fan_feed_shares_post on public.fan_feed_shares(post_id, created_at desc);
 create index if not exists idx_fan_feed_shares_user on public.fan_feed_shares(user_id, created_at desc);
+create index if not exists idx_fan_feed_comment_reactions_comment on public.fan_feed_comment_reactions(comment_id, reaction_type, created_at desc);
+create index if not exists idx_fan_feed_comment_reactions_user on public.fan_feed_comment_reactions(user_id, created_at desc);
 create index if not exists idx_live_session_reactions_session on public.live_session_reactions(session_id, created_at desc);
 create index if not exists idx_live_session_reactions_type on public.live_session_reactions(session_id, reaction_type, created_at desc);
 create index if not exists idx_fan_feed_polls_expires_at on public.fan_feed_polls(expires_at);
@@ -1739,6 +1749,7 @@ alter table public.fan_feed_posts enable row level security;
 alter table public.fan_feed_comments enable row level security;
 alter table public.fan_feed_likes enable row level security;
 alter table public.fan_feed_shares enable row level security;
+alter table public.fan_feed_comment_reactions enable row level security;
 alter table public.live_session_reactions enable row level security;
 alter table public.fan_feed_reports enable row level security;
 alter table public.fan_feed_settings enable row level security;
@@ -1948,6 +1959,58 @@ with check (
 
 create policy "fan_feed_shares_delete_own_or_admin"
 on public.fan_feed_shares for delete
+using (auth.uid() = user_id or public.is_store_admin());
+
+drop policy if exists "fan_feed_comment_reactions_select_authenticated" on public.fan_feed_comment_reactions;
+drop policy if exists "fan_feed_comment_reactions_insert_own" on public.fan_feed_comment_reactions;
+drop policy if exists "fan_feed_comment_reactions_delete_own_or_admin" on public.fan_feed_comment_reactions;
+
+create policy "fan_feed_comment_reactions_select_authenticated"
+on public.fan_feed_comment_reactions for select
+using (
+  auth.role() = 'authenticated'
+  and exists (
+    select 1
+    from public.fan_feed_comments c
+    join public.fan_feed_posts p on p.id = c.post_id
+    where c.id = comment_id
+      and (
+        c.moderation_status = 'approved'
+        or c.user_id = auth.uid()
+        or public.is_store_admin()
+      )
+      and (
+        p.moderation_status = 'approved'
+        or p.user_id = auth.uid()
+        or public.is_store_admin()
+      )
+  )
+);
+
+create policy "fan_feed_comment_reactions_insert_own"
+on public.fan_feed_comment_reactions for insert
+with check (
+  auth.uid() = user_id
+  and exists (
+    select 1
+    from public.fan_feed_comments c
+    join public.fan_feed_posts p on p.id = c.post_id
+    where c.id = comment_id
+      and (
+        c.moderation_status = 'approved'
+        or c.user_id = auth.uid()
+        or public.is_store_admin()
+      )
+      and (
+        p.moderation_status = 'approved'
+        or p.user_id = auth.uid()
+        or public.is_store_admin()
+      )
+  )
+);
+
+create policy "fan_feed_comment_reactions_delete_own_or_admin"
+on public.fan_feed_comment_reactions for delete
 using (auth.uid() = user_id or public.is_store_admin());
 
 create policy "live_session_reactions_select_authenticated"
@@ -2268,6 +2331,15 @@ begin
         and tablename = 'fan_feed_shares'
     ) then
       alter publication supabase_realtime add table public.fan_feed_shares;
+    end if;
+    if not exists (
+      select 1
+      from pg_publication_tables
+      where pubname = 'supabase_realtime'
+        and schemaname = 'public'
+        and tablename = 'fan_feed_comment_reactions'
+    ) then
+      alter publication supabase_realtime add table public.fan_feed_comment_reactions;
     end if;
     if not exists (
       select 1
