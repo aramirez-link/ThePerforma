@@ -1125,12 +1125,61 @@ const resolveFeedAuthorIdentity = (
   identities: Map<string, { name: string; avatarUrl: string | null }>
 ) => {
   const fallbackIdentity = identities.get(row.user_id);
-  const authorName = normalizeDisplayName(row.author_name || fallbackIdentity?.name);
+  const snapshotName = normalizeDisplayName(row.author_name);
+  const authorName =
+    !snapshotName || isDefaultDisplayName(snapshotName)
+      ? normalizeDisplayName(fallbackIdentity?.name, "Fan")
+      : snapshotName;
   return {
     authorName,
     authorAvatarUrl: row.author_avatar_url || fallbackIdentity?.avatarUrl || null,
     authorAvatarSeed: buildAvatarSeed(row.user_id, authorName)
   };
+};
+
+const loadFeedIdentityMap = async (
+  supabase: SupabaseClient,
+  userIds: string[]
+): Promise<Map<string, { name: string; avatarUrl: string | null }>> => {
+  const identityMap = new Map<string, { name: string; avatarUrl: string | null }>();
+  if (!userIds.length) return identityMap;
+
+  const rpcRes = await supabase.rpc("get_fan_identity_profiles", {
+    profile_ids: userIds
+  });
+
+  if (!rpcRes.error) {
+    (rpcRes.data || []).forEach((row: any) => {
+      identityMap.set(String(row.id), {
+        name: normalizeDisplayName(row.name, "Fan"),
+        avatarUrl: row.avatar_url || null
+      });
+    });
+    return identityMap;
+  }
+
+  const profileRes = await supabase.from("fan_profiles").select("id,name,avatar_url").in("id", userIds);
+  if (!profileRes.error) {
+    (profileRes.data || []).forEach((row: any) => {
+      identityMap.set(String(row.id), {
+        name: normalizeDisplayName(row.name, "Fan"),
+        avatarUrl: row.avatar_url || null
+      });
+    });
+    return identityMap;
+  }
+
+  if (hasMissingColumnError(profileRes.error, "avatar_url")) {
+    const fallbackProfiles = await supabase.from("fan_profiles").select("id,name").in("id", userIds);
+    (fallbackProfiles.data || []).forEach((row: any) => {
+      identityMap.set(String(row.id), {
+        name: normalizeDisplayName(row.name, "Fan"),
+        avatarUrl: null
+      });
+    });
+  }
+
+  return identityMap;
 };
 
 const mapFeedComment = (row: any, identities: Map<string, { name: string; avatarUrl: string | null }>): FanFeedComment => {
@@ -1493,7 +1542,6 @@ const loadFeedPosts = async (
 
   if (commentsError) return { ok: false, error: commentsError.message };
 
-  const identityMap = new Map<string, { name: string; avatarUrl: string | null }>();
   const rowsMissingIdentity = [...posts, ...(commentRows || [])].filter((row: any) => !String(row.author_name || "").trim() || !("author_avatar_url" in row));
   const identityFallbackUserIds = Array.from(
     new Set([
@@ -1503,20 +1551,7 @@ const loadFeedPosts = async (
       ...shareRows.map((row: any) => row.user_id)
     ])
   );
-
-  if (identityFallbackUserIds.length) {
-    const profileRes = await supabase.from("fan_profiles").select("id,name,avatar_url").in("id", identityFallbackUserIds);
-    if (!profileRes.error) {
-      (profileRes.data || []).forEach((row: any) =>
-        identityMap.set(row.id, { name: normalizeDisplayName(row.name), avatarUrl: row.avatar_url || null })
-      );
-    } else if (hasMissingColumnError(profileRes.error, "avatar_url")) {
-      const fallbackProfiles = await supabase.from("fan_profiles").select("id,name").in("id", identityFallbackUserIds);
-      (fallbackProfiles.data || []).forEach((row: any) =>
-        identityMap.set(row.id, { name: normalizeDisplayName(row.name), avatarUrl: null })
-      );
-    }
-  }
+  const identityMap = await loadFeedIdentityMap(supabase, identityFallbackUserIds);
 
   const commentsByPost = new Map<string, FanFeedComment[]>();
   (commentRows || []).forEach((row: any) => {
