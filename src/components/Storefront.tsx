@@ -17,6 +17,11 @@ import {
 type Filter = "all" | "physical" | "digital_tool" | "digital_download" | "subscription" | "bundle";
 
 const CART_KEY = "the-performa-store-cart-v1";
+const CART_ICON = "\u{1F6D2}";
+const HEART_OUTLINE = "\u2661";
+const HEART_FILLED = "\u2665";
+const FILLED_STAR = "\u2605";
+const EMPTY_STAR = "\u2606";
 
 const readCart = (): StoreCartItem[] => {
   if (typeof window === "undefined") return [];
@@ -42,6 +47,11 @@ const avgRating = (ratings: number[]) => {
   if (!ratings.length) return 0;
   const sum = ratings.reduce((acc, value) => acc + value, 0);
   return Math.round((sum / ratings.length) * 10) / 10;
+};
+
+const renderStars = (rating: number) => {
+  const safe = Math.max(1, Math.min(5, Math.round(rating || 0)));
+  return `${FILLED_STAR.repeat(safe)}${EMPTY_STAR.repeat(5 - safe)}`;
 };
 
 const STORAGE_BUCKET = "store-product-media";
@@ -143,6 +153,7 @@ export default function Storefront() {
   const [checkingOut, setCheckingOut] = useState(false);
   const [notice, setNotice] = useState("");
   const [userEmail, setUserEmail] = useState("");
+  const [userId, setUserId] = useState("");
   const [activeProductId, setActiveProductId] = useState<string | null>(null);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [reviewDraft, setReviewDraft] = useState<{ productId: string; rating: number; title: string; body: string }>({
@@ -152,12 +163,31 @@ export default function Storefront() {
     body: ""
   });
 
+  const refreshProducts = async () => {
+    const productsResult = await loadStorefrontProducts();
+    if (!productsResult.ok) {
+      setNotice(productsResult.error);
+      return false;
+    }
+
+    setProducts(productsResult.data);
+    setSelectedVariants((current) => {
+      const next = { ...current };
+      for (const product of productsResult.data) {
+        if (!next[product.id] && product.defaultVariant) next[product.id] = product.defaultVariant.id;
+      }
+      return next;
+    });
+    return true;
+  };
+
   useEffect(() => {
     const run = async () => {
       setLoading(true);
       const [productsResult, wishlistResult] = await Promise.all([loadStorefrontProducts(), loadWishlist()]);
       const user = await getCurrentUser();
       setUserEmail(user?.email || "");
+      setUserId(user?.id || "");
       if (productsResult.ok) {
         setProducts(productsResult.data);
         const picks: Record<string, string> = {};
@@ -244,7 +274,7 @@ export default function Storefront() {
       return;
     }
     setWishlist((current) => (has ? current.filter((id) => id !== productId) : [productId, ...current]));
-    setNotice(has ? "Removed from wishlist." : "Saved to wishlist.");
+    setNotice(has ? "Removed from wishlist." : "Saved to your profile wishlist for later.");
   };
 
   const updateSelectedVariant = (productId: string, variantId: string) => {
@@ -293,6 +323,22 @@ export default function Storefront() {
     const next = cart.map((item) => (item.variantId === variantId ? { ...item, quantity } : item));
     setCart(next);
     writeCart(next);
+  };
+
+  const saveCartItemForLater = async (productId: string, variantId: string) => {
+    if (!wishlist.includes(productId)) {
+      const result = await addWishlistItem(productId);
+      if (!result.ok) {
+        setNotice(result.error);
+        return;
+      }
+      setWishlist((current) => [productId, ...current.filter((id) => id !== productId)]);
+    }
+
+    const next = cart.filter((item) => item.variantId !== variantId);
+    setCart(next);
+    writeCart(next);
+    setNotice("Saved to your profile wishlist for later purchase.");
   };
 
   const checkout = async () => {
@@ -389,7 +435,8 @@ export default function Storefront() {
       return;
     }
     setReviewDraft({ productId: "", rating: 5, title: "", body: "" });
-    setNotice("Review submitted for moderation.");
+    await refreshProducts();
+    setNotice("Review saved and submitted for moderation.");
   };
 
   return (
@@ -429,7 +476,11 @@ export default function Storefront() {
             const currentVariantId = selectedVariants[product.id] || product.defaultVariant?.id || "";
             const currentVariant = product.variants.find((item) => item.id === currentVariantId) || product.defaultVariant;
             const stock = currentVariant ? getVariantStockState(currentVariant) : { outOfStock: false, lowStock: false, remaining: null };
-            const ratings = product.reviews.map((item) => item.rating);
+            const approvedReviews = product.reviews.filter((item) => item.status === "approved");
+            const viewerReviews = userId
+              ? product.reviews.filter((item) => item.user_id === userId && item.status !== "approved")
+              : [];
+            const ratings = approvedReviews.map((item) => item.rating);
             const images = productImages(product);
             const heroImage = images[0] || null;
             const related = product.related_product_ids
@@ -496,14 +547,14 @@ export default function Storefront() {
                     disabled={stock.outOfStock}
                     className="rounded-full bg-ember px-5 py-2 text-[11px] uppercase tracking-[0.24em] text-ink min-h-11 disabled:opacity-50"
                   >
-                    {stock.outOfStock ? "Sold out" : "Add to cart"}
+                    {stock.outOfStock ? "Sold out" : `${CART_ICON} Add to cart`}
                   </button>
                   <button
                     type="button"
                     onClick={() => toggleWishlist(product.id)}
                     className="rounded-full border border-white/30 px-5 py-2 text-[11px] uppercase tracking-[0.24em] text-white/80 min-h-11"
                   >
-                    {wishlist.includes(product.id) ? "Wishlisted" : "Wishlist"}
+                    {wishlist.includes(product.id) ? `${HEART_FILLED} Wishlisted` : `${HEART_OUTLINE} Wishlist`}
                   </button>
                 </div>
 
@@ -523,14 +574,22 @@ export default function Storefront() {
                 <div className="mt-4 rounded-2xl border border-white/10 bg-black/30 p-3">
                   <p className="text-[10px] uppercase tracking-[0.22em] text-white/55">Reviews</p>
                   <div className="mt-2 space-y-2">
-                    {product.reviews.slice(0, 2).map((review) => (
+                    {approvedReviews.slice(0, 2).map((review) => (
                       <article key={review.id} className="rounded-xl border border-white/10 p-2">
-                        <p className="text-xs text-gold">{"★".repeat(Math.max(1, review.rating))}</p>
+                        <p className="text-xs text-gold">{renderStars(review.rating)}</p>
                         <p className="text-xs text-white/85">{review.title}</p>
                         <p className="text-xs text-white/65">{review.body}</p>
                       </article>
                     ))}
-                    {!product.reviews.length && <p className="text-xs text-white/55">No approved reviews yet.</p>}
+                    {viewerReviews.map((review) => (
+                      <article key={review.id} className="rounded-xl border border-gold/25 bg-gold/5 p-2">
+                        <p className="text-[10px] uppercase tracking-[0.18em] text-gold">Your review · {review.status}</p>
+                        <p className="mt-1 text-xs text-gold">{renderStars(review.rating)}</p>
+                        <p className="text-xs text-white/85">{review.title}</p>
+                        <p className="text-xs text-white/65">{review.body}</p>
+                      </article>
+                    ))}
+                    {!approvedReviews.length && !viewerReviews.length && <p className="text-xs text-white/55">No approved reviews yet.</p>}
                   </div>
                   <details className="mt-2">
                     <summary className="cursor-pointer text-xs uppercase tracking-[0.2em] text-gold">Write a review</summary>
@@ -560,24 +619,33 @@ export default function Storefront() {
                         className="rounded-lg border border-white/20 bg-black/35 px-3 py-2 text-xs"
                         placeholder="Share your experience"
                       />
-                      <div className="flex items-center gap-2">
-                        <select
-                          value={reviewDraft.productId === product.id ? reviewDraft.rating : 5}
-                          onChange={(event) =>
-                            setReviewDraft((draft) => ({
-                              ...draft,
-                              productId: product.id,
-                              rating: Number(event.target.value)
-                            }))
-                          }
-                          className="rounded-lg border border-white/20 bg-black/35 px-3 py-2 text-xs min-h-11"
-                        >
-                          {[5, 4, 3, 2, 1].map((value) => (
-                            <option key={value} value={value}>
-                              {value} stars
-                            </option>
-                          ))}
-                        </select>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="flex items-center gap-1 rounded-full border border-white/15 bg-black/30 px-2 py-2">
+                          {[1, 2, 3, 4, 5].map((value) => {
+                            const activeRating = reviewDraft.productId === product.id ? reviewDraft.rating : 5;
+                            const isActive = value <= activeRating;
+                            return (
+                              <button
+                                key={`${product.id}-rating-${value}`}
+                                type="button"
+                                aria-label={`Set ${value} star rating`}
+                                onClick={() =>
+                                  setReviewDraft((draft) => ({
+                                    ...draft,
+                                    productId: product.id,
+                                    rating: value
+                                  }))
+                                }
+                                className={`rounded-full px-2 py-1 text-base transition ${isActive ? "text-gold" : "text-white/35 hover:text-white/65"}`}
+                              >
+                                {isActive ? FILLED_STAR : EMPTY_STAR}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <span className="text-[11px] text-white/60">
+                          {(reviewDraft.productId === product.id ? reviewDraft.rating : 5)} / 5
+                        </span>
                         <button
                           type="button"
                           onClick={() => submitProductReview(product.id)}
@@ -634,6 +702,15 @@ export default function Storefront() {
                     Stock left: {Math.max(0, Number(item.variant.inventory_count || 0))}
                   </p>
                 )}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => saveCartItemForLater(item.product.id, item.variant.id)}
+                    className="min-h-10 rounded-full border border-gold/35 px-3 py-2 text-[10px] uppercase tracking-[0.2em] text-gold"
+                  >
+                    {wishlist.includes(item.product.id) ? `${HEART_FILLED} Wishlisted` : `${HEART_OUTLINE} Wishlist`}
+                  </button>
+                </div>
               </article>
             ))}
             {!cartItems.length && <p className="text-sm text-white/55">No items yet.</p>}
@@ -755,7 +832,7 @@ export default function Storefront() {
                     const currentVariantId = selectedVariants[activeProduct.id] || activeProduct.defaultVariant?.id || "";
                     const currentVariant = activeProduct.variants.find((item) => item.id === currentVariantId) || activeProduct.defaultVariant;
                     const stock = currentVariant ? getVariantStockState(currentVariant) : { outOfStock: false, lowStock: false, remaining: null };
-                    const ratings = activeProduct.reviews.map((item) => item.rating);
+                    const ratings = activeProduct.reviews.filter((item) => item.status === "approved").map((item) => item.rating);
                     return (
                       <div className="mt-4 rounded-2xl border border-white/15 bg-black/35 p-4">
                         <p className="text-[10px] uppercase tracking-[0.22em] text-white/55">Pricing</p>
@@ -804,14 +881,14 @@ export default function Storefront() {
                             disabled={stock.outOfStock}
                             className="min-h-11 rounded-full border border-white/30 px-5 py-2 text-[11px] uppercase tracking-[0.24em] text-white/85 disabled:opacity-50"
                           >
-                            Add to cart
+                            {`${CART_ICON} Add to cart`}
                           </button>
                           <button
                             type="button"
                             onClick={() => toggleWishlist(activeProduct.id)}
                             className="min-h-11 rounded-full border border-gold/45 px-5 py-2 text-[11px] uppercase tracking-[0.24em] text-gold"
                           >
-                            {wishlist.includes(activeProduct.id) ? "Wishlisted" : "Wishlist"}
+                            {wishlist.includes(activeProduct.id) ? `${HEART_FILLED} Wishlisted` : `${HEART_OUTLINE} Wishlist`}
                           </button>
                         </div>
                       </div>

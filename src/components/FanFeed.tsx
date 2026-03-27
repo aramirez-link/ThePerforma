@@ -632,6 +632,11 @@ export default function FanFeed() {
     return posts;
   }, [mobileFeedMode, posts]);
 
+  const composerHasMedia = useMemo(
+    () => Boolean(postPhotoFile || postMediaUrl.trim()),
+    [postPhotoFile, postMediaUrl]
+  );
+
   const canPublish = useMemo(() => {
     if (isRunBunMode) {
       return Boolean(postPhotoFile || postMediaUrl.trim());
@@ -855,7 +860,9 @@ export default function FanFeed() {
     if (!viewer || post.userId !== viewer.id) return;
 
     const currentText = post.cleanBody || "";
-    const nextText = window.prompt("Edit your post text:", currentText);
+    const textPrompt =
+      post.postType === "media" ? "Edit your photo/video caption or context:" : "Edit your post text:";
+    const nextText = window.prompt(textPrompt, currentText);
     if (nextText === null) return;
 
     const currentMedia = post.mediaUrl || "";
@@ -1200,23 +1207,36 @@ export default function FanFeed() {
               </>
             ) : (
               <>
-                <textarea ref={composerRef} value={postBody} onChange={(event) => setPostBody(event.target.value)} rows={3} placeholder="What is the energy tonight?" className="w-full rounded-2xl border border-white/20 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-white/40" />
+                <label className="grid gap-2">
+                  <span className="text-[11px] uppercase tracking-[0.2em] text-white/55">
+                    {composerHasMedia ? "Caption / Context" : "Post Text"}
+                  </span>
+                  <textarea
+                    ref={composerRef}
+                    value={postBody}
+                    onChange={(event) => setPostBody(event.target.value)}
+                    rows={3}
+                    placeholder={composerHasMedia ? "Add a caption or context for this photo/video post" : "What is the energy tonight?"}
+                    className="w-full rounded-2xl border border-white/20 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-white/40"
+                  />
+                </label>
                 <input value={postMediaUrl} onChange={(event) => setPostMediaUrl(event.target.value)} placeholder="Optional video/link URL (YouTube, Vimeo, etc.)" className="min-h-11 rounded-2xl border border-white/20 bg-black/40 px-4 py-3 text-sm text-white placeholder:text-white/40" />
                 <div className="rounded-2xl border border-white/20 bg-black/35 px-4 py-3">
                   <p className="text-[11px] uppercase tracking-[0.2em] text-white/55">Photo Upload</p>
                   <input type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" onChange={(event) => setPostPhotoFile(event.target.files?.[0] || null)} className="mt-2 block w-full text-xs text-white/75 file:mr-4 file:min-h-10 file:rounded-full file:border file:border-white/25 file:bg-black/40 file:px-4 file:py-2 file:text-[10px] file:uppercase file:tracking-[0.22em] file:text-white/85" />
                   {postPhotoFile && <p className="mt-2 text-[11px] text-white/55">Selected: {postPhotoFile.name} ({(postPhotoFile.size / (1024 * 1024)).toFixed(2)} MB)</p>}
+                  <p className="mt-2 text-[11px] text-white/45">Add caption/context above and it will publish with the media post.</p>
                 </div>
               </>
             )}
             <div className="hidden items-center justify-between gap-3 sm:flex">
               <p className="text-xs text-white/45">
-                {isRunBunMode ? "Run It / Bun It is image-only and tracks swipe vote totals." : isPollMode ? "Crowd Beacon polls support text options and optional image URLs." : "Upload photos directly. Videos are URL link based."}
+                {isRunBunMode ? "Run It / Bun It is image-only and tracks swipe vote totals." : isPollMode ? "Crowd Beacon polls support text options and optional image URLs." : "Upload photos directly. Videos are URL link based. Add a caption above to give the post context."}
               </p>
               <button type="button" onClick={submitPost} disabled={busy} className="min-h-11 rounded-full bg-ember px-5 py-2 text-xs uppercase tracking-[0.28em] text-ink disabled:opacity-50">{busy ? "Posting..." : "Publish"}</button>
             </div>
             <p className="text-xs text-white/45 sm:hidden">
-              {isRunBunMode ? "Run It / Bun It is image-only and tracks swipe vote totals." : isPollMode ? "Crowd Beacon polls support text options and optional image URLs." : "Upload photos directly. Videos are URL link based."}
+              {isRunBunMode ? "Run It / Bun It is image-only and tracks swipe vote totals." : isPollMode ? "Crowd Beacon polls support text options and optional image URLs." : "Upload photos directly. Videos are URL link based. Add a caption above to give the post context."}
             </p>
             {notice && (
               <p className="text-xs text-gold" role="status" aria-live="polite">
@@ -1292,8 +1312,19 @@ export default function FanFeed() {
                 </div>
               </div>
 
-              {post.cleanBody && post.postType !== "media" && (
-                <p className="mt-4 whitespace-pre-wrap text-sm text-white/85">{post.cleanBody}</p>
+              {post.cleanBody && (
+                <div
+                  className={`mt-4 ${post.postType === "media" ? "rounded-2xl border border-white/12 bg-black/28 px-4 py-3" : ""} ${
+                    isImmersiveMediaPost ? "hidden sm:block" : ""
+                  }`}
+                >
+                  {post.postType === "media" && (
+                    <p className="mb-2 text-[10px] uppercase tracking-[0.2em] text-gold/75">Caption / Context</p>
+                  )}
+                  <p className={`whitespace-pre-wrap text-sm ${post.postType === "media" ? "leading-6 text-white/90" : "text-white/85"}`}>
+                    {post.cleanBody}
+                  </p>
+                </div>
               )}
 
               {post.postType === "blueprint" && post.blueprint && (
@@ -1661,10 +1692,6 @@ export default function FanFeed() {
                   Share
                 </button>
               </div>
-
-              {post.cleanBody && post.postType === "media" && !isImmersiveMediaPost && (
-                <p className="mt-4 whitespace-pre-wrap text-sm text-white/90">{post.cleanBody}</p>
-              )}
 
               <div className="mt-4 hidden grid-cols-3 gap-2 text-[11px] uppercase tracking-[0.19em] sm:flex sm:flex-wrap sm:items-center sm:text-xs sm:tracking-[0.22em]">
                 <button type="button" onClick={() => onLike(post.id)} className={`min-h-11 rounded-full border px-4 py-2 transition ${post.viewerHasLiked ? "border-gold/60 text-gold" : "border-white/20 text-white/70 hover:border-white/45 hover:text-white"}`}>Like {post.likeCount}</button>

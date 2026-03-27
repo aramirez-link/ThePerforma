@@ -356,14 +356,24 @@ export const loadStorefrontProducts = async (): Promise<Result<StorefrontProduct
   if (!products.length) return { ok: true, data: [] };
 
   const ids = products.map((item) => item.id);
+  const viewer = await getCurrentUser();
 
-  const [{ data: variantRows }, { data: reviewRows }] = await Promise.all([
+  const [{ data: variantRows }, { data: approvedReviewRows }, viewerReviewResult] = await Promise.all([
     supabase.from("store_product_variants").select("*").in("product_id", ids).eq("is_active", true).order("created_at", { ascending: true }),
-    supabase.from("store_reviews").select("*").in("product_id", ids).eq("status", "approved").order("created_at", { ascending: false })
+    supabase.from("store_reviews").select("*").in("product_id", ids).eq("status", "approved").order("created_at", { ascending: false }),
+    viewer
+      ? supabase.from("store_reviews").select("*").in("product_id", ids).eq("user_id", viewer.id).order("created_at", { ascending: false })
+      : Promise.resolve({ data: [], error: null })
   ]);
 
   const variants = (variantRows || []).map(mapVariant);
-  const reviews = (reviewRows || []).map(mapReview);
+  const viewerReviewRows = viewerReviewResult?.error ? [] : viewerReviewResult?.data || [];
+  const mergedReviews = new Map<number, StoreReview>();
+  [...(approvedReviewRows || []), ...viewerReviewRows].forEach((row: any) => {
+    const review = mapReview(row);
+    mergedReviews.set(review.id, review);
+  });
+  const reviews = Array.from(mergedReviews.values()).sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
 
   const groupedVariants = new Map<string, StoreVariant[]>();
   variants.forEach((variant) => {
@@ -460,12 +470,46 @@ export const submitReview = async (args: {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "Please log in to submit a review." };
 
+  const cleanTitle = args.title.trim();
+  const cleanBody = args.body.trim();
+  if (!cleanTitle || !cleanBody) {
+    return { ok: false, error: "Write a title and review body." };
+  }
+
+  const normalizedRating = Math.min(5, Math.max(1, Math.round(args.rating)));
+  const { data: existingRows, error: existingError } = await supabase
+    .from("store_reviews")
+    .select("id")
+    .eq("product_id", args.productId)
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (existingError) return { ok: false, error: existingError.message };
+
+  const existingId = Number(existingRows?.[0]?.id || 0);
+  if (existingId > 0) {
+    const { error } = await supabase
+      .from("store_reviews")
+      .update({
+        rating: normalizedRating,
+        title: cleanTitle,
+        body: cleanBody,
+        status: "pending"
+      })
+      .eq("id", existingId)
+      .eq("user_id", user.id);
+
+    if (error) return { ok: false, error: error.message };
+    return { ok: true, data: { submitted: true } };
+  }
+
   const { error } = await supabase.from("store_reviews").insert({
     product_id: args.productId,
     user_id: user.id,
-    rating: Math.min(5, Math.max(1, Math.round(args.rating))),
-    title: args.title.trim(),
-    body: args.body.trim(),
+    rating: normalizedRating,
+    title: cleanTitle,
+    body: cleanBody,
     status: "pending"
   });
   if (error) return { ok: false, error: error.message };
