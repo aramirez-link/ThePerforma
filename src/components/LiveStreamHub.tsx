@@ -4,7 +4,7 @@ import { getBrowserSupabaseClient } from "../lib/supabaseBrowser";
 import { isStoreAdmin } from "../lib/storefront";
 import OperatorLiveConsole from "./OperatorLiveConsole";
 import LiveCompanion from "./LiveCompanion";
-import { getPublicLiveStatus, type PublicLiveStatus } from "../lib/performaLive";
+import { getPublicLiveStatus, type PublicLiveStatus, upsertLiveSessionPresence } from "../lib/performaLive";
 
 type Platform = "youtube" | "instagram" | "facebook" | "twitch" | "multi";
 
@@ -41,6 +41,14 @@ const LIVE_ALERTS_ID = "live-alerts";
 const formatIcsDate = (value: Date) => value.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
 
 const escapeIcsText = (value: string) => value.replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/,/g, "\\,").replace(/;/g, "\\;");
+
+const getLiveDeviceKind = (): "web" | "mobile_web" | "tablet_web" => {
+  if (typeof window === "undefined") return "web";
+  const width = window.innerWidth || 0;
+  if (width && width < 768) return "mobile_web";
+  if (width && width < 1100) return "tablet_web";
+  return "web";
+};
 
 const readLocalPreference = (userId: string): LiveAlertPreference => {
   try {
@@ -154,6 +162,28 @@ export default function LiveStreamHub() {
     const timer = window.setInterval(() => void load(), 15000);
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (!user?.id || !publicLive?.sessionId) return;
+
+    const trackPresence = async () => {
+      await upsertLiveSessionPresence({
+        sessionId: publicLive.sessionId,
+        displayName: user.name,
+        userEmail: user.email,
+        avatarUrl: user.avatarUrl || null,
+        lastPath:
+          typeof window !== "undefined"
+            ? `${window.location.pathname}${window.location.search}`
+            : "/watch",
+        deviceKind: getLiveDeviceKind()
+      });
+    };
+
+    void trackPresence();
+    const timer = window.setInterval(() => void trackPresence(), 25_000);
+    return () => window.clearInterval(timer);
+  }, [publicLive?.sessionId, user?.avatarUrl, user?.email, user?.id, user?.name]);
 
   const canSaveCloud = useMemo(() => isCloudVaultEnabled && !!user, [user]);
   const emailReminderActive = Boolean(prefs.enabled && prefs.emailAlerts);

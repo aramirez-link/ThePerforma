@@ -61,6 +61,18 @@ export type PublicLiveStatus = {
   scheduledFor: string | null;
 };
 
+export type LiveSessionPresence = {
+  session_id: string;
+  user_id: string;
+  display_name: string;
+  user_email: string;
+  avatar_url: string | null;
+  joined_at: string;
+  last_seen_at: string;
+  last_path: string | null;
+  device_kind: "web" | "mobile_web" | "tablet_web";
+};
+
 type Result<T> = { ok: true; data: T } | { ok: false; error: string };
 
 const supabaseUrl = String(import.meta.env.PUBLIC_SUPABASE_URL || "").trim();
@@ -296,4 +308,54 @@ export const getPublicLiveStatus = async (): Promise<Result<PublicLiveStatus | n
   const response = await callLivePublicFunction<{ session: PublicLiveStatus | null }>("public.status", {});
   if (!response.ok) return response;
   return { ok: true, data: response.data.session || null };
+};
+
+export const loadAdminLivePresence = async (sessionId?: string | null): Promise<Result<LiveSessionPresence[]>> => {
+  const client = getLiveSupabaseBrowser();
+  const user = await getLiveUser();
+  if (!client || !user) return { ok: true, data: [] };
+
+  let query = client.from("live_session_presence").select("*").order("last_seen_at", { ascending: false });
+  const cleanSessionId = String(sessionId || "").trim();
+  if (cleanSessionId) {
+    query = query.eq("session_id", cleanSessionId);
+  }
+
+  const { data, error } = await query;
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, data: (data || []) as LiveSessionPresence[] };
+};
+
+export const upsertLiveSessionPresence = async (input: {
+  sessionId: string;
+  displayName: string;
+  userEmail: string;
+  avatarUrl?: string | null;
+  lastPath?: string | null;
+  deviceKind?: LiveSessionPresence["device_kind"];
+}): Promise<Result<{ tracked: true }>> => {
+  const client = getLiveSupabaseBrowser();
+  const user = await getLiveUser();
+  if (!client || !user) return { ok: false, error: "Please sign in first." };
+
+  const sessionId = String(input.sessionId || "").trim();
+  if (!sessionId) return { ok: false, error: "Session id is required." };
+
+  const now = new Date().toISOString();
+  const { error } = await client.from("live_session_presence").upsert(
+    {
+      session_id: sessionId,
+      user_id: user.id,
+      display_name: String(input.displayName || "").trim() || "Fan",
+      user_email: String(input.userEmail || "").trim().toLowerCase(),
+      avatar_url: input.avatarUrl || null,
+      last_seen_at: now,
+      last_path: String(input.lastPath || "").trim() || null,
+      device_kind: input.deviceKind || "web"
+    },
+    { onConflict: "session_id,user_id" }
+  );
+
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, data: { tracked: true } };
 };

@@ -233,9 +233,24 @@ create table if not exists public.audit_log (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.live_session_presence (
+  session_id uuid not null references public.live_sessions(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  display_name text not null default 'Fan',
+  user_email text not null default '',
+  avatar_url text,
+  joined_at timestamptz not null default now(),
+  last_seen_at timestamptz not null default now(),
+  last_path text,
+  device_kind text not null default 'web' check (device_kind in ('web', 'mobile_web', 'tablet_web')),
+  primary key (session_id, user_id)
+);
+
 create index if not exists idx_live_sessions_creator_created on public.live_sessions(creator_id, created_at desc);
 create index if not exists idx_live_sessions_status_created on public.live_sessions(status, created_at desc);
 create index if not exists idx_live_sessions_status_scheduled_for on public.live_sessions(status, scheduled_for asc, created_at desc);
+create index if not exists idx_live_session_presence_session_seen on public.live_session_presence(session_id, last_seen_at desc);
+create index if not exists idx_live_session_presence_user_seen on public.live_session_presence(user_id, last_seen_at desc);
 
 create table if not exists public.booking_concierge_sessions (
   id bigserial primary key,
@@ -326,6 +341,7 @@ alter table public.live_sessions enable row level security;
 alter table public.live_destinations enable row level security;
 alter table public.secret_store enable row level security;
 alter table public.audit_log enable row level security;
+alter table public.live_session_presence enable row level security;
 
 drop policy if exists "live_sessions_select_own" on public.live_sessions;
 drop policy if exists "live_sessions_insert_own" on public.live_sessions;
@@ -895,6 +911,99 @@ as $$
 $$;
 
 grant execute on function public.is_store_admin() to authenticated;
+
+drop policy if exists "live_session_presence_select_own_or_admin" on public.live_session_presence;
+drop policy if exists "live_session_presence_insert_own" on public.live_session_presence;
+drop policy if exists "live_session_presence_update_own" on public.live_session_presence;
+drop policy if exists "live_session_presence_delete_own_or_admin" on public.live_session_presence;
+
+create policy "live_session_presence_select_own_or_admin"
+on public.live_session_presence for select
+using (auth.uid() = user_id or public.is_store_admin());
+
+create policy "live_session_presence_insert_own"
+on public.live_session_presence for insert
+with check (
+  auth.role() = 'authenticated'
+  and auth.uid() = user_id
+);
+
+create policy "live_session_presence_update_own"
+on public.live_session_presence for update
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
+create policy "live_session_presence_delete_own_or_admin"
+on public.live_session_presence for delete
+using (auth.uid() = user_id or public.is_store_admin());
+
+grant select, insert, update, delete on public.live_session_presence to authenticated;
+
+create or replace function public.can_access_feed_post(target_post_id bigint)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public, auth
+as $$
+  select exists (
+    select 1
+    from public.fan_feed_posts p
+    where p.id = target_post_id
+      and (
+        p.moderation_status = 'approved'
+        or p.user_id = auth.uid()
+        or public.is_store_admin()
+      )
+  );
+$$;
+
+create or replace function public.can_manage_feed_post(target_post_id bigint)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public, auth
+as $$
+  select exists (
+    select 1
+    from public.fan_feed_posts p
+    where p.id = target_post_id
+      and (
+        p.user_id = auth.uid()
+        or public.is_store_admin()
+      )
+  );
+$$;
+
+create or replace function public.can_vote_on_feed_poll(target_post_id bigint, target_option_id bigint)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public, auth
+as $$
+  select exists (
+    select 1
+    from public.fan_feed_polls pl
+    join public.fan_feed_poll_options o
+      on o.poll_post_id = pl.post_id
+     and o.id = target_option_id
+    join public.fan_feed_posts p
+      on p.id = pl.post_id
+    where pl.post_id = target_post_id
+      and (pl.expires_at is null or pl.expires_at > now())
+      and (
+        p.moderation_status = 'approved'
+        or p.user_id = auth.uid()
+        or public.is_store_admin()
+      )
+  );
+$$;
+
+grant execute on function public.can_access_feed_post(bigint) to authenticated;
+grant execute on function public.can_manage_feed_post(bigint) to authenticated;
+grant execute on function public.can_vote_on_feed_poll(bigint, bigint) to authenticated;
 
 create or replace function public.get_fan_identity_profiles(profile_ids uuid[])
 returns table (
@@ -2038,58 +2147,21 @@ create policy "fan_feed_polls_select_authenticated"
 on public.fan_feed_polls for select
 using (
   auth.role() = 'authenticated'
-  and exists (
-    select 1
-    from public.fan_feed_posts p
-    where p.id = post_id
-      and (
-        p.moderation_status = 'approved'
-        or p.user_id = auth.uid()
-        or public.is_store_admin()
-      )
-  )
+  and public.can_access_feed_post(post_id)
 );
 
 create policy "fan_feed_polls_insert_own"
 on public.fan_feed_polls for insert
-with check (
-  exists (
-    select 1
-    from public.fan_feed_posts p
-    where p.id = post_id
-      and p.user_id = auth.uid()
-  )
-);
+with check (public.can_manage_feed_post(post_id));
 
 create policy "fan_feed_polls_update_own"
 on public.fan_feed_polls for update
-using (
-  exists (
-    select 1
-    from public.fan_feed_posts p
-    where p.id = post_id
-      and p.user_id = auth.uid()
-  )
-)
-with check (
-  exists (
-    select 1
-    from public.fan_feed_posts p
-    where p.id = post_id
-      and p.user_id = auth.uid()
-  )
-);
+using (public.can_manage_feed_post(post_id))
+with check (public.can_manage_feed_post(post_id));
 
 create policy "fan_feed_polls_delete_own"
 on public.fan_feed_polls for delete
-using (
-  exists (
-    select 1
-    from public.fan_feed_posts p
-    where p.id = post_id
-      and p.user_id = auth.uid()
-  )
-);
+using (public.can_manage_feed_post(post_id));
 
 create policy "fan_feed_polls_moderate_admin"
 on public.fan_feed_polls for all
@@ -2106,58 +2178,21 @@ create policy "fan_feed_poll_options_select_authenticated"
 on public.fan_feed_poll_options for select
 using (
   auth.role() = 'authenticated'
-  and exists (
-    select 1
-    from public.fan_feed_posts p
-    where p.id = poll_post_id
-      and (
-        p.moderation_status = 'approved'
-        or p.user_id = auth.uid()
-        or public.is_store_admin()
-      )
-  )
+  and public.can_access_feed_post(poll_post_id)
 );
 
 create policy "fan_feed_poll_options_insert_own"
 on public.fan_feed_poll_options for insert
-with check (
-  exists (
-    select 1
-    from public.fan_feed_posts p
-    where p.id = poll_post_id
-      and p.user_id = auth.uid()
-  )
-);
+with check (public.can_manage_feed_post(poll_post_id));
 
 create policy "fan_feed_poll_options_update_own"
 on public.fan_feed_poll_options for update
-using (
-  exists (
-    select 1
-    from public.fan_feed_posts p
-    where p.id = poll_post_id
-      and p.user_id = auth.uid()
-  )
-)
-with check (
-  exists (
-    select 1
-    from public.fan_feed_posts p
-    where p.id = poll_post_id
-      and p.user_id = auth.uid()
-  )
-);
+using (public.can_manage_feed_post(poll_post_id))
+with check (public.can_manage_feed_post(poll_post_id));
 
 create policy "fan_feed_poll_options_delete_own"
 on public.fan_feed_poll_options for delete
-using (
-  exists (
-    select 1
-    from public.fan_feed_posts p
-    where p.id = poll_post_id
-      and p.user_id = auth.uid()
-  )
-);
+using (public.can_manage_feed_post(poll_post_id));
 
 create policy "fan_feed_poll_options_moderate_admin"
 on public.fan_feed_poll_options for all
@@ -2172,34 +2207,14 @@ create policy "fan_feed_poll_votes_select_authenticated"
 on public.fan_feed_poll_votes for select
 using (
   auth.role() = 'authenticated'
-  and exists (
-    select 1
-    from public.fan_feed_posts p
-    where p.id = poll_post_id
-      and (
-        p.moderation_status = 'approved'
-        or p.user_id = auth.uid()
-        or public.is_store_admin()
-      )
-  )
+  and public.can_access_feed_post(poll_post_id)
 );
 
 create policy "fan_feed_poll_votes_insert_own"
 on public.fan_feed_poll_votes for insert
 with check (
   auth.uid() = user_id
-  and exists (
-    select 1
-    from public.fan_feed_poll_options o
-    where o.id = option_id
-      and o.poll_post_id = poll_post_id
-  )
-  and exists (
-    select 1
-    from public.fan_feed_polls pl
-    where pl.post_id = poll_post_id
-      and (pl.expires_at is null or pl.expires_at > now())
-  )
+  and public.can_vote_on_feed_poll(poll_post_id, option_id)
 );
 
 create policy "fan_feed_poll_votes_delete_own_or_admin"
@@ -2296,6 +2311,15 @@ begin
     from pg_publication
     where pubname = 'supabase_realtime'
   ) then
+    if not exists (
+      select 1
+      from pg_publication_tables
+      where pubname = 'supabase_realtime'
+        and schemaname = 'public'
+        and tablename = 'live_session_presence'
+    ) then
+      alter publication supabase_realtime add table public.live_session_presence;
+    end if;
     if not exists (
       select 1
       from pg_publication_tables

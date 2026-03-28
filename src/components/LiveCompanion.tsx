@@ -36,7 +36,7 @@ type Props = {
 };
 
 type RailFilter = "all" | "chat" | "prompts" | "polls";
-type ComposerMode = "live_chat" | "host_prompt" | "announcement" | "poll";
+type ComposerMode = "live_chat" | "poll";
 
 const reactionDefs: Array<{ type: LiveSessionReactionType; label: string }> = [
   { type: "fire", label: "Fire" },
@@ -113,7 +113,7 @@ const kindLabel = (post: FanFeedPost) => {
 const filterForComposerMode = (mode: ComposerMode): RailFilter => {
   if (mode === "live_chat") return "chat";
   if (mode === "poll") return "polls";
-  return "prompts";
+  return "chat";
 };
 
 const isCompactChatBubble = (post: FanFeedPost) => post.postKind === "live_chat" && !post.poll && !post.mediaUrl;
@@ -318,7 +318,7 @@ export default function LiveCompanion({ session, user, canModerate, fallbackEmbe
       </div>
 
       <p className="mt-3 text-sm text-white/68">
-        Publish chats, prompts, notices, and polls from the left side. The session chat stays isolated in its own scrollable window on the right.
+        Publish chats and polls from the left side. The session chat stays isolated in its own scrollable window on the right.
       </p>
 
       {error && <p className="mt-4 rounded-2xl border border-rose-400/35 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">{error}</p>}
@@ -347,12 +347,12 @@ export default function LiveCompanion({ session, user, canModerate, fallbackEmbe
             <div>
               <p className="text-[10px] uppercase tracking-[0.24em] text-white/55">Composer</p>
               <p className="mt-1 text-[11px] text-white/45">
-                {canModerate ? "Chats, prompts, announcements, and polls publish into the right-side feed." : "Messages publish into the right-side chat feed."}
+                {canModerate ? "Chats and polls publish into the right-side feed." : "Messages publish into the right-side chat feed."}
               </p>
             </div>
             {canModerate && (
               <div className="flex flex-wrap gap-2">
-                {(["live_chat", "host_prompt", "announcement", "poll"] as ComposerMode[]).map((mode) => (
+                {(["live_chat", "poll"] as ComposerMode[]).map((mode) => (
                   <button
                     key={mode}
                     type="button"
@@ -361,7 +361,7 @@ export default function LiveCompanion({ session, user, canModerate, fallbackEmbe
                       composerMode === mode ? "border-gold/60 text-gold" : "border-white/15 text-white/60"
                     }`}
                   >
-                    {mode === "live_chat" ? "Chat" : mode === "host_prompt" ? "Prompt" : mode === "announcement" ? "Notice" : "Poll"}
+                    {mode === "live_chat" ? "Chat" : "Poll"}
                   </button>
                 ))}
               </div>
@@ -394,7 +394,7 @@ export default function LiveCompanion({ session, user, canModerate, fallbackEmbe
             </div>
 
             <label className="block text-[11px] uppercase tracking-[0.2em] text-white/50">
-              {composerMode === "live_chat" ? "Message" : composerMode === "poll" ? "Optional intro" : "On-air copy"}
+              {composerMode === "live_chat" ? "Message" : "Optional intro"}
               <textarea
                 value={body}
                 onChange={(event) => setBody(event.target.value)}
@@ -402,10 +402,6 @@ export default function LiveCompanion({ session, user, canModerate, fallbackEmbe
                 placeholder={
                   composerMode === "live_chat"
                     ? "Jump into the room..."
-                    : composerMode === "host_prompt"
-                    ? "Ask the room a direct question..."
-                    : composerMode === "announcement"
-                    ? "Drop a host notice or stage cue..."
                     : "Optional context for the poll..."
                 }
                 className="mt-2 min-h-[140px] w-full rounded-2xl border border-white/15 bg-black/40 px-4 py-3 text-sm text-white/88 placeholder:text-white/30"

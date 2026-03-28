@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
+import { createFeedPost } from "../lib/fanVault";
 import {
   adminForceDeleteLiveSession,
   adminForceEndLiveSession,
   deleteLiveSession,
   endLiveSession,
+  loadAdminLivePresence,
   loadAdminLiveSessions,
-  type LiveSession
+  type LiveSession,
+  type LiveSessionPresence
 } from "../lib/performaLive";
 import {
   getCurrentUser,
@@ -18,12 +21,29 @@ import {
 import PerformaLiveConsole from "./PerformaLiveConsole";
 
 const ADMIN_NAV_KEY = "the-performa-admin-nav";
+const ACTIVE_VIEWER_WINDOW_MS = 90_000;
 
 const statusTone: Record<string, string> = {
   LIVE: "border-emerald-400/45 bg-emerald-500/10 text-emerald-300",
   READY: "border-gold/45 bg-gold/10 text-gold",
   DRAFT: "border-white/20 bg-white/5 text-white/70",
   ENDED: "border-white/15 bg-black/30 text-white/55"
+};
+
+const statusRank: Record<string, number> = {
+  LIVE: 0,
+  READY: 1,
+  DRAFT: 2,
+  ENDED: 3
+};
+
+const emptyPresenceStats = {
+  trackedCount: 0,
+  activeCount: 0,
+  mobileCount: 0,
+  tabletCount: 0,
+  desktopCount: 0,
+  lastSeenAt: null as string | null
 };
 
 const formatDateTime = (value: string | null) => {
@@ -60,11 +80,36 @@ const getHeartbeatTone = (value: string | null) => {
   return "text-rose-300";
 };
 
-const statusRank: Record<string, number> = {
-  LIVE: 0,
-  READY: 1,
-  DRAFT: 2,
-  ENDED: 3
+const isPresenceActive = (presence: LiveSessionPresence) => {
+  const ageMs = Date.now() - new Date(presence.last_seen_at).getTime();
+  return Number.isFinite(ageMs) && ageMs >= 0 && ageMs <= ACTIVE_VIEWER_WINDOW_MS;
+};
+
+const formatPresenceAge = (value: string | null) => {
+  if (!value) return "never";
+  const ageMs = Date.now() - new Date(value).getTime();
+  if (!Number.isFinite(ageMs) || ageMs < 0) return "just now";
+
+  const seconds = Math.round(ageMs / 1000);
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  return `${days}d ago`;
+};
+
+const getViewerInitials = (value: string) => {
+  const tokens = String(value || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (!tokens.length) return "FV";
+  return tokens
+    .slice(0, 2)
+    .map((token) => token[0]?.toUpperCase() || "")
+    .join("");
 };
 
 export default function AdminLiveConsole() {
@@ -75,20 +120,29 @@ export default function AdminLiveConsole() {
   const [userEmail, setUserEmail] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
   const [sessions, setSessions] = useState<LiveSession[]>([]);
+  const [presence, setPresence] = useState<LiveSessionPresence[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | LiveSession["status"]>("all");
   const [query, setQuery] = useState("");
   const [actionSessionId, setActionSessionId] = useState("");
   const [actionKind, setActionKind] = useState<"" | "ending" | "deleting">("");
+  const [messageTarget, setMessageTarget] = useState<LiveSessionPresence | null>(null);
+  const [messageBody, setMessageBody] = useState("");
+  const [messageSending, setMessageSending] = useState(false);
 
   const refresh = async (preferredSessionId = selectedSessionId) => {
-    const result = await loadAdminLiveSessions();
-    if (!result.ok) {
-      setNotice(result.error);
+    const [sessionsResult, presenceResult] = await Promise.all([loadAdminLiveSessions(), loadAdminLivePresence()]);
+    if (!sessionsResult.ok) {
+      setNotice(sessionsResult.error);
       return;
     }
+    if (!presenceResult.ok) {
+      setNotice(presenceResult.error);
+    } else {
+      setPresence(presenceResult.data);
+    }
 
-    const nextSessions = [...result.data].sort((left, right) => {
+    const nextSessions = [...sessionsResult.data].sort((left, right) => {
       const rankDelta = (statusRank[left.status] ?? 99) - (statusRank[right.status] ?? 99);
       if (rankDelta !== 0) return rankDelta;
       const leftTime = Date.parse(left.scheduled_for || left.started_at || left.created_at || "");
@@ -129,6 +183,12 @@ export default function AdminLiveConsole() {
   }, []);
 
   useEffect(() => {
+    if (!isAdmin) return;
+    const timer = window.setInterval(() => void refresh(), 15_000);
+    return () => window.clearInterval(timer);
+  }, [isAdmin, selectedSessionId]);
+
+  useEffect(() => {
     if (!notice) return;
     const timer = window.setTimeout(() => setNotice(""), 7000);
     return () => window.clearTimeout(timer);
@@ -139,14 +199,7 @@ export default function AdminLiveConsole() {
     return sessions.filter((session) => {
       if (statusFilter !== "all" && session.status !== statusFilter) return false;
       if (!needle) return true;
-      return [
-        session.title,
-        session.status,
-        session.provider,
-        session.ingest_type,
-        session.creator_id,
-        session.id
-      ]
+      return [session.title, session.status, session.provider, session.ingest_type, session.creator_id, session.id]
         .join(" ")
         .toLowerCase()
         .includes(needle);
@@ -161,6 +214,32 @@ export default function AdminLiveConsole() {
   }, [selectedSessionId, visibleSessions]);
 
   const selectedSession = visibleSessions.find((session) => session.id === selectedSessionId) || null;
+  const presenceBySession = useMemo(() => {
+    const next = new Map<string, typeof emptyPresenceStats>();
+
+    for (const row of presence) {
+      const current = next.get(row.session_id) || { ...emptyPresenceStats };
+      current.trackedCount += 1;
+      if (isPresenceActive(row)) current.activeCount += 1;
+      if (row.device_kind === "mobile_web") current.mobileCount += 1;
+      else if (row.device_kind === "tablet_web") current.tabletCount += 1;
+      else current.desktopCount += 1;
+      if (!current.lastSeenAt || new Date(row.last_seen_at).getTime() > new Date(current.lastSeenAt).getTime()) {
+        current.lastSeenAt = row.last_seen_at;
+      }
+      next.set(row.session_id, current);
+    }
+
+    return next;
+  }, [presence]);
+  const selectedPresence = useMemo(
+    () =>
+      presence
+        .filter((entry) => entry.session_id === selectedSessionId)
+        .sort((left, right) => new Date(right.last_seen_at).getTime() - new Date(left.last_seen_at).getTime()),
+    [presence, selectedSessionId]
+  );
+  const selectedPresenceStats = selectedSession ? presenceBySession.get(selectedSession.id) || { ...emptyPresenceStats } : { ...emptyPresenceStats };
 
   const liveCount = sessions.filter((session) => session.status === "LIVE").length;
   const readyCount = sessions.filter((session) => session.status === "READY").length;
@@ -170,6 +249,15 @@ export default function AdminLiveConsole() {
     const ageMs = Date.now() - new Date(session.ingest_last_heartbeat_at).getTime();
     return Number.isFinite(ageMs) && ageMs > 300_000 && session.status !== "ENDED";
   }).length;
+  const activeViewerCount = presence.filter(isPresenceActive).length;
+  const observedViewerCount = new Set(presence.map((entry) => entry.user_id)).size;
+
+  useEffect(() => {
+    if (messageTarget && messageTarget.session_id !== selectedSessionId) {
+      setMessageTarget(null);
+      setMessageBody("");
+    }
+  }, [messageTarget, selectedSessionId]);
 
   const runEndSession = async (session: LiveSession) => {
     setActionSessionId(session.id);
@@ -241,6 +329,44 @@ export default function AdminLiveConsole() {
     } finally {
       setActionSessionId("");
       setActionKind("");
+    }
+  };
+
+  const runSendViewerMessage = async () => {
+    if (!selectedSession) {
+      setNotice("Select a session before sending a chat note.");
+      return;
+    }
+    if (selectedSession.status === "ENDED") {
+      setNotice("This session has ended. Select an active or ready session to message viewers.");
+      return;
+    }
+    if (!messageTarget) {
+      setNotice("Choose a viewer from the observability list first.");
+      return;
+    }
+
+    const cleanMessage = messageBody.trim();
+    if (!cleanMessage) {
+      setNotice("Write a short message before sending.");
+      return;
+    }
+
+    setMessageSending(true);
+    try {
+      const result = await createFeedPost({
+        body: `Host note for @${messageTarget.display_name}: ${cleanMessage}`,
+        liveSessionId: selectedSession.id,
+        postKind: "announcement"
+      });
+      if (!result.ok) {
+        setNotice(result.error);
+        return;
+      }
+      setNotice(`Sent a host message for ${messageTarget.display_name} into the session chat.`);
+      setMessageBody("");
+    } finally {
+      setMessageSending(false);
     }
   };
 
@@ -329,8 +455,7 @@ export default function AdminLiveConsole() {
               <p className="text-xs uppercase tracking-[0.3em] text-gold/80">Live Admin</p>
               <h1 className="mt-2 font-display text-4xl">Stream Session Console</h1>
               <p className="mt-2 max-w-3xl text-sm text-white/65">
-                Monitor every active, queued, and historical stream session, then jump into the full session console to manage ingest,
-                schedule, destinations, and playback health.
+                Monitor every active, queued, and historical stream session, see signed-in viewer presence across those sessions, and push host notes directly into the live chat feed.
               </p>
               <p className="mt-3 text-xs text-white/50">{userEmail}</p>
             </div>
@@ -362,6 +487,13 @@ export default function AdminLiveConsole() {
             <SummaryCard label="Total Sessions" value={String(sessions.length)} detail="Historical + active inventory." />
             <SummaryCard label="Live Now" value={String(liveCount)} detail="Sessions currently on air." tone="live" />
             <SummaryCard label="Ready Queue" value={String(readyCount)} detail="Prepared sessions awaiting go-live." tone="ready" />
+            <SummaryCard
+              label="Active Viewers"
+              value={String(activeViewerCount)}
+              detail="Signed-in viewers active in the last 90 seconds."
+              tone={activeViewerCount ? "live" : "default"}
+            />
+            <SummaryCard label="Observed Profiles" value={String(observedViewerCount)} detail="Unique signed-in viewers tracked across sessions." />
             <SummaryCard label="Historical" value={String(endedCount)} detail="Sessions already completed." />
             <SummaryCard label="Stale Signals" value={String(staleCount)} detail="Heartbeat older than five minutes." tone={staleCount ? "stale" : "default"} />
           </div>
@@ -396,6 +528,8 @@ export default function AdminLiveConsole() {
                 const isSelected = session.id === selectedSession?.id;
                 const timeline = getTimelineLabel(session);
                 const isWorking = actionSessionId === session.id;
+                const sessionPresence = presenceBySession.get(session.id) || { ...emptyPresenceStats };
+
                 return (
                   <article
                     key={session.id}
@@ -420,8 +554,13 @@ export default function AdminLiveConsole() {
                         <p className={getHeartbeatTone(session.ingest_last_heartbeat_at)}>
                           Heartbeat: {formatDateTime(session.ingest_last_heartbeat_at)}
                         </p>
+                        <p>Viewers: {sessionPresence.activeCount} active · {sessionPresence.trackedCount} tracked</p>
+                        <p>Mobile: {sessionPresence.mobileCount} · Desktop: {sessionPresence.desktopCount + sessionPresence.tabletCount}</p>
                       </div>
                       <p className="mt-3 text-sm text-white/75">{timeline}</p>
+                      {sessionPresence.lastSeenAt ? (
+                        <p className="mt-2 text-xs text-white/45">Observed last viewer {formatPresenceAge(sessionPresence.lastSeenAt)}</p>
+                      ) : null}
                     </button>
                     <div className="mt-4 flex flex-wrap gap-2 border-t border-white/10 pt-4">
                       <button
@@ -464,20 +603,161 @@ export default function AdminLiveConsole() {
       {selectedSession ? (
         <>
           <section className="mx-auto w-full max-w-6xl px-4 sm:px-6">
-            <div className="rounded-2xl border border-white/12 bg-black/35 p-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-[10px] uppercase tracking-[0.22em] text-white/55">Selected Session</p>
-                  <p className="mt-1 text-sm text-white/80">
-                    {selectedSession.title} · {compactId(selectedSession.id)}
-                  </p>
+            <div className="grid gap-4 xl:grid-cols-[0.7fr_1.3fr]">
+              <div className="rounded-2xl border border-white/12 bg-black/35 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.22em] text-white/55">Selected Session</p>
+                    <p className="mt-1 text-sm text-white/80">
+                      {selectedSession.title} · {compactId(selectedSession.id)}
+                    </p>
+                    <p className="mt-2 text-xs text-white/50">{getTimelineLabel(selectedSession)}</p>
+                  </div>
+                  <a
+                    href={`/live/session?id=${selectedSession.id}`}
+                    className="min-h-10 rounded-full border border-white/25 px-4 py-2 text-[10px] uppercase tracking-[0.2em] text-white/75"
+                  >
+                    Open Standalone Console
+                  </a>
                 </div>
-                <a
-                  href={`/live/session?id=${selectedSession.id}`}
-                  className="min-h-10 rounded-full border border-white/25 px-4 py-2 text-[10px] uppercase tracking-[0.2em] text-white/75"
-                >
-                  Open Standalone Console
-                </a>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <SummaryCard
+                    label="Active Now"
+                    value={String(selectedPresenceStats.activeCount)}
+                    detail="Viewer heartbeat inside 90 seconds."
+                    tone={selectedPresenceStats.activeCount ? "live" : "default"}
+                  />
+                  <SummaryCard
+                    label="Tracked Viewers"
+                    value={String(selectedPresenceStats.trackedCount)}
+                    detail="Signed-in profiles observed in this session."
+                  />
+                  <SummaryCard label="Mobile Web" value={String(selectedPresenceStats.mobileCount)} detail="Tracked mobile footprints on this session." />
+                  <SummaryCard
+                    label="Last Seen"
+                    value={selectedPresenceStats.lastSeenAt ? formatPresenceAge(selectedPresenceStats.lastSeenAt) : "None"}
+                    detail="Most recent viewer heartbeat on this session."
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-white/12 bg-black/35 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.22em] text-gold/80">Live Observability</p>
+                    <h2 className="mt-2 font-display text-2xl">Viewer Presence + Targeted Chat</h2>
+                    <p className="mt-2 max-w-2xl text-sm text-white/65">
+                      This roster tracks signed-in viewers who opened the live stream surface. Pick one and send a visible host note into the session chat feed.
+                    </p>
+                  </div>
+                  <p className="text-xs text-white/45">Auto-refresh every 15s</p>
+                </div>
+
+                <div className="mt-4 rounded-2xl border border-white/12 bg-black/30 p-4">
+                  <p className="text-[10px] uppercase tracking-[0.22em] text-white/55">Targeted Stream Message</p>
+                  <p className="mt-2 text-sm text-white/70">
+                    {messageTarget
+                      ? `Send a host announcement into chat for ${messageTarget.display_name}. Everyone in the session will see it.`
+                      : "Choose a viewer below to target the next host note."}
+                  </p>
+                  <textarea
+                    value={messageBody}
+                    onChange={(event) => setMessageBody(event.target.value)}
+                    placeholder={messageTarget ? `Message for ${messageTarget.display_name}...` : "Select a viewer first..."}
+                    rows={3}
+                    className="mt-3 min-h-24 w-full rounded-2xl border border-white/15 bg-black/45 px-4 py-3 text-sm text-white/85 placeholder:text-white/30"
+                  />
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void runSendViewerMessage()}
+                      disabled={messageSending || !messageTarget || !messageBody.trim() || selectedSession.status === "ENDED"}
+                      className="min-h-10 rounded-full border border-gold/45 bg-gold/10 px-4 py-2 text-[10px] uppercase tracking-[0.2em] text-gold disabled:opacity-45"
+                    >
+                      {messageSending ? "Sending..." : "Send Into Chat"}
+                    </button>
+                    {messageTarget ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMessageTarget(null);
+                          setMessageBody("");
+                        }}
+                        className="min-h-10 rounded-full border border-white/20 px-4 py-2 text-[10px] uppercase tracking-[0.2em] text-white/70"
+                      >
+                        Clear Target
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="mt-4 space-y-3">
+                  {selectedPresence.length ? (
+                    selectedPresence.map((viewer) => {
+                      const activeNow = isPresenceActive(viewer);
+                      const isTargeted = messageTarget?.session_id === viewer.session_id && messageTarget.user_id === viewer.user_id;
+
+                      return (
+                        <article key={`${viewer.session_id}:${viewer.user_id}`} className="rounded-2xl border border-white/12 bg-black/30 p-4">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                              {viewer.avatar_url ? (
+                                <img src={viewer.avatar_url} alt={viewer.display_name} className="h-12 w-12 rounded-full object-cover" />
+                              ) : (
+                                <div className="flex h-12 w-12 items-center justify-center rounded-full border border-white/15 bg-gold/10 text-sm font-semibold text-gold">
+                                  {getViewerInitials(viewer.display_name)}
+                                </div>
+                              )}
+                              <div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <p className="text-sm text-white">{viewer.display_name}</p>
+                                  <span
+                                    className={`rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.18em] ${
+                                      activeNow
+                                        ? "border-emerald-400/35 bg-emerald-500/10 text-emerald-300"
+                                        : "border-white/15 bg-white/5 text-white/55"
+                                    }`}
+                                  >
+                                    {activeNow ? "Active Now" : "Idle"}
+                                  </span>
+                                  {isTargeted ? (
+                                    <span className="rounded-full border border-gold/45 bg-gold/10 px-2 py-1 text-[10px] uppercase tracking-[0.18em] text-gold">
+                                      Targeted
+                                    </span>
+                                  ) : null}
+                                </div>
+                                <p className="mt-1 text-xs text-white/55">{viewer.user_email || compactId(viewer.user_id)}</p>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setMessageTarget(viewer)}
+                              className={`min-h-10 rounded-full border px-4 py-2 text-[10px] uppercase tracking-[0.2em] ${
+                                isTargeted ? "border-gold/45 bg-gold/10 text-gold" : "border-white/20 text-white/70"
+                              }`}
+                            >
+                              {isTargeted ? "Target Selected" : "Message in Chat"}
+                            </button>
+                          </div>
+
+                          <div className="mt-4 grid gap-2 text-xs text-white/60 md:grid-cols-2">
+                            <p>Joined: {formatDateTime(viewer.joined_at)}</p>
+                            <p>
+                              Last seen: {formatDateTime(viewer.last_seen_at)} · {formatPresenceAge(viewer.last_seen_at)}
+                            </p>
+                            <p>Device: {viewer.device_kind.replace(/_/g, " ")}</p>
+                            <p>Path: {viewer.last_path || "/watch"}</p>
+                          </div>
+                        </article>
+                      );
+                    })
+                  ) : (
+                    <div className="rounded-2xl border border-white/12 bg-black/30 p-4 text-sm text-white/60">
+                      No signed-in viewers have been tracked on this session yet.
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </section>
