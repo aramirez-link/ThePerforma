@@ -14,6 +14,12 @@ type Props = {
 const toCloudflareIframe = (playbackId: string, cacheBust: string) =>
   `https://iframe.videodelivery.net/${encodeURIComponent(playbackId)}?autoplay=true&muted=true&dvrEnabled=false&preload=true&cacheBust=${encodeURIComponent(cacheBust)}`;
 
+const toCloudflareHls = (playbackId: string, cacheBust: string) =>
+  `https://videodelivery.net/${encodeURIComponent(playbackId)}/manifest/video.m3u8?cacheBust=${encodeURIComponent(cacheBust)}`;
+
+const toCloudflarePoster = (playbackId: string) =>
+  `https://videodelivery.net/${encodeURIComponent(playbackId)}/thumbnails/thumbnail.jpg?time=1s`;
+
 const heartbeatLabel = (value?: string | null) => {
   if (!value) return "No heartbeat";
   const ageMs = Date.now() - new Date(value).getTime();
@@ -33,15 +39,44 @@ export default function PerformaLivePlayer({
   ingestHeartbeatAt
 }: Props) {
   const [reloadTick, setReloadTick] = useState(0);
+  const [preferNativeMobilePlayback, setPreferNativeMobilePlayback] = useState(false);
 
   useEffect(() => {
     setReloadTick(0);
   }, [playbackId]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const evaluatePlaybackMode = () => {
+      const isMobileViewport = window.matchMedia("(max-width: 767px)").matches;
+      const probe = document.createElement("video");
+      const canPlayHls = Boolean(
+        probe.canPlayType("application/vnd.apple.mpegurl") ||
+        probe.canPlayType("application/x-mpegURL")
+      );
+      setPreferNativeMobilePlayback(isMobileViewport && canPlayHls);
+    };
+
+    evaluatePlaybackMode();
+    window.addEventListener("resize", evaluatePlaybackMode);
+    return () => window.removeEventListener("resize", evaluatePlaybackMode);
+  }, []);
+
   const iframeSrc = useMemo(() => {
     if (!playbackId) return "";
     return toCloudflareIframe(playbackId, `${reloadTick}`);
   }, [playbackId, reloadTick]);
+
+  const nativeHlsSrc = useMemo(() => {
+    if (!playbackId) return "";
+    return toCloudflareHls(playbackId, `${reloadTick}`);
+  }, [playbackId, reloadTick]);
+
+  const posterSrc = useMemo(() => {
+    if (!playbackId) return "";
+    return toCloudflarePoster(playbackId);
+  }, [playbackId]);
 
   if (!playbackId) {
     return (
@@ -67,21 +102,37 @@ export default function PerformaLivePlayer({
             <DonatePill source="live-player" />
           </div>
         </div>
-        <iframe
-          className="h-full w-full"
-          key={`${playbackId}:${reloadTick}`}
-          src={iframeSrc}
-          title={title}
-          loading="eager"
-          allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; web-share"
-          allowFullScreen
-        />
+        {preferNativeMobilePlayback ? (
+          <video
+            key={`${playbackId}:${reloadTick}:native`}
+            className="h-full w-full bg-black"
+            src={nativeHlsSrc}
+            poster={posterSrc}
+            playsInline
+            muted
+            autoPlay
+            controls
+            preload="auto"
+          >
+            Sorry, your browser does not support inline live playback.
+          </video>
+        ) : (
+          <iframe
+            className="h-full w-full"
+            key={`${playbackId}:${reloadTick}:iframe`}
+            src={iframeSrc}
+            title={title}
+            loading="eager"
+            allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowFullScreen
+          />
+        )}
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 p-3">
         <div className="space-y-1">
           <p className="text-xs text-white/65">{title}</p>
           <p className="text-[11px] text-white/50">
-            {latencyMode === "ll-hls" ? "LL-HLS preferred" : "Standard playback"} | {String(ingestType || "rtmp").toUpperCase()} ingest | {heartbeatLabel(ingestHeartbeatAt)}
+            {preferNativeMobilePlayback ? "Mobile native HLS" : latencyMode === "ll-hls" ? "LL-HLS preferred" : "Standard playback"} | {String(ingestType || "rtmp").toUpperCase()} ingest | {heartbeatLabel(ingestHeartbeatAt)}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

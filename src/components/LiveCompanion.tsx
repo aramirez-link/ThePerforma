@@ -838,9 +838,9 @@ export default function LiveCompanion({ session, user, canModerate, fallbackEmbe
 
   return (
     <div className="grid gap-5 xl:grid-cols-[minmax(320px,0.92fr)_minmax(0,1.72fr)_minmax(360px,1.02fr)] xl:items-start">
-      {publishPanel}
-      {playerPanel}
-      {chatPanel}
+      <div className="order-2 xl:order-none">{publishPanel}</div>
+      <div className="order-1 xl:order-none">{playerPanel}</div>
+      <div className="order-3 xl:order-none">{chatPanel}</div>
     </div>
   );
 }
