@@ -96,6 +96,9 @@ export default function StageModePortal({ vaultItems }: Props) {
   }, [mode.profile]);
 
   const onStartExperience = () => {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("performa:play-soundcloud-stream", { detail: { source: "stage-mode" } }));
+    }
     setTransitioning(true);
     window.setTimeout(() => {
       writeStageMode({ active: true, immersive: true });

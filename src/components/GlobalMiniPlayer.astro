@@ -83,12 +83,25 @@ const initialTrack = soundcloudTracks[0] ?? fallbackTrack;
     })();
     let index = Number(root.dataset.index || "0");
 
-    const syncTrack = () => {
+    const buildPlayerUrl = (embedUrl, autoplay = false) => {
+      try {
+        const url = new URL(embedUrl);
+        if (autoplay) url.searchParams.set("auto_play", "true");
+        else url.searchParams.delete("auto_play");
+        return url.toString();
+      } catch {
+        const separator = embedUrl.includes("?") ? "&" : "?";
+        if (autoplay) return `${embedUrl}${separator}auto_play=true`;
+        return embedUrl.replace(/[?&]auto_play=true\b/, "");
+      }
+    };
+
+    const syncTrack = ({ autoplay = false } = {}) => {
       if (!tracks.length) return;
       index = (index + tracks.length) % tracks.length;
       const current = tracks[index];
       root.dataset.index = String(index);
-      iframe.setAttribute("src", current.embedUrl);
+      iframe.setAttribute("src", buildPlayerUrl(current.embedUrl, autoplay));
       title.textContent = current.title || "SoundCloud Track";
     };
 
@@ -125,6 +138,12 @@ const initialTrack = soundcloudTracks[0] ?? fallbackTrack;
       syncTrack();
     };
 
+    const playCurrentTrack = () => {
+      setCollapsed(false);
+      localStorage.setItem(storageKey, "false");
+      syncTrack({ autoplay: true });
+    };
+
     toggle.addEventListener("click", () => {
       const nextCollapsed = root.dataset.collapsed !== "true";
       setCollapsed(nextCollapsed);
@@ -133,5 +152,6 @@ const initialTrack = soundcloudTracks[0] ?? fallbackTrack;
 
     prev.addEventListener("click", playPrev);
     next.addEventListener("click", playNext);
+    window.addEventListener("performa:play-soundcloud-stream", playCurrentTrack);
   })();
 </script>
