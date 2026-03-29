@@ -100,6 +100,18 @@ export type StorefrontProductView = StoreProduct & {
   defaultVariant: StoreVariant | null;
 };
 
+export type StoreWishlistEntry = {
+  productId: string;
+  addedAt: string;
+  slug: string;
+  name: string;
+  productType: StoreProductType;
+  priceCents: number;
+  currency: string;
+  coverImage: string | null;
+  href: string;
+};
+
 export const LOW_STOCK_THRESHOLD = 5;
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string };
@@ -457,6 +469,55 @@ export const loadWishlist = async (): Promise<Result<string[]>> => {
   const { data, error } = await supabase.from("store_wishlists").select("product_id").eq("user_id", user.id);
   if (error) return { ok: false, error: error.message };
   return { ok: true, data: (data || []).map((row: any) => String(row.product_id)) };
+};
+
+export const loadWishlistProducts = async (): Promise<Result<StoreWishlistEntry[]>> => {
+  const supabase = getSupabaseBrowser();
+  if (!supabase) return { ok: false, error: "Supabase is not configured." };
+  const user = await getCurrentUser();
+  if (!user) return { ok: true, data: [] };
+
+  const { data, error } = await supabase
+    .from("store_wishlists")
+    .select(
+      `
+        product_id,
+        added_at,
+        store_products!inner (
+          id,
+          slug,
+          name,
+          product_type,
+          currency,
+          base_price_cents,
+          cover_image
+        )
+      `
+    )
+    .eq("user_id", user.id)
+    .order("added_at", { ascending: false });
+
+  if (error) return { ok: false, error: error.message };
+
+  const entries = (data || [])
+    .map((row: any) => {
+      const product = Array.isArray(row.store_products) ? row.store_products[0] : row.store_products;
+      if (!product?.id || !product?.slug || !product?.name) return null;
+      return {
+        productId: String(product.id),
+        addedAt: String(row.added_at || ""),
+        slug: String(product.slug),
+        name: String(product.name),
+        productType: String(product.product_type || "physical") as StoreProductType,
+        priceCents: Math.max(0, Number(product.base_price_cents || 0)),
+        currency: String(product.currency || "usd"),
+        coverImage: product.cover_image ? String(product.cover_image) : null,
+        href: `/store?product=${encodeURIComponent(String(product.slug))}`
+      } satisfies StoreWishlistEntry;
+    })
+    .filter(Boolean) as StoreWishlistEntry[];
+
+  return { ok: true, data: entries };
 };
 
 export const submitReview = async (args: {

@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
+  formatMoney,
+  loadWishlistProducts,
+} from "../lib/storefront";
+import {
   completeOAuthFromUrl,
   getEngagementLeaderboard,
   getEngagementProfile,
@@ -20,6 +24,7 @@ import {
   type VaultBadge,
   type VaultUser
 } from "../lib/fanVault";
+import type { StoreWishlistEntry } from "../lib/storefront";
 import UserAvatar from "./UserAvatar";
 import { AVATAR_IMAGE_GUIDANCE } from "../lib/avatarIdentity";
 import { defaultProfileBadgeId, profileBadges } from "../lib/profileBadges";
@@ -73,6 +78,7 @@ export default function FanVaultConsole() {
   const [editOpen, setEditOpen] = useState(false);
   const [user, setUser] = useState<VaultUser | null>(null);
   const [favorites, setFavorites] = useState<FavoriteRecord[]>([]);
+  const [storeWishlist, setStoreWishlist] = useState<StoreWishlistEntry[]>([]);
   const [badges, setBadges] = useState<VaultBadge[]>([]);
   const [quickBadgeId, setQuickBadgeId] = useState(defaultProfileBadgeId);
   const [engagement, setEngagement] = useState<EngagementSnapshot>({ points: 0, streak: 0, weeklySignal: 0 });
@@ -93,6 +99,7 @@ export default function FanVaultConsole() {
     setUser(nextUser);
     if (!nextUser) {
       setFavorites([]);
+      setStoreWishlist([]);
       setBadges([]);
       setBioDraft("");
       setBadgeDraft(defaultProfileBadgeId);
@@ -102,8 +109,9 @@ export default function FanVaultConsole() {
     if (isCloudVaultEnabled) {
       await syncCloudBadgesFromLocal(nextUser.id);
     }
-    const [nextFavorites, nextBadges] = await Promise.all([getAllFavorites(), getVaultBadges()]);
+    const [nextFavorites, nextBadges, nextStoreWishlist] = await Promise.all([getAllFavorites(), getVaultBadges(), loadWishlistProducts()]);
     setFavorites(nextFavorites);
+    setStoreWishlist(nextStoreWishlist.ok ? nextStoreWishlist.data : []);
     setBadges(nextBadges);
     setBioDraft(nextUser.bio || "");
     setBadgeDraft(nextUser.profileBadgeId || defaultProfileBadgeId);
@@ -247,7 +255,7 @@ export default function FanVaultConsole() {
 
   const onboarding = useMemo(() => {
     const profileReady = Boolean((user?.bio || "").trim().length >= 20);
-    const favoritesReady = favorites.length > 0;
+    const favoritesReady = favorites.length > 0 || storeWishlist.length > 0;
     const badgeReady = Boolean(user?.profileBadgeId && user.profileBadgeId !== defaultProfileBadgeId);
     const completed = [profileReady, favoritesReady, badgeReady].filter(Boolean).length;
     return {
@@ -259,7 +267,7 @@ export default function FanVaultConsole() {
         { label: "Pick a custom profile badge", done: badgeReady }
       ]
     };
-  }, [favorites.length, user?.bio, user?.profileBadgeId]);
+  }, [favorites.length, storeWishlist.length, user?.bio, user?.profileBadgeId]);
 
   const leaderboard = useMemo(() => {
     if (sharedLeaderboard.length) {
@@ -675,7 +683,7 @@ export default function FanVaultConsole() {
         <article className="rounded-2xl border border-white/15 bg-black/45 p-4">
           <p className="text-xs uppercase tracking-[0.28em] text-white/55">Saved Favorites</p>
           <p className="mt-3 text-sm text-white/70">
-            Gallery {grouped.gallery.length} | Watch {grouped.watch.length} | Listen {grouped.listen.length}
+            Gallery {grouped.gallery.length} | Watch {grouped.watch.length} | Listen {grouped.listen.length} | Store {storeWishlist.length}
           </p>
         </article>
       </div>
@@ -719,7 +727,7 @@ export default function FanVaultConsole() {
         )}
       </div>
 
-      <div className="mt-8 grid gap-4 md:grid-cols-3">
+      <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {(["gallery", "watch", "listen"] as const).map((type) => (
           <article key={type} className="rounded-2xl border border-white/15 bg-black/45 p-4">
             <p className="text-xs uppercase tracking-[0.28em] text-white/55">{type} Favorites</p>
@@ -735,6 +743,22 @@ export default function FanVaultConsole() {
             </ul>
           </article>
         ))}
+        <article className="rounded-2xl border border-white/15 bg-black/45 p-4">
+          <p className="text-xs uppercase tracking-[0.28em] text-white/55">Store Wishlist</p>
+          <ul className="mt-3 space-y-3 text-sm text-white/75">
+            {storeWishlist.slice(0, 5).map((item) => (
+              <li key={`${item.productId}-${item.addedAt}`} className="rounded-xl border border-white/10 bg-black/25 p-3">
+                <a href={item.href} className="block hover:text-gold">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-gold/80">{item.productType.replace("_", " ")}</p>
+                  <p className="mt-1 text-sm text-white/90">{item.name}</p>
+                  <p className="mt-1 text-xs text-white/55">{formatMoney(item.priceCents, item.currency)}</p>
+                  <p className="mt-2 text-[10px] uppercase tracking-[0.18em] text-white/45">Open in Store</p>
+                </a>
+              </li>
+            ))}
+            {!storeWishlist.length && <li className="text-white/45">No store items saved yet.</li>}
+          </ul>
+        </article>
       </div>
       {notice && <p className="mt-4 text-xs text-gold">{notice}</p>}
     </div>

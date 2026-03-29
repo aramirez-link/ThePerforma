@@ -274,6 +274,7 @@ export default function Storefront() {
       return;
     }
     setWishlist((current) => (has ? current.filter((id) => id !== productId) : [productId, ...current]));
+    window.dispatchEvent(new CustomEvent("fanvault:changed"));
     setNotice(has ? "Removed from wishlist." : "Saved to your profile wishlist for later.");
   };
 
@@ -338,6 +339,7 @@ export default function Storefront() {
     const next = cart.filter((item) => item.variantId !== variantId);
     setCart(next);
     writeCart(next);
+    window.dispatchEvent(new CustomEvent("fanvault:changed"));
     setNotice("Saved to your profile wishlist for later purchase.");
   };
 
