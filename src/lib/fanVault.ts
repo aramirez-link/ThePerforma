@@ -277,6 +277,38 @@ const resolveAuthDisplayName = (authUser: User, profileName?: string | null) => 
   return resolveDisplayName(profileName || metadataName, resolveAuthEmail(authUser));
 };
 
+const normalizeAvatarUrl = (value: unknown): string | null => {
+  if (typeof value !== "string") return null;
+  const clean = value.trim();
+  return clean ? clean : null;
+};
+
+const resolveAuthAvatarUrl = (authUser: User, profileAvatarUrl?: string | null) => {
+  const profileAvatar = normalizeAvatarUrl(profileAvatarUrl);
+  if (profileAvatar) return profileAvatar;
+
+  const metadata = authUser.user_metadata || {};
+  return normalizeAvatarUrl(metadata.avatarUrl) || normalizeAvatarUrl(metadata.avatar_url);
+};
+
+const buildAuthMetadataPatch = (
+  authUser: User,
+  patch: Partial<{
+    name: string;
+    profileBadgeId: string;
+    avatarUrl: string | null;
+  }>
+) => {
+  const metadata = { ...(authUser.user_metadata || {}) } as Record<string, unknown>;
+  if (patch.name !== undefined) metadata.name = patch.name;
+  if (patch.profileBadgeId !== undefined) metadata.profileBadgeId = patch.profileBadgeId;
+  if (patch.avatarUrl !== undefined) {
+    metadata.avatarUrl = patch.avatarUrl;
+    metadata.avatar_url = patch.avatarUrl;
+  }
+  return metadata;
+};
+
 const parseAuthErrorFromUrl = () => {
   if (typeof window === "undefined") return "";
   const url = new URL(window.location.href);
@@ -630,14 +662,20 @@ const getCloudUserAndProfile = async (): Promise<VaultUser | null> => {
     profile = fallback.data;
   }
   const resolvedName = resolveAuthDisplayName(authUser, profile?.name);
+  const resolvedAvatarUrl = resolveAuthAvatarUrl(authUser, profile?.avatar_url || null);
 
-  if (!profile || profile?.name !== resolvedName || (profile?.email || resolvedEmail) !== resolvedEmail) {
+  if (
+    !profile ||
+    profile?.name !== resolvedName ||
+    (profile?.email || resolvedEmail) !== resolvedEmail ||
+    normalizeAvatarUrl(profile?.avatar_url) !== resolvedAvatarUrl
+  ) {
     const syncPayload = {
       id: authUser.id,
       email: resolvedEmail,
       name: resolvedName,
       bio: profile?.bio || "",
-      avatar_url: profile?.avatar_url || null
+      avatar_url: resolvedAvatarUrl
     };
     const sync = await supabase.from("fan_profiles").upsert(syncPayload);
     if (!sync.error) {
@@ -659,6 +697,7 @@ const getCloudUserAndProfile = async (): Promise<VaultUser | null> => {
         email: resolvedEmail,
         name: resolvedName,
         bio: profile?.bio || "",
+        avatar_url: resolvedAvatarUrl,
         created_at: profile?.created_at || authUser.created_at || nowIso()
       };
     }
@@ -670,7 +709,7 @@ const getCloudUserAndProfile = async (): Promise<VaultUser | null> => {
     email: profile?.email || resolvedEmail,
     createdAt: profile?.created_at || authUser.created_at || nowIso(),
     bio: profile?.bio || "",
-    avatarUrl: profile?.avatar_url || null,
+    avatarUrl: resolvedAvatarUrl,
     profileBadgeId: (authUser.user_metadata?.profileBadgeId as string) || defaultProfileBadgeId,
     favorites: (favorites || []).map(mapCloudFavorite)
   };
@@ -855,9 +894,13 @@ export const updateCurrentUserProfile = async (patch: Partial<Pick<VaultUser, "n
   if (!supabase) return null;
   const current = await getCloudUserAndProfile();
   if (!current) return null;
+  const { data: authData } = await supabase.auth.getUser();
+  const authUser = authData.user;
 
   const nextName = patch.name?.trim() ? normalizeDisplayName(patch.name, current.name) : current.name;
   const nextAvatarUrl = patch.avatarUrl === undefined ? current.avatarUrl || null : patch.avatarUrl || null;
+  const nextProfileBadgeId =
+    typeof patch.profileBadgeId === "string" ? patch.profileBadgeId : current.profileBadgeId || defaultProfileBadgeId;
   const upsertPayload = {
     id: current.id,
     email: current.email,
@@ -875,11 +918,13 @@ export const updateCurrentUserProfile = async (patch: Partial<Pick<VaultUser, "n
     });
   }
 
-  if (typeof patch.profileBadgeId === "string") {
+  if (authUser && (patch.name?.trim() || patch.avatarUrl !== undefined || typeof patch.profileBadgeId === "string")) {
     await supabase.auth.updateUser({
-      data: {
-        profileBadgeId: patch.profileBadgeId
-      }
+      data: buildAuthMetadataPatch(authUser, {
+        name: nextName,
+        avatarUrl: nextAvatarUrl,
+        profileBadgeId: nextProfileBadgeId
+      })
     });
   }
 
