@@ -13,7 +13,8 @@ const {
   canonical = "",
   image = "/media/og-default.svg",
   schema = null,
-  hideFloatingOverlays: hideFloatingOverlaysProp = false
+  hideFloatingOverlays: hideFloatingOverlaysProp = false,
+  hideMiniPlayer: hideMiniPlayerProp = false
 } = Astro.props;
 
 const normalizedPath = Astro.url.pathname.replace(/\/+$/, "") || "/";
@@ -21,6 +22,7 @@ const isFeedRoute = normalizedPath === "/feed";
 const isAdminRoute = normalizedPath === "/admin" || normalizedPath.startsWith("/admin/");
 const hideFloatingOverlays =
   Boolean(hideFloatingOverlaysProp) || isFeedRoute || normalizedPath === "/book" || isAdminRoute;
+const hideMiniPlayer = hideFloatingOverlays || Boolean(hideMiniPlayerProp);
 const enablePartnerCredit = import.meta.env.PUBLIC_ENABLE_PARTNER_CREDIT !== "false";
 const partnerSchema = {
   "@context": "https://schema.org",
@@ -67,7 +69,7 @@ const partnerSchema = {
     <main id="main-content" tabindex="-1">
       <slot />
     </main>
-    {!hideFloatingOverlays && <GlobalMiniPlayer />}
+    {!hideMiniPlayer && <GlobalMiniPlayer />}
     {!hideFloatingOverlays && (
       <div transition:name="engagement-hub" transition:persist>
         <EngagementHub client:only="react" />

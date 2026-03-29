@@ -263,6 +263,8 @@ const mediaTypeFromUrlOrNull = (url: string): FanFeedMediaType | null => {
   return resolveMediaType(url);
 };
 
+const isDirectVideoFile = (url: string) => /\.(mp4|webm|mov)(\?|$)/i.test(url);
+
 const parseBlueprint = (body: string): { cleanBody: string; blueprint: BlueprintPayload | null } => {
   if (!body.startsWith(BLUEPRINT_PREFIX)) return { cleanBody: body, blueprint: null };
   const payloadRaw = body.slice(BLUEPRINT_PREFIX.length).trim();
@@ -1622,6 +1624,17 @@ export default function FanFeed() {
                     (() => {
                       const safe = sanitizeExternalUrl(post.mediaUrl || "");
                       if (!safe) return <p className="px-4 py-3 text-sm text-white/55">Blocked unsafe video URL.</p>;
+                      if (isDirectVideoFile(safe)) {
+                        return (
+                          <video
+                            src={safe}
+                            controls
+                            playsInline
+                            preload="metadata"
+                            className={`w-full bg-black ${isImmersiveMediaPost ? "max-sm:h-[72dvh]" : "aspect-video"}`}
+                          />
+                        );
+                      }
                       const embed = getEmbedUrl(safe);
                       if (embed) {
                         return (
@@ -1630,6 +1643,7 @@ export default function FanFeed() {
                             title="Shared fan video"
                             className={`w-full ${isImmersiveMediaPost ? "max-sm:h-[72dvh]" : "aspect-video"}`}
                             allow="autoplay; encrypted-media; picture-in-picture; web-share"
+                            allowFullScreen
                             loading="lazy"
                           />
                         );
