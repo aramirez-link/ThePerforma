@@ -1,0 +1,229 @@
+---
+const trackModules = import.meta.glob("../../assets/sound-vault/*.m4a", {
+  eager: true,
+  query: "?url",
+  import: "default"
+}) as Record<string, string>;
+
+const tracks = Object.entries(trackModules)
+  .map(([path, url]) => {
+    const rawTitle = path.split("/").pop()?.replace(/\.m4a$/i, "") || "Untitled Track";
+    return {
+      title: rawTitle.replace(/\s+/g, " ").trim(),
+      url
+    };
+  })
+  .sort((a, b) => a.title.localeCompare(b.title));
+
+const initialTrack = tracks[0] || null;
+---
+
+<div
+  id="sound-vault-player"
+  class="rounded-2xl border border-white/10 bg-[linear-gradient(155deg,rgba(243,211,139,0.08),rgba(7,7,11,0.72))] p-4"
+  data-tracks={JSON.stringify(tracks)}
+  data-bound="false"
+>
+  <div class="flex flex-wrap items-start justify-between gap-3">
+    <div>
+      <p class="text-[10px] uppercase tracking-[0.28em] text-gold/85">The Sound Vault</p>
+      <p class="mt-2 text-sm text-white/70">Streaming directly from the local vault in `assets/sound-vault`.</p>
+    </div>
+    <div class="rounded-full border border-white/15 bg-black/35 px-3 py-2 text-[10px] uppercase tracking-[0.22em] text-white/55">
+      {tracks.length} Tracks Loaded
+    </div>
+  </div>
+
+  {initialTrack ? (
+    <>
+      <div class="mt-5 rounded-2xl border border-white/10 bg-black/45 p-4">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p class="text-[10px] uppercase tracking-[0.24em] text-white/45">Now Streaming</p>
+            <p id="sound-vault-current-title" class="mt-2 text-lg font-semibold text-white">{initialTrack.title}</p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button
+              id="sound-vault-prev"
+              type="button"
+              class="rounded-full border border-white/25 px-4 py-2 text-[10px] uppercase tracking-[0.22em] text-white/75"
+            >
+              Prev
+            </button>
+            <button
+              id="sound-vault-play"
+              type="button"
+              class="rounded-full bg-ember px-5 py-2 text-[10px] uppercase tracking-[0.24em] text-ink"
+            >
+              Play
+            </button>
+            <button
+              id="sound-vault-next"
+              type="button"
+              class="rounded-full border border-white/25 px-4 py-2 text-[10px] uppercase tracking-[0.22em] text-white/75"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+
+        <audio id="sound-vault-audio" preload="metadata" class="sr-only">
+          <source src={initialTrack.url} type="audio/mp4" />
+        </audio>
+
+        <div class="mt-4">
+          <input
+            id="sound-vault-seek"
+            type="range"
+            min="0"
+            max="100"
+            value="0"
+            class="h-2 w-full cursor-pointer appearance-none rounded-full bg-white/10 accent-[rgb(var(--accent-rgb))]"
+          />
+          <div class="mt-2 flex items-center justify-between text-[11px] text-white/50">
+            <span id="sound-vault-current-time">0:00</span>
+            <span id="sound-vault-duration">0:00</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-4 rounded-2xl border border-white/10 bg-black/30 p-3">
+        <div class="flex items-center justify-between gap-3">
+          <p class="text-[10px] uppercase tracking-[0.22em] text-white/55">Vault Queue</p>
+          <p class="text-[10px] uppercase tracking-[0.18em] text-white/40">Auto-advances on track end</p>
+        </div>
+        <div id="sound-vault-playlist" class="mt-3 grid gap-2">
+          {tracks.map((track, index) => (
+            <button
+              type="button"
+              class={`sound-vault-track flex items-center justify-between rounded-2xl border px-3 py-3 text-left transition ${
+                index === 0 ? "border-gold/45 bg-gold/10" : "border-white/10 bg-black/25 hover:border-gold/30"
+              }`}
+              data-index={index}
+            >
+              <span class="pr-4 text-sm text-white/85">{track.title}</span>
+              <span class="text-[10px] uppercase tracking-[0.2em] text-white/45">Play</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </>
+  ) : (
+    <div class="mt-4 rounded-2xl border border-white/10 bg-black/45 p-6 text-sm text-white/60">
+      No tracks were found in `assets/sound-vault`.
+    </div>
+  )}
+</div>
+
+<script is:inline>
+  (() => {
+    const root = document.getElementById("sound-vault-player");
+    if (!root || root.dataset.bound === "true") return;
+    root.dataset.bound = "true";
+
+    const tracks = (() => {
+      try {
+        const parsed = JSON.parse(root.dataset.tracks || "[]");
+        return Array.isArray(parsed) ? parsed.filter((item) => item && item.url && item.title) : [];
+      } catch {
+        return [];
+      }
+    })();
+
+    if (!tracks.length) return;
+
+    const audio = document.getElementById("sound-vault-audio");
+    const playButton = document.getElementById("sound-vault-play");
+    const prevButton = document.getElementById("sound-vault-prev");
+    const nextButton = document.getElementById("sound-vault-next");
+    const seek = document.getElementById("sound-vault-seek");
+    const title = document.getElementById("sound-vault-current-title");
+    const currentTime = document.getElementById("sound-vault-current-time");
+    const duration = document.getElementById("sound-vault-duration");
+    const playlist = Array.from(root.querySelectorAll(".sound-vault-track"));
+
+    if (!audio || !playButton || !prevButton || !nextButton || !seek || !title || !currentTime || !duration) return;
+
+    let index = 0;
+
+    const formatTime = (seconds) => {
+      const safeSeconds = Number.isFinite(seconds) ? Math.max(0, Math.floor(seconds)) : 0;
+      const mins = Math.floor(safeSeconds / 60);
+      const secs = safeSeconds % 60;
+      return `${mins}:${String(secs).padStart(2, "0")}`;
+    };
+
+    const syncPlaylistState = () => {
+      playlist.forEach((button, buttonIndex) => {
+        const active = buttonIndex === index;
+        button.classList.toggle("border-gold/45", active);
+        button.classList.toggle("bg-gold/10", active);
+        button.classList.toggle("border-white/10", !active);
+        button.classList.toggle("bg-black/25", !active);
+      });
+    };
+
+    const syncPlaybackLabel = () => {
+      playButton.textContent = audio.paused ? "Play" : "Pause";
+    };
+
+    const setTrack = (nextIndex, shouldAutoplay = false) => {
+      index = (nextIndex + tracks.length) % tracks.length;
+      const track = tracks[index];
+      audio.src = track.url;
+      title.textContent = track.title;
+      seek.value = "0";
+      currentTime.textContent = "0:00";
+      duration.textContent = "0:00";
+      syncPlaylistState();
+      audio.load();
+      if (shouldAutoplay) {
+        audio.play().catch(() => {
+          syncPlaybackLabel();
+        });
+      } else {
+        syncPlaybackLabel();
+      }
+    };
+
+    playButton.addEventListener("click", () => {
+      if (audio.paused) {
+        audio.play().catch(() => {
+          syncPlaybackLabel();
+        });
+        return;
+      }
+      audio.pause();
+    });
+
+    prevButton.addEventListener("click", () => setTrack(index - 1, true));
+    nextButton.addEventListener("click", () => setTrack(index + 1, true));
+
+    playlist.forEach((button) => {
+      button.addEventListener("click", () => {
+        const nextIndex = Number(button.getAttribute("data-index") || "0");
+        setTrack(nextIndex, true);
+      });
+    });
+
+    audio.addEventListener("play", syncPlaybackLabel);
+    audio.addEventListener("pause", syncPlaybackLabel);
+    audio.addEventListener("ended", () => setTrack(index + 1, true));
+    audio.addEventListener("loadedmetadata", () => {
+      duration.textContent = formatTime(audio.duration);
+    });
+    audio.addEventListener("timeupdate", () => {
+      const ratio = audio.duration ? (audio.currentTime / audio.duration) * 100 : 0;
+      seek.value = String(Math.max(0, Math.min(100, ratio)));
+      currentTime.textContent = formatTime(audio.currentTime);
+    });
+
+    seek.addEventListener("input", () => {
+      if (!audio.duration) return;
+      const ratio = Number(seek.value || "0") / 100;
+      audio.currentTime = audio.duration * ratio;
+    });
+
+    setTrack(0, false);
+  })();
+</script>

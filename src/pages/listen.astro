@@ -3,10 +3,10 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 import DonatePill from "../components/DonatePill.astro";
 import Section from "../components/Section.astro";
 import FavoriteButton from "../components/FavoriteButton";
+import SoundVaultPlayer from "../components/SoundVaultPlayer.astro";
 import listen from "../../content/listen.json";
 ---
 <BaseLayout title="Listen | The Performa" description="Streaming sets and listening rooms.">
-  <script src="https://iandiradio.com/wp-content/plugins/radio-station/js/radio-station.js?ver=1758754275" type="text/javascript"></script>
   <section class="mx-auto max-w-[96rem] px-4 pt-8 sm:px-6">
     <div class="relative overflow-hidden rounded-[2rem] border border-white/15">
       <img src="/assets/img/134NewChip_4K.jpg" alt="" aria-hidden="true" class="h-[40vh] w-full object-cover opacity-40" />
@@ -36,20 +36,9 @@ import listen from "../../content/listen.json";
             />
           </div>
           <h3 class="mt-2 text-lg font-semibold">{item.title}</h3>
-          {item.platform === "IANDI Radio" ? (
-            <div class="mt-4 rounded-2xl border border-white/10 bg-black/60 p-6">
-              <p class="text-sm text-white/70">Open the station player, press play, and let Chip Lee set the room's temperature.</p>
-              <div class="mt-4 flex flex-wrap gap-3">
-                <a
-                  href={item.embedUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="inline-flex rounded-full border border-gold/40 bg-black/35 px-5 py-3 text-xs uppercase tracking-[0.3em] text-gold"
-                >
-                  Open Live Stream
-                </a>
-                <DonatePill source="listen-iandi-radio" />
-              </div>
+          {item.title === "The Sound Vault" ? (
+            <div class="mt-4">
+              <SoundVaultPlayer />
             </div>
           ) : (
             <div class="relative mt-4 aspect-video overflow-hidden rounded-2xl border border-white/10 bg-black">

@@ -1,8 +1,8 @@
 ﻿[
   {
-    "platform": "IANDI Radio",
-    "embedUrl": "https://iandiradio.com/events/",
-    "title": "Live Radio Stream"
+    "platform": "Local Stream",
+    "embedUrl": "",
+    "title": "The Sound Vault"
   },
   {
     "platform": "SoundCloud",
