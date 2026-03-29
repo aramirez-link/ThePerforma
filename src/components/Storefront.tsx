@@ -533,11 +533,11 @@ export default function Storefront() {
                   </select>
                 )}
 
-                <div className="mt-4 flex gap-2">
+                <div className="mt-4 flex flex-wrap gap-2">
                   <button
                     type="button"
                     onClick={() => openProduct(product)}
-                    className="rounded-full border border-gold/45 px-5 py-2 text-[11px] uppercase tracking-[0.24em] text-gold min-h-11"
+                    className="inline-flex min-h-10 items-center justify-center whitespace-nowrap rounded-full border border-gold/45 px-4 py-2 text-[10px] uppercase tracking-[0.18em] text-gold"
                   >
                     View Product
                   </button>
@@ -545,14 +545,14 @@ export default function Storefront() {
                     type="button"
                     onClick={() => addToCart(product)}
                     disabled={stock.outOfStock}
-                    className="rounded-full bg-ember px-5 py-2 text-[11px] uppercase tracking-[0.24em] text-ink min-h-11 disabled:opacity-50"
+                    className="inline-flex min-h-10 items-center justify-center whitespace-nowrap rounded-full bg-ember px-4 py-2 text-[10px] uppercase tracking-[0.18em] text-ink disabled:opacity-50"
                   >
                     {stock.outOfStock ? "Sold out" : `${CART_ICON} Add to cart`}
                   </button>
                   <button
                     type="button"
                     onClick={() => toggleWishlist(product.id)}
-                    className="rounded-full border border-white/30 px-5 py-2 text-[11px] uppercase tracking-[0.24em] text-white/80 min-h-11"
+                    className="inline-flex min-h-10 items-center justify-center whitespace-nowrap rounded-full border border-white/30 px-4 py-2 text-[10px] uppercase tracking-[0.18em] text-white/80"
                   >
                     {wishlist.includes(product.id) ? `${HEART_FILLED} Wishlisted` : `${HEART_OUTLINE} Wishlist`}
                   </button>
@@ -871,7 +871,7 @@ export default function Storefront() {
                             type="button"
                             onClick={() => orderNow(activeProduct)}
                             disabled={checkingOut || stock.outOfStock}
-                            className="min-h-11 rounded-full bg-ember px-5 py-2 text-[11px] uppercase tracking-[0.24em] text-ink disabled:opacity-50"
+                            className="inline-flex min-h-10 items-center justify-center whitespace-nowrap rounded-full bg-ember px-4 py-2 text-[10px] uppercase tracking-[0.18em] text-ink disabled:opacity-50"
                           >
                             {checkingOut ? "Redirecting..." : "Order now"}
                           </button>
@@ -879,14 +879,14 @@ export default function Storefront() {
                             type="button"
                             onClick={() => addToCart(activeProduct)}
                             disabled={stock.outOfStock}
-                            className="min-h-11 rounded-full border border-white/30 px-5 py-2 text-[11px] uppercase tracking-[0.24em] text-white/85 disabled:opacity-50"
+                            className="inline-flex min-h-10 items-center justify-center whitespace-nowrap rounded-full border border-white/30 px-4 py-2 text-[10px] uppercase tracking-[0.18em] text-white/85 disabled:opacity-50"
                           >
                             {`${CART_ICON} Add to cart`}
                           </button>
                           <button
                             type="button"
                             onClick={() => toggleWishlist(activeProduct.id)}
-                            className="min-h-11 rounded-full border border-gold/45 px-5 py-2 text-[11px] uppercase tracking-[0.24em] text-gold"
+                            className="inline-flex min-h-10 items-center justify-center whitespace-nowrap rounded-full border border-gold/45 px-4 py-2 text-[10px] uppercase tracking-[0.18em] text-gold"
                           >
                             {wishlist.includes(activeProduct.id) ? `${HEART_FILLED} Wishlisted` : `${HEART_OUTLINE} Wishlist`}
                           </button>
