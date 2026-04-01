@@ -29,14 +29,7 @@ const defaultPreference: LiveAlertPreference = {
   updatedAt: new Date().toISOString()
 };
 
-const streamPlatforms = [
-  { label: "YouTube", href: "https://www.youtube.com/@chipleetheperforma/live" },
-  { label: "Instagram Live", href: "https://www.instagram.com/chiplee_theperforma/" },
-  { label: "Facebook Live", href: "https://www.facebook.com/people/Chipleetheperforma/61572970724635/" }
-];
-
 const streamEmbedUrl = "https://www.youtube.com/embed/PvrXChRa7LI?rel=0";
-const LIVE_ALERTS_ID = "live-alerts";
 
 const formatIcsDate = (value: Date) => value.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
 
@@ -246,10 +239,6 @@ export default function LiveStreamHub() {
     setNotice("Live alert preferences saved.");
   };
 
-  const openAlertSettings = () => {
-    document.getElementById(LIVE_ALERTS_ID)?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
-
   const toggleEmailReminder = async () => {
     if (!user) {
       window.location.assign("/fan-club");
@@ -273,7 +262,6 @@ export default function LiveStreamHub() {
     }
     if (!prefs.smsPhone.trim()) {
       setNotice("Add an SMS number below to enable text reminders.");
-      openAlertSettings();
       return;
     }
     const nextSmsAlerts = !smsReminderActive;
@@ -390,123 +378,13 @@ export default function LiveStreamHub() {
               emailActive: emailReminderActive,
               smsActive: smsReminderActive,
               hasSmsPhone: Boolean(prefs.smsPhone.trim()),
-              settingsHref: `#${LIVE_ALERTS_ID}`,
               onAddToCalendar: addSessionToCalendar,
               onToggleEmail: () => void toggleEmailReminder(),
-              onToggleSms: () => void toggleSmsReminder(),
-              onOpenSettings: openAlertSettings
+              onToggleSms: () => void toggleSmsReminder()
             }}
           />
         </div>
       )}
-
-      <div className="mt-5 grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
-        <aside id={LIVE_ALERTS_ID} className="rounded-2xl border border-white/15 bg-black/45 p-4">
-          <p className="text-[10px] uppercase tracking-[0.28em] text-white/55">On-Air Alerts</p>
-          {loading && <p className="mt-3 text-sm text-white/65">Loading your alert settings...</p>}
-          {!loading && !isLoggedIn && (
-            <div className="mt-3 space-y-3">
-              <p className="text-sm text-white/70">Register or log in to Fan Vault for live-on-air notifications.</p>
-              <a href="/fan-club" className="inline-flex min-h-11 items-center rounded-full bg-ember px-4 py-2 text-[10px] uppercase tracking-[0.24em] text-ink">
-                Open Fan Vault
-              </a>
-            </div>
-          )}
-          {!loading && isLoggedIn && (
-            <div className="mt-3 space-y-3">
-              <p className="text-sm text-white/75">{user?.name}, control how you get notified when Chip Lee is on air.</p>
-              <label className="flex items-center gap-2 text-xs text-white/80">
-                <input
-                  type="checkbox"
-                  checked={prefs.enabled}
-                  onChange={(event) => void persist({ ...prefs, enabled: event.target.checked, updatedAt: new Date().toISOString() })}
-                  className="h-4 w-4 shrink-0 accent-ember"
-                />
-                Enable live alerts
-              </label>
-              <label className="flex items-center gap-2 text-xs text-white/80">
-                <input
-                  type="checkbox"
-                  checked={prefs.emailAlerts}
-                  onChange={(event) => void persist({ ...prefs, emailAlerts: event.target.checked, updatedAt: new Date().toISOString() })}
-                  disabled={!prefs.enabled}
-                  className="h-4 w-4 shrink-0 accent-ember"
-                />
-                Email me when stream starts
-              </label>
-              <label className="flex items-center gap-2 text-xs text-white/80">
-                <input
-                  type="checkbox"
-                  checked={prefs.smsAlerts}
-                  onChange={(event) => void persist({ ...prefs, smsAlerts: event.target.checked, updatedAt: new Date().toISOString() })}
-                  disabled={!prefs.enabled}
-                  className="h-4 w-4 shrink-0 accent-ember"
-                />
-                SMS priority ping
-              </label>
-              <label className="block text-xs text-white/80">
-                SMS phone
-                <input
-                  type="tel"
-                  value={prefs.smsPhone}
-                  onChange={(event) => setPrefs((prev) => ({ ...prev, smsPhone: event.target.value }))}
-                  onBlur={() => void persist({ ...prefs, smsPhone: prefs.smsPhone.trim(), updatedAt: new Date().toISOString() })}
-                  placeholder="+1 404 555 0123"
-                  disabled={!prefs.enabled || !prefs.smsAlerts}
-                  className="mt-1 min-h-11 w-full rounded-xl border border-white/20 bg-black/45 px-3 py-2 text-sm text-white/85 placeholder:text-white/35"
-                />
-              </label>
-              <label className="block text-xs text-white/80">
-                Preferred platform
-                <select
-                  className="mt-1 min-h-11 w-full rounded-xl border border-white/20 bg-black/45 px-3 py-2 text-sm text-white/85"
-                  style={{ color: "#f5f5f7", backgroundColor: "#111318" }}
-                  value={prefs.preferredPlatform}
-                  onChange={(event) => void persist({ ...prefs, preferredPlatform: event.target.value as Platform, updatedAt: new Date().toISOString() })}
-                  disabled={!prefs.enabled}
-                >
-                  <option value="multi" style={{ color: "#0f1116", backgroundColor: "#ffffff" }}>
-                    All Platforms
-                  </option>
-                  <option value="youtube" style={{ color: "#0f1116", backgroundColor: "#ffffff" }}>
-                    YouTube
-                  </option>
-                  <option value="instagram" style={{ color: "#0f1116", backgroundColor: "#ffffff" }}>
-                    Instagram
-                  </option>
-                  <option value="facebook" style={{ color: "#0f1116", backgroundColor: "#ffffff" }}>
-                    Facebook
-                  </option>
-                  <option value="twitch" style={{ color: "#0f1116", backgroundColor: "#ffffff" }}>
-                    Twitch
-                  </option>
-                </select>
-              </label>
-              {notice && <p className="text-[11px] text-gold">{notice}</p>}
-              {saving && <p className="text-[11px] text-white/55">Saving...</p>}
-            </div>
-          )}
-        </aside>
-
-        <div className="space-y-5">
-          <div className="rounded-2xl border border-white/10 bg-black/35 p-4">
-            <p className="text-[10px] uppercase tracking-[0.28em] text-white/55">Simulcast Targets</p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {streamPlatforms.map((platform) => (
-                <a
-                  key={platform.label}
-                  href={platform.href}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex min-h-11 items-center rounded-full border border-white/20 px-3 py-2 text-[10px] uppercase tracking-[0.2em] text-white/75 hover:border-gold/45 hover:text-gold"
-                >
-                  {platform.label}
-                </a>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
 
       {isOperator && (
         <div className="mt-5">

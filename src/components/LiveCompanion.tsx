@@ -27,7 +27,7 @@ type Props = {
     emailActive: boolean;
     smsActive: boolean;
     hasSmsPhone: boolean;
-    settingsHref: string;
+    settingsHref?: string;
     onAddToCalendar?: () => void;
     onToggleEmail?: () => void;
     onToggleSms?: () => void;
@@ -487,13 +487,15 @@ export default function LiveCompanion({ session, user, canModerate, fallbackEmbe
                 <span className="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[10px] uppercase tracking-[0.22em] text-white/65">
                   {session?.scheduledFor ? "Next Session" : "Standby Mode"}
                 </span>
-                <a
-                  href={reminders?.settingsHref || "#live-alerts"}
-                  onClick={() => reminders?.onOpenSettings?.()}
-                  className="rounded-full border border-white/15 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white/70 hover:border-gold/45 hover:text-gold"
-                >
-                  Reminder Settings
-                </a>
+                {reminders?.settingsHref && (
+                  <a
+                    href={reminders.settingsHref}
+                    onClick={() => reminders.onOpenSettings?.()}
+                    className="rounded-full border border-white/15 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-white/70 hover:border-gold/45 hover:text-gold"
+                  >
+                    Reminder Settings
+                  </a>
+                )}
               </div>
 
               <div className="mx-auto flex max-w-2xl flex-1 flex-col items-center justify-center text-center">
@@ -558,7 +560,7 @@ export default function LiveCompanion({ session, user, canModerate, fallbackEmbe
                         >
                           {reminders.smsActive ? "Text Reminder On" : "Text Reminder"}
                         </button>
-                      ) : (
+                      ) : reminders.settingsHref ? (
                         <a
                           href={reminders.settingsHref}
                           onClick={() => reminders.onOpenSettings?.()}
@@ -566,7 +568,7 @@ export default function LiveCompanion({ session, user, canModerate, fallbackEmbe
                         >
                           Add SMS Number
                         </a>
-                      )}
+                      ) : null}
                     </>
                   ) : (
                     <a
