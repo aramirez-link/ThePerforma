@@ -2,10 +2,8 @@
 import BaseLayout from "../layouts/BaseLayout.astro";
 import DonatePill from "../components/DonatePill.astro";
 import Section from "../components/Section.astro";
-import PerformanceMode from "../components/PerformanceMode";
-import WatchPlaylist from "../components/WatchPlaylist";
 import LiveStreamHub from "../components/LiveStreamHub";
-import watch from "../../content/watch.json";
+import FeaturedReelSpotlight from "../components/FeaturedReelSpotlight";
 
 const miniConcertSeries = [
   {
@@ -48,6 +46,13 @@ const youtubeChannelUrl = "https://www.youtube.com/@chipleetheperforma";
   <section class="mx-auto max-w-[100rem] px-4 pt-8 sm:px-6">
     <LiveStreamHub client:load />
   </section>
+  <Section
+    eyebrow="Watch"
+    title="Featured Reel"
+    subtitle="Admin-scheduled spotlight clip from The Performa reel library."
+  >
+    <FeaturedReelSpotlight client:load />
+  </Section>
   <Section
     eyebrow="Watch"
     title="Mini Concert Series"
@@ -101,10 +106,5 @@ const youtubeChannelUrl = "https://www.youtube.com/@chipleetheperforma";
         </article>
       ))}
     </div>
-  </Section>
-  <Section eyebrow="Watch" title="Featured Reels" subtitle="Curated moments from the mainstage - builds, drops, and room-shift transitions.">
-    <PerformanceMode client:load>
-      <WatchPlaylist items={watch} />
-    </PerformanceMode>
   </Section>
 </BaseLayout>

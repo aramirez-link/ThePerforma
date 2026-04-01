@@ -22,6 +22,7 @@ import {
   type StoreReview,
   type StoreVariant
 } from "../lib/storefront";
+import FeaturedReelSchedulerPanel from "./FeaturedReelSchedulerPanel";
 import PerformanceControlPanel from "./PerformanceControlPanel";
 
 type Props = {
@@ -478,6 +479,7 @@ export default function AdminStoreConsole({ mode = "store" }: Props) {
       {!isStoreMode && (
         <div className="mt-5 grid gap-4 lg:grid-cols-2">
           <PerformanceControlPanel />
+          <FeaturedReelSchedulerPanel />
         </div>
       )}
 
