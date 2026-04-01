@@ -1,0 +1,46 @@
+---
+type AdminTabKey = "store" | "performance" | "live" | "moderation" | "trivia" | "manual";
+
+interface Tab {
+  key: AdminTabKey;
+  label: string;
+  href: string;
+}
+
+interface Props {
+  active: AdminTabKey;
+}
+
+const { active } = Astro.props;
+
+const tabs: Tab[] = [
+  { key: "store", label: "Store", href: "/admin/store" },
+  { key: "performance", label: "Performance", href: "/admin/performance" },
+  { key: "live", label: "Live", href: "/admin/live" },
+  { key: "moderation", label: "Moderation", href: "/admin/moderation" },
+  { key: "trivia", label: "Trivia", href: "/admin/trivia" },
+  { key: "manual", label: "Manual", href: "/admin/manual" }
+];
+
+const baseTabClass = "min-h-10 rounded-full border px-4 py-2 text-[10px] uppercase tracking-[0.2em]";
+const activeTabClass = "border-gold/45 bg-gold/10 text-gold";
+const inactiveTabClass = "border-white/25 text-white/75 hover:border-white/45 hover:text-white";
+---
+<section class="mx-auto w-full max-w-6xl px-4 pt-8 sm:px-6">
+  <div class="rounded-2xl border border-white/15 bg-black/45 p-3 backdrop-blur-md">
+    <p class="px-2 text-[10px] uppercase tracking-[0.24em] text-white/55">Admin Console</p>
+    <div class="mt-2 flex flex-wrap gap-2">
+      {tabs.map((tab) => (
+        <a
+          href={tab.href}
+          class:list={[
+            baseTabClass,
+            active === tab.key ? activeTabClass : inactiveTabClass
+          ]}
+        >
+          {tab.label}
+        </a>
+      ))}
+    </div>
+  </div>
+</section>

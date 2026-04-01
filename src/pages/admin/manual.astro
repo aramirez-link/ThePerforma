@@ -1,0 +1,382 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import AdminTabs from "../../components/AdminTabs.astro";
+
+const sectionLinks = [
+  { href: "#trivia-ops", label: "Trivia" },
+  { href: "#store-ops", label: "Store" },
+  { href: "#stream-ops", label: "Streams" },
+  { href: "#moderation-ops", label: "Moderation" }
+];
+
+const quickCards = [
+  {
+    title: "Trivia",
+    href: "/admin/trivia",
+    summary: "Build the question bank, group questions into campaigns, schedule them, and trigger publishing."
+  },
+  {
+    title: "Store",
+    href: "/admin/store",
+    summary: "Create products, attach variants, moderate reviews, and keep orders moving."
+  },
+  {
+    title: "Live",
+    href: "/admin/live",
+    summary: "Create sessions, schedule them, monitor viewer presence, and push host notes into chat."
+  },
+  {
+    title: "Moderation",
+    href: "/admin/moderation",
+    summary: "Turn moderation on or off, review reports, and decide what gets approved, flagged, or rejected."
+  }
+];
+---
+<BaseLayout
+  title="Admin Manual | The Performa"
+  description="Step-by-step operating manual for trivia, store, live stream, and moderation workflows."
+>
+  <AdminTabs active="manual" />
+
+  <section class="mx-auto w-full max-w-6xl px-4 pb-16 pt-6 sm:px-6">
+    <div class="rounded-[2rem] border border-white/12 bg-[radial-gradient(circle_at_top,_rgba(244,196,48,0.16),_transparent_42%),linear-gradient(180deg,rgba(14,14,18,0.96),rgba(5,5,8,0.98))] p-6 shadow-[0_20px_80px_rgba(0,0,0,0.38)] sm:p-8">
+      <div class="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+        <div class="max-w-3xl">
+          <p class="text-[11px] uppercase tracking-[0.34em] text-gold/80">Operating Manual</p>
+          <h1 class="mt-3 font-display text-4xl text-white sm:text-5xl">Admin Control Guide</h1>
+          <p class="mt-4 max-w-2xl text-sm leading-7 text-white/72 sm:text-base">
+            Use this page as the working runbook for The Performa admin surfaces. The steps below match the labels and
+            actions already available in the live product, so operators can move from setup to execution without guessing.
+          </p>
+        </div>
+        <div class="rounded-3xl border border-gold/20 bg-gold/8 px-5 py-4 text-sm text-white/75">
+          <p class="text-[11px] uppercase tracking-[0.28em] text-gold/80">Recommended Rhythm</p>
+          <p class="mt-3 max-w-sm leading-6">
+            Start with Trivia and Store setup, move into Live operations before showtime, and keep Moderation open in a
+            separate tab during active audience moments.
+          </p>
+        </div>
+      </div>
+
+      <div class="mt-8 flex flex-wrap gap-2">
+        {sectionLinks.map((link) => (
+          <a
+            href={link.href}
+            class="inline-flex min-h-11 items-center rounded-full border border-white/20 px-4 py-2 text-[10px] uppercase tracking-[0.24em] text-white/75 transition hover:border-gold/45 hover:bg-gold/10 hover:text-gold"
+          >
+            {link.label}
+          </a>
+        ))}
+      </div>
+
+      <div class="mt-8 grid gap-4 lg:grid-cols-4">
+        {quickCards.map((card) => (
+          <a
+            href={card.href}
+            class="rounded-3xl border border-white/12 bg-black/28 p-5 transition hover:border-gold/35 hover:bg-black/40"
+          >
+            <p class="text-[11px] uppercase tracking-[0.28em] text-gold/80">{card.title}</p>
+            <p class="mt-3 text-sm leading-6 text-white/70">{card.summary}</p>
+          </a>
+        ))}
+      </div>
+    </div>
+
+    <div class="mt-8 grid gap-6">
+      <article id="trivia-ops" class="rounded-[1.75rem] border border-white/12 bg-black/35 p-6 sm:p-7">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div class="max-w-3xl">
+            <p class="text-[11px] uppercase tracking-[0.3em] text-gold/80">1. Trivia Operations</p>
+            <h2 class="mt-2 font-display text-3xl text-white">Build, schedule, and publish trivia campaigns</h2>
+            <p class="mt-3 text-sm leading-7 text-white/70">
+              Use <a href="/admin/trivia" class="text-gold hover:text-gold/80">/admin/trivia</a> to maintain the question
+              bank and automate timed trivia drops into Link Up.
+            </p>
+          </div>
+          <div class="rounded-3xl border border-white/12 bg-white/[0.03] px-4 py-3 text-xs leading-6 text-white/60">
+            Core actions: <span class="text-white/85">Add Question</span>, <span class="text-white/85">Create Campaign</span>,
+            <span class="text-white/85">Run Scheduler Now</span>, <span class="text-white/85">Run Now</span>,
+            <span class="text-white/85">Activate</span>, <span class="text-white/85">Pause</span>
+          </div>
+        </div>
+
+        <div class="mt-6 grid gap-6 lg:grid-cols-[1.35fr,0.95fr]">
+          <div class="rounded-3xl border border-gold/15 bg-gold/[0.04] p-5">
+            <p class="text-[11px] uppercase tracking-[0.28em] text-gold/80">Step By Step</p>
+            <ol class="mt-4 space-y-4 text-sm leading-7 text-white/74">
+              <li>
+                Open <a href="/admin/trivia" class="text-gold hover:text-gold/80">/admin/trivia</a> and start in the question
+                form.
+              </li>
+              <li>
+                Enter the <span class="text-white">prompt</span>, fill in the answer options, set the
+                <span class="text-white"> correct option</span>, then assign category and difficulty.
+              </li>
+              <li>
+                Add optional enrichment such as an image URL and explanation, then click
+                <span class="text-white"> Add Question</span>.
+              </li>
+              <li>
+                Move to the campaign builder, enter the campaign title, choose the start and end window, set cadence in
+                minutes, and choose how long each post stays live.
+              </li>
+              <li>
+                Select the questions that should belong to the campaign, set the campaign status, then click
+                <span class="text-white"> Create Campaign</span>.
+              </li>
+              <li>
+                Use <span class="text-white">Activate</span> to start a paused campaign, <span class="text-white">Pause</span>
+                to stop future scheduled runs, and <span class="text-white">Run Now</span> when you need an immediate drop for a
+                single campaign.
+              </li>
+              <li>
+                Use <span class="text-white">Run Scheduler Now</span> when you want the system to process every campaign whose
+                next run is already due.
+              </li>
+              <li>
+                Verify the result in Link Up or the live feed. Each published campaign item should appear as a poll-backed
+                trivia post with the configured options.
+              </li>
+            </ol>
+          </div>
+
+          <div class="space-y-4">
+            <div class="rounded-3xl border border-white/12 bg-black/25 p-5">
+              <p class="text-[11px] uppercase tracking-[0.28em] text-gold/80">Operating Notes</p>
+              <ul class="mt-4 space-y-3 text-sm leading-6 text-white/68">
+                <li>Keep prompts short and clear so poll options remain readable on mobile.</li>
+                <li>Use shorter cadence windows during live shows and longer cadence windows for passive campaigns.</li>
+                <li>Leave enough post duration for users to vote before the next scheduled question lands.</li>
+              </ul>
+            </div>
+            <div class="rounded-3xl border border-white/12 bg-black/25 p-5">
+              <p class="text-[11px] uppercase tracking-[0.28em] text-gold/80">Recommended Checks</p>
+              <ul class="mt-4 space-y-3 text-sm leading-6 text-white/68">
+                <li>Confirm each selected question is still enabled and has the correct answer index.</li>
+                <li>After a live run, review the feed once to confirm the campaign posted under the expected look and feel.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article id="store-ops" class="rounded-[1.75rem] border border-white/12 bg-black/35 p-6 sm:p-7">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div class="max-w-3xl">
+            <p class="text-[11px] uppercase tracking-[0.3em] text-gold/80">2. Store Operations</p>
+            <h2 class="mt-2 font-display text-3xl text-white">Create products, variants, reviews, and order updates</h2>
+            <p class="mt-3 text-sm leading-7 text-white/70">
+              Use <a href="/admin/store" class="text-gold hover:text-gold/80">/admin/store</a> to control product inventory,
+              pricing, media, review approval, and fulfillment status.
+            </p>
+          </div>
+          <div class="rounded-3xl border border-white/12 bg-white/[0.03] px-4 py-3 text-xs leading-6 text-white/60">
+            Core actions: <span class="text-white/85">Save Product</span>, <span class="text-white/85">Update Product</span>,
+            <span class="text-white/85">Save Variant</span>, <span class="text-white/85">Approve</span>,
+            <span class="text-white/85">Reject</span>, <span class="text-white/85">Mark shipped</span>
+          </div>
+        </div>
+
+        <div class="mt-6 grid gap-6 lg:grid-cols-[1.35fr,0.95fr]">
+          <div class="rounded-3xl border border-gold/15 bg-gold/[0.04] p-5">
+            <p class="text-[11px] uppercase tracking-[0.28em] text-gold/80">Step By Step</p>
+            <ol class="mt-4 space-y-4 text-sm leading-7 text-white/74">
+              <li>
+                Open <a href="/admin/store" class="text-gold hover:text-gold/80">/admin/store</a> and start in the product form.
+              </li>
+              <li>
+                Enter the slug, product name, description, product type, status, currency, and base price. Draft products stay
+                hidden until you change the status to active.
+              </li>
+              <li>
+                Upload or paste the cover image, then add gallery images so the product card and detail view have full media
+                coverage.
+              </li>
+              <li>
+                Click <span class="text-white">Save Product</span> for a new item or <span class="text-white">Update Product</span>
+                when editing an existing one.
+              </li>
+              <li>
+                Move to the variant form, choose the product, then add SKU, title, price, inventory mode, inventory count if the
+                product is finite, and digital delivery URL if it is a download.
+              </li>
+              <li>
+                Mark the default variant where appropriate, then click <span class="text-white">Save Variant</span>.
+              </li>
+              <li>
+                Review the review queue beneath the product tools. Use <span class="text-white">Approve</span> to publish a user
+                review and <span class="text-white">Reject</span> to suppress it.
+              </li>
+              <li>
+                Review the orders section and use <span class="text-white">Mark shipped</span> when fulfillment starts. Add a
+                tracking number if you have one.
+              </li>
+            </ol>
+          </div>
+
+          <div class="space-y-4">
+            <div class="rounded-3xl border border-white/12 bg-black/25 p-5">
+              <p class="text-[11px] uppercase tracking-[0.28em] text-gold/80">Product Checklist</p>
+              <ul class="mt-4 space-y-3 text-sm leading-6 text-white/68">
+                <li>Set the product to <span class="text-white">active</span> only after media, pricing, and variants are ready.</li>
+                <li>Use a clean slug because it becomes the durable URL handle for internal references.</li>
+                <li>For finite stock, keep inventory counts current so low-stock warnings remain trustworthy.</li>
+              </ul>
+            </div>
+            <div class="rounded-3xl border border-white/12 bg-black/25 p-5">
+              <p class="text-[11px] uppercase tracking-[0.28em] text-gold/80">Recommended Checks</p>
+              <ul class="mt-4 space-y-3 text-sm leading-6 text-white/68">
+                <li>Open the public store after saving to confirm the card image, price, and CTA flow look correct.</li>
+                <li>For digital goods, verify the delivery URL before making the product active.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article id="stream-ops" class="rounded-[1.75rem] border border-white/12 bg-black/35 p-6 sm:p-7">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div class="max-w-3xl">
+            <p class="text-[11px] uppercase tracking-[0.3em] text-gold/80">3. Live Stream Operations</p>
+            <h2 class="mt-2 font-display text-3xl text-white">Create sessions, monitor viewers, and message the room</h2>
+            <p class="mt-3 text-sm leading-7 text-white/70">
+              Use <a href="/admin/live" class="text-gold hover:text-gold/80">/admin/live</a> as the session command center.
+              It covers active and historical sessions, viewer observability, and host messaging.
+            </p>
+          </div>
+          <div class="rounded-3xl border border-white/12 bg-white/[0.03] px-4 py-3 text-xs leading-6 text-white/60">
+            Core actions: <span class="text-white/85">New Session</span>, <span class="text-white/85">Create Live Session</span>,
+            <span class="text-white/85">Open Stream Console</span>, <span class="text-white/85">Start Session</span>,
+            <span class="text-white/85">Save Schedule</span>, <span class="text-white/85">End Session</span>,
+            <span class="text-white/85">Delete Session</span>
+          </div>
+        </div>
+
+        <div class="mt-6 grid gap-6 lg:grid-cols-[1.35fr,0.95fr]">
+          <div class="rounded-3xl border border-gold/15 bg-gold/[0.04] p-5">
+            <p class="text-[11px] uppercase tracking-[0.28em] text-gold/80">Step By Step</p>
+            <ol class="mt-4 space-y-4 text-sm leading-7 text-white/74">
+              <li>
+                Open <a href="/admin/live" class="text-gold hover:text-gold/80">/admin/live</a> and click
+                <span class="text-white"> New Session</span>.
+              </li>
+              <li>
+                In the wizard, enter the session title, choose the provider, optionally set the scheduled time, then click
+                <span class="text-white"> Create Live Session</span>.
+              </li>
+              <li>
+                From the session card, use <span class="text-white">Open Stream Console</span> to work inside the selected session.
+              </li>
+              <li>
+                In the stream console, confirm the schedule, update it with <span class="text-white">Save Schedule</span> if
+                needed, then use <span class="text-white">Start Session</span> when ingest is ready.
+              </li>
+              <li>
+                While the stream is active, keep the admin live page open. It shows active sessions, observed viewer counts, last
+                heartbeat timing, and a roster of signed-in viewers per session.
+              </li>
+              <li>
+                Select a viewer from the observability roster, write a note, and send it to the live chat feed when you need to
+                direct or acknowledge a specific audience member.
+              </li>
+              <li>
+                When the show ends, use <span class="text-white">End Session</span>. Only use
+                <span class="text-white"> Delete Session</span> after the session is no longer live and you are sure the history
+                can be removed.
+              </li>
+            </ol>
+          </div>
+
+          <div class="space-y-4">
+            <div class="rounded-3xl border border-white/12 bg-black/25 p-5">
+              <p class="text-[11px] uppercase tracking-[0.28em] text-gold/80">Showtime Workflow</p>
+              <ul class="mt-4 space-y-3 text-sm leading-6 text-white/68">
+                <li>Create and schedule the session before show day so the ingest destination is stable.</li>
+                <li>Use the selected-session console for operational controls and the admin grid for fleet-wide visibility.</li>
+                <li>Watch for stale heartbeat timing or unexpectedly low viewer presence before going fully live.</li>
+              </ul>
+            </div>
+            <div class="rounded-3xl border border-white/12 bg-black/25 p-5">
+              <p class="text-[11px] uppercase tracking-[0.28em] text-gold/80">Recommended Checks</p>
+              <ul class="mt-4 space-y-3 text-sm leading-6 text-white/68">
+                <li>Confirm the session is in the expected status: draft, ready, live, or ended.</li>
+                <li>Before deletion, verify there is no need to preserve that session’s audit trail or chat history.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article id="moderation-ops" class="rounded-[1.75rem] border border-white/12 bg-black/35 p-6 sm:p-7">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div class="max-w-3xl">
+            <p class="text-[11px] uppercase tracking-[0.3em] text-gold/80">4. Moderation Operations</p>
+            <h2 class="mt-2 font-display text-3xl text-white">Control safety rules, review reports, and resolve queue items</h2>
+            <p class="mt-3 text-sm leading-7 text-white/70">
+              Use <a href="/admin/moderation" class="text-gold hover:text-gold/80">/admin/moderation</a> to manage new content
+              approval flow and close the loop on user reports.
+            </p>
+          </div>
+          <div class="rounded-3xl border border-white/12 bg-white/[0.03] px-4 py-3 text-xs leading-6 text-white/60">
+            Core actions: <span class="text-white/85">Turn Moderation On</span>,
+            <span class="text-white/85">Turn Moderation Off</span>, <span class="text-white/85">Approve</span>,
+            <span class="text-white/85">Flag</span>, <span class="text-white/85">Reject</span>,
+            <span class="text-white/85">Reviewed</span>, <span class="text-white/85">Resolved</span>,
+            <span class="text-white/85">Dismiss</span>
+          </div>
+        </div>
+
+        <div class="mt-6 grid gap-6 lg:grid-cols-[1.35fr,0.95fr]">
+          <div class="rounded-3xl border border-gold/15 bg-gold/[0.04] p-5">
+            <p class="text-[11px] uppercase tracking-[0.28em] text-gold/80">Step By Step</p>
+            <ol class="mt-4 space-y-4 text-sm leading-7 text-white/74">
+              <li>
+                Open <a href="/admin/moderation" class="text-gold hover:text-gold/80">/admin/moderation</a> and decide whether
+                the feed should be real-time or reviewed first.
+              </li>
+              <li>
+                Use <span class="text-white">Turn Moderation On</span> when you want new posts and comments to enter a moderated
+                path. Use <span class="text-white">Turn Moderation Off</span> when the audience flow should auto-approve.
+              </li>
+              <li>
+                Filter the report queue by report status and open each card to review the report reason, optional notes, and the
+                underlying post or comment content.
+              </li>
+              <li>
+                Apply a content decision with <span class="text-white">Approve</span>, <span class="text-white">Flag</span>, or
+                <span class="text-white">Reject</span>. Add a moderation reason when the prompt appears if the action needs an
+                audit trail.
+              </li>
+              <li>
+                Move the report through its lifecycle using <span class="text-white">Reviewed</span>,
+                <span class="text-white">Resolved</span>, or <span class="text-white">Dismiss</span> based on the outcome.
+              </li>
+              <li>
+                Refresh the queue view once more to confirm the report left the open state and the target content now shows the
+                correct moderation status.
+              </li>
+            </ol>
+          </div>
+
+          <div class="space-y-4">
+            <div class="rounded-3xl border border-white/12 bg-black/25 p-5">
+              <p class="text-[11px] uppercase tracking-[0.28em] text-gold/80">Decision Guidance</p>
+              <ul class="mt-4 space-y-3 text-sm leading-6 text-white/68">
+                <li>Approve when the content is acceptable and can safely remain in the feed.</li>
+                <li>Flag when content needs caution, monitoring, or follow-up attention from the team.</li>
+                <li>Reject when the content breaches policy and should not stay visible.</li>
+              </ul>
+            </div>
+            <div class="rounded-3xl border border-white/12 bg-black/25 p-5">
+              <p class="text-[11px] uppercase tracking-[0.28em] text-gold/80">Recommended Checks</p>
+              <ul class="mt-4 space-y-3 text-sm leading-6 text-white/68">
+                <li>Keep moderation enabled during high-volume live audience windows or sensitive launches.</li>
+                <li>Resolve reports after the content action so the queue reflects actual handling, not just review intent.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </article>
+    </div>
+  </section>
+</BaseLayout>

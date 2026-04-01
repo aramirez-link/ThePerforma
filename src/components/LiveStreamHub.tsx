@@ -42,6 +42,22 @@ const formatIcsDate = (value: Date) => value.toISOString().replace(/[-:]/g, "").
 
 const escapeIcsText = (value: string) => value.replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/,/g, "\\,").replace(/;/g, "\\;");
 
+const formatDeckSchedule = (value?: string | null) => {
+  if (!value) return "No scheduled stream yet";
+  try {
+    return new Intl.DateTimeFormat("en-US", {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      timeZoneName: "short"
+    }).format(new Date(value));
+  } catch {
+    return value;
+  }
+};
+
 const getLiveDeviceKind = (): "web" | "mobile_web" | "tablet_web" => {
   if (typeof window === "undefined") return "web";
   const width = window.innerWidth || 0;
@@ -73,6 +89,7 @@ export default function LiveStreamHub() {
   const [liveStatus, setLiveStatus] = useState<{ status: string; updatedAt?: string } | null>(null);
   const [publicLive, setPublicLive] = useState<PublicLiveStatus | null>(null);
   const [adminEnabled, setAdminEnabled] = useState(false);
+  const [deckExpanded, setDeckExpanded] = useState(false);
   const operatorAllowlist = useMemo(
     () =>
       String(import.meta.env.PUBLIC_OPERATOR_EMAILS || "")
@@ -85,6 +102,14 @@ export default function LiveStreamHub() {
   const isLoggedIn = Boolean(user);
   const isOperator = Boolean(user?.email && operatorAllowlist.includes(user.email.toLowerCase()));
   const canModerateLive = isOperator || adminEnabled;
+  const isDeckLive = Boolean(publicLive?.isLive || liveStatus?.status === "live");
+  const nextScheduledLabel = formatDeckSchedule(publicLive?.scheduledFor);
+  const deckStatusLabel = isDeckLive ? "Live Now" : "No Live Streams";
+  const deckSummary = isDeckLive
+    ? "A live session is active. The companion deck is expanded for playback, publishing, and chat."
+    : publicLive?.scheduledFor
+      ? `Next scheduled stream: ${nextScheduledLabel}.`
+      : "No live stream is active right now. Publish a scheduled session to surface the next show window here.";
 
   useEffect(() => {
     const init = async () => {
@@ -162,6 +187,10 @@ export default function LiveStreamHub() {
     const timer = window.setInterval(() => void load(), 15000);
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    setDeckExpanded(Boolean(publicLive?.isLive || liveStatus?.status === "live"));
+  }, [publicLive?.isLive, liveStatus?.status]);
 
   useEffect(() => {
     if (!user?.id || !publicLive?.sessionId) return;
@@ -294,7 +323,7 @@ export default function LiveStreamHub() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-[10px] uppercase tracking-[0.32em] text-gold/80">Chip Lee Pop-Up Fan Streams</p>
-          {liveStatus?.status === "live" && (
+          {isDeckLive && (
             <p className="mt-2 inline-flex rounded-full border border-ember/60 bg-ember/15 px-3 py-1 text-[10px] uppercase tracking-[0.24em] text-gold">
               Live Now
             </p>
@@ -311,26 +340,65 @@ export default function LiveStreamHub() {
         )}
       </div>
 
-      <div className="mt-6">
-        <LiveCompanion
-          session={publicLive}
-          user={user}
-          canModerate={canModerateLive}
-          fallbackEmbedUrl={streamEmbedUrl}
-          reminders={{
-            isLoggedIn,
-            saving,
-            emailActive: emailReminderActive,
-            smsActive: smsReminderActive,
-            hasSmsPhone: Boolean(prefs.smsPhone.trim()),
-            settingsHref: `#${LIVE_ALERTS_ID}`,
-            onAddToCalendar: addSessionToCalendar,
-            onToggleEmail: () => void toggleEmailReminder(),
-            onToggleSms: () => void toggleSmsReminder(),
-            onOpenSettings: openAlertSettings
-          }}
-        />
+      <div className="mt-6 rounded-[1.8rem] border border-white/15 bg-[linear-gradient(180deg,rgba(10,10,14,0.9),rgba(6,7,11,0.88))] p-4 shadow-[0_0_60px_rgba(242,84,45,0.08)] md:p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span
+                className={`rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.2em] ${
+                  isDeckLive
+                    ? "border-emerald-400/55 bg-emerald-400/10 text-emerald-300"
+                    : "border-white/20 bg-white/[0.04] text-white/70"
+                }`}
+              >
+                {deckStatusLabel}
+              </span>
+              <span className="rounded-full border border-gold/35 bg-gold/10 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-gold">
+                Next: {nextScheduledLabel}
+              </span>
+            </div>
+            <div>
+              <p className="text-sm text-white/78">{deckSummary}</p>
+              <p className="mt-2 text-[11px] text-white/48">
+                {publicLive?.title
+                  ? `${isDeckLive ? "Current session" : "Upcoming session"}: ${publicLive.title}`
+                  : "No active or scheduled public stream is currently published."}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setDeckExpanded((current) => !current)}
+            className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/20 px-4 py-2 text-[10px] uppercase tracking-[0.24em] text-white/78 transition hover:border-gold/45 hover:text-gold"
+          >
+            {deckExpanded ? "Collapse Deck" : isDeckLive ? "Open Live Deck" : "Expand Deck"}
+          </button>
+        </div>
       </div>
+
+      {deckExpanded && (
+        <div className="mt-5">
+          <LiveCompanion
+            session={publicLive}
+            user={user}
+            canModerate={canModerateLive}
+            fallbackEmbedUrl={streamEmbedUrl}
+            reminders={{
+              isLoggedIn,
+              saving,
+              emailActive: emailReminderActive,
+              smsActive: smsReminderActive,
+              hasSmsPhone: Boolean(prefs.smsPhone.trim()),
+              settingsHref: `#${LIVE_ALERTS_ID}`,
+              onAddToCalendar: addSessionToCalendar,
+              onToggleEmail: () => void toggleEmailReminder(),
+              onToggleSms: () => void toggleSmsReminder(),
+              onOpenSettings: openAlertSettings
+            }}
+          />
+        </div>
+      )}
 
       <div className="mt-5 grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
         <aside id={LIVE_ALERTS_ID} className="rounded-2xl border border-white/15 bg-black/45 p-4">
