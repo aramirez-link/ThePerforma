@@ -379,6 +379,8 @@ export default function FanFeed() {
   const [bookBlueprintDraft, setBookBlueprintDraft] = useState<BlueprintPayload | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [mobileFeedMode, setMobileFeedMode] = useState<"all" | "media" | "polls">("all");
+  const [mobileComposerExpanded, setMobileComposerExpanded] = useState(false);
+  const [mobileInsightsOpen, setMobileInsightsOpen] = useState(false);
   const prevLikeMapRef = useRef<Record<string, number>>({});
   const swipeStartXRef = useRef<Record<string, number>>({});
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
@@ -628,6 +630,18 @@ export default function FanFeed() {
     () => activeFans.reduce((count, fan) => count + (fan.online ? 1 : 0), 0),
     [activeFans]
   );
+  const feedCounts = useMemo(
+    () => ({
+      all: posts.length,
+      media: posts.filter((post) => Boolean(post.mediaUrl)).length,
+      polls: posts.filter((post) => Boolean(post.poll)).length
+    }),
+    [posts]
+  );
+  const leadCitySignal = useMemo(
+    () => [...citySignals].sort((left, right) => right.score - left.score)[0] || null,
+    [citySignals]
+  );
   const visiblePosts = useMemo(() => {
     if (mobileFeedMode === "media") return posts.filter((post) => Boolean(post.mediaUrl));
     if (mobileFeedMode === "polls") return posts.filter((post) => Boolean(post.poll));
@@ -750,6 +764,7 @@ export default function FanFeed() {
         { label: "", imageUrl: "" },
         { label: "", imageUrl: "" }
       ]);
+      setMobileComposerExpanded(false);
       logActivity("post");
       addXp(25, "Post published");
       setNotice("Post published.");
@@ -945,6 +960,7 @@ export default function FanFeed() {
   };
 
   const focusComposer = () => {
+    setMobileComposerExpanded(true);
     const section = document.getElementById("link-up-composer");
     section?.scrollIntoView({ behavior: "smooth", block: "start" });
     window.setTimeout(() => composerRef.current?.focus(), 140);
@@ -978,50 +994,140 @@ export default function FanFeed() {
 
   return (
     <div className="grid items-start gap-4 md:gap-5 xl:min-h-[58rem]">
-      <div className="sticky top-[5.2rem] z-30 -mx-1 flex items-center gap-2 overflow-x-auto rounded-2xl border border-white/15 bg-black/70 px-2 py-2 backdrop-blur-xl sm:hidden">
-        <button
-          type="button"
-          onClick={focusComposer}
-          className="min-h-10 whitespace-nowrap rounded-full border border-gold/45 bg-gold/10 px-4 py-2 text-[10px] uppercase tracking-[0.2em] text-gold"
-        >
-          Compose
-        </button>
-        <button
-          type="button"
-          onClick={() => setMobileFeedMode("all")}
-          className={`min-h-10 whitespace-nowrap rounded-full border px-4 py-2 text-[10px] uppercase tracking-[0.2em] ${mobileFeedMode === "all" ? "border-white/45 bg-white/10 text-white" : "border-white/25 bg-black/35 text-white/80"}`}
-        >
-          For You
-        </button>
-        <button
-          type="button"
-          onClick={() => setMobileFeedMode("media")}
-          className={`min-h-10 whitespace-nowrap rounded-full border px-4 py-2 text-[10px] uppercase tracking-[0.2em] ${mobileFeedMode === "media" ? "border-white/45 bg-white/10 text-white" : "border-white/25 bg-black/35 text-white/80"}`}
-        >
-          Media
-        </button>
-        <button
-          type="button"
-          onClick={() => setMobileFeedMode("polls")}
-          className={`min-h-10 whitespace-nowrap rounded-full border px-4 py-2 text-[10px] uppercase tracking-[0.2em] ${mobileFeedMode === "polls" ? "border-white/45 bg-white/10 text-white" : "border-white/25 bg-black/35 text-white/80"}`}
-        >
-          Polls
-        </button>
-        <span className="whitespace-nowrap rounded-full border border-cyan-300/40 bg-cyan-400/10 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-cyan-100">
-          Pulse {energyMetrics.pct}%
-        </span>
-        <span className="whitespace-nowrap rounded-full border border-emerald-300/40 bg-emerald-400/10 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-emerald-100">
-          {activeOnlineCount} online
-        </span>
+      <section className="order-1 sm:hidden">
+        <div className="overflow-hidden rounded-[2rem] border border-white/15 bg-[radial-gradient(circle_at_top,rgba(243,211,139,0.16),transparent_32%),linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0))] p-5 shadow-[0_20px_80px_rgba(0,0,0,0.38)] backdrop-blur-xl">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.34em] text-gold/85">Link Up</p>
+              <h2 className="mt-2 font-display text-[2.35rem] leading-[0.95] text-white">Signal Wall</h2>
+              <p className="mt-3 max-w-[26rem] text-sm leading-6 text-white/68">
+                A mobile-first fan feed for drops, polls, reactions, and context-rich photo or video posts.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setMobileInsightsOpen(true)}
+              className="min-h-10 whitespace-nowrap rounded-full border border-cyan-300/35 bg-cyan-400/10 px-4 py-2 text-[10px] uppercase tracking-[0.22em] text-cyan-100"
+            >
+              Signal Deck
+            </button>
+          </div>
+
+          <div className="mt-5 grid grid-cols-3 gap-2">
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3">
+              <p className="text-[9px] uppercase tracking-[0.22em] text-white/45">Pulse</p>
+              <p className="mt-2 text-xl text-white">{energyMetrics.pct}%</p>
+              <p className="text-[10px] uppercase tracking-[0.18em] text-gold/75">{energyMetrics.trend}</p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3">
+              <p className="text-[9px] uppercase tracking-[0.22em] text-white/45">Online</p>
+              <p className="mt-2 text-xl text-white">{activeOnlineCount}</p>
+              <p className="text-[10px] uppercase tracking-[0.18em] text-emerald-200/80">fans live</p>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-3 py-3">
+              <p className="text-[9px] uppercase tracking-[0.22em] text-white/45">Leader</p>
+              <p className="mt-2 text-base text-white">{leadCitySignal?.city || "Atlanta"}</p>
+              <p className="text-[10px] uppercase tracking-[0.18em] text-white/55">{leadCitySignal?.status || "Active"}</p>
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-[1.6rem] border border-gold/20 bg-black/30 p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.22em] text-gold/80">Weekly Prompt</p>
+                <p className="mt-2 text-sm leading-6 text-white/82">{weeklyPrompt}</p>
+              </div>
+              <button
+                type="button"
+                onClick={onPromptPrefill}
+                className="min-h-10 whitespace-nowrap rounded-full border border-gold/35 px-4 py-2 text-[10px] uppercase tracking-[0.2em] text-gold"
+              >
+                Use
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="order-2 sticky top-[5.2rem] z-30 -mx-1 rounded-[1.7rem] border border-white/15 bg-black/72 px-3 py-3 shadow-[0_12px_36px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:hidden">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1">
+          <button
+            type="button"
+            onClick={focusComposer}
+            className="min-h-11 whitespace-nowrap rounded-full bg-ember px-4 py-2 text-[10px] uppercase tracking-[0.22em] text-ink"
+          >
+            New Signal
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileInsightsOpen(true)}
+            className="min-h-11 whitespace-nowrap rounded-full border border-white/20 bg-white/5 px-4 py-2 text-[10px] uppercase tracking-[0.22em] text-white/80"
+          >
+            Pulse
+          </button>
+          <button
+            type="button"
+            onClick={onPromptPrefill}
+            className="min-h-11 whitespace-nowrap rounded-full border border-gold/30 bg-gold/8 px-4 py-2 text-[10px] uppercase tracking-[0.22em] text-gold/90"
+          >
+            Prompt
+          </button>
+        </div>
+        <div className="mt-3 flex items-center gap-2 overflow-x-auto">
+          <button
+            type="button"
+            onClick={() => setMobileFeedMode("all")}
+            className={`min-h-10 whitespace-nowrap rounded-full border px-4 py-2 text-[10px] uppercase tracking-[0.2em] ${mobileFeedMode === "all" ? "border-white/45 bg-white/10 text-white" : "border-white/20 bg-black/35 text-white/72"}`}
+          >
+            For You {feedCounts.all > 0 ? `· ${feedCounts.all}` : ""}
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileFeedMode("media")}
+            className={`min-h-10 whitespace-nowrap rounded-full border px-4 py-2 text-[10px] uppercase tracking-[0.2em] ${mobileFeedMode === "media" ? "border-white/45 bg-white/10 text-white" : "border-white/20 bg-black/35 text-white/72"}`}
+          >
+            Media {feedCounts.media > 0 ? `· ${feedCounts.media}` : ""}
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileFeedMode("polls")}
+            className={`min-h-10 whitespace-nowrap rounded-full border px-4 py-2 text-[10px] uppercase tracking-[0.2em] ${mobileFeedMode === "polls" ? "border-white/45 bg-white/10 text-white" : "border-white/20 bg-black/35 text-white/72"}`}
+          >
+            Polls {feedCounts.polls > 0 ? `· ${feedCounts.polls}` : ""}
+          </button>
+        </div>
       </div>
-      <aside className="order-1 xl:fixed xl:top-24 xl:left-[max(1rem,calc((100vw-1700px)/2+1rem))] xl:z-30 xl:w-[340px] 2xl:w-[380px] xl:max-h-[calc(100dvh-7.5rem)] xl:overflow-y-auto">
-        <article id="link-up-composer" className="rounded-[2rem] border border-white/15 bg-black/55 p-5 backdrop-blur-md md:p-6">
-          <p className="text-xs uppercase tracking-[0.34em] text-gold/85">Link Up</p>
-          <h3 className="mt-2 font-display text-3xl">Community Signal Wall</h3>
-          <p className="mt-3 text-sm text-white/70">Drop moments, media links, and comments in a shared feed with other fans.</p>
-          <p className="mt-2 text-xs text-white/50">
-            Community safety: hate speech, harassment, and sexual exploitation content are blocked and can be reported.
-          </p>
+      <aside className="order-3 xl:fixed xl:top-24 xl:left-[max(1rem,calc((100vw-1700px)/2+1rem))] xl:z-30 xl:w-[340px] 2xl:w-[380px] xl:max-h-[calc(100dvh-7.5rem)] xl:overflow-y-auto">
+        <div id="link-up-composer" className="overflow-hidden rounded-[2rem] border border-white/15 bg-black/55 backdrop-blur-md">
+          <div className="hidden p-5 md:p-6 sm:block">
+            <p className="text-xs uppercase tracking-[0.34em] text-gold/85">Link Up</p>
+            <h3 className="mt-2 font-display text-3xl">Community Signal Wall</h3>
+            <p className="mt-3 text-sm text-white/70">Drop moments, media links, and comments in a shared feed with other fans.</p>
+            <p className="mt-2 text-xs text-white/50">
+              Community safety: hate speech, harassment, and sexual exploitation content are blocked and can be reported.
+            </p>
+          </div>
+
+          <div className="border-b border-white/10 p-4 sm:hidden">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.28em] text-gold/85">Create</p>
+                <h3 className="mt-1 font-display text-2xl text-white">New Signal</h3>
+                <p className="mt-2 text-xs leading-5 text-white/62">
+                  {canPublish ? "Ready to post." : isRunBunMode ? "Add an image or URL to publish." : isPollMode ? "Finish the poll details to publish." : "Add a drop, photo, or link."}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMobileComposerExpanded((current) => !current)}
+                className="min-h-10 whitespace-nowrap rounded-full border border-white/20 bg-white/5 px-4 py-2 text-[10px] uppercase tracking-[0.2em] text-white/80"
+              >
+                {mobileComposerExpanded ? "Collapse" : "Compose"}
+              </button>
+            </div>
+          </div>
+
+          <div className={`p-5 md:p-6 ${mobileComposerExpanded ? "block" : "hidden"} sm:block`}>
 
           {!viewer && (
             <p className="mt-3 rounded-xl border border-white/15 bg-black/35 px-4 py-3 text-sm text-white/75">
@@ -1246,11 +1352,12 @@ export default function FanFeed() {
               </p>
             )}
           </div>
-        </article>
+        </div>
+        </div>
       </aside>
 
-      <div className="order-2 space-y-4 pb-28 xl:order-2 xl:ml-[360px] xl:mr-[360px] xl:pb-0 2xl:ml-[400px] 2xl:mr-[380px]">
-        <div className="space-y-4 md:space-y-4 max-sm:max-h-[calc(100dvh-16.5rem)] max-sm:overflow-y-auto max-sm:snap-y max-sm:snap-mandatory max-sm:pr-1">
+      <div className="order-4 space-y-4 pb-28 xl:order-2 xl:ml-[360px] xl:mr-[360px] xl:pb-0 2xl:ml-[400px] 2xl:mr-[380px]">
+        <div className="space-y-4 md:space-y-4">
           {loading && <div className="rounded-2xl border border-white/15 bg-black/50 p-5 text-sm text-white/70">Loading feed...</div>}
           {!loading && visiblePosts.length === 0 && (
             <div className="rounded-2xl border border-white/15 bg-black/50 p-5 text-sm text-white/70">
@@ -1264,11 +1371,11 @@ export default function FanFeed() {
             <article
               id={`post-${post.id}`}
               key={post.id}
-              className={`relative snap-start overflow-hidden rounded-[1.55rem] border border-white/15 bg-gradient-to-b from-black/60 to-black/40 p-4 shadow-[0_0_60px_rgba(242,84,45,0.08)] max-sm:min-h-[calc(100dvh-18rem)] sm:rounded-3xl sm:p-5 ${
-                isImmersiveMediaPost ? "max-sm:pb-2" : ""
+              className={`relative overflow-hidden rounded-[1.55rem] border border-white/15 bg-gradient-to-b from-black/60 to-black/40 p-4 shadow-[0_0_60px_rgba(242,84,45,0.08)] sm:rounded-3xl sm:p-5 ${
+                isImmersiveMediaPost ? "sm:pb-4" : ""
               }`}
             >
-              <div className={`flex items-start justify-between gap-3 ${isImmersiveMediaPost ? "max-sm:hidden" : ""}`}>
+              <div className="flex items-start justify-between gap-3">
                 <div className="flex items-start gap-3">
                   <UserAvatar name={post.authorName} seed={post.authorAvatarSeed} imageUrl={post.authorAvatarUrl} />
                   <div>
@@ -1600,8 +1707,6 @@ export default function FanFeed() {
                 <div
                   className={`relative mt-4 overflow-hidden rounded-2xl border bg-black/40 ${
                     post.postType === "media" ? "border-gold/30 shadow-[0_0_32px_rgba(243,211,139,0.12)]" : "border-white/15"
-                  } ${
-                    isImmersiveMediaPost ? "max-sm:-mx-4 max-sm:rounded-none max-sm:border-x-0 max-sm:border-b-0" : ""
                   }`}
                 >
                   {post.mediaType === "image" && (
@@ -1613,9 +1718,7 @@ export default function FanFeed() {
                           src={safe}
                           alt=""
                           loading="lazy"
-                          className={`w-full object-cover ${
-                            post.postType === "media" ? "max-h-[72dvh] max-sm:h-[72dvh]" : "max-h-[34rem]"
-                          }`}
+                          className={`w-full object-cover ${post.postType === "media" ? "max-h-[72dvh]" : "max-h-[34rem]"}`}
                         />
                       );
                     })()
@@ -1631,7 +1734,7 @@ export default function FanFeed() {
                             controls
                             playsInline
                             preload="metadata"
-                            className={`w-full bg-black ${isImmersiveMediaPost ? "max-sm:h-[72dvh]" : "aspect-video"}`}
+                            className={`w-full bg-black ${isImmersiveMediaPost ? "max-h-[72dvh]" : "aspect-video"}`}
                           />
                         );
                       }
@@ -1641,7 +1744,7 @@ export default function FanFeed() {
                           <iframe
                             src={embed}
                             title="Shared fan video"
-                            className={`w-full ${isImmersiveMediaPost ? "max-sm:h-[72dvh]" : "aspect-video"}`}
+                            className={`w-full ${isImmersiveMediaPost ? "max-h-[72dvh] min-h-[18rem]" : "aspect-video"}`}
                             allow="autoplay; encrypted-media; picture-in-picture; web-share"
                             allowFullScreen
                             loading="lazy"
@@ -1658,57 +1761,11 @@ export default function FanFeed() {
                       return <a href={safe} target="_blank" rel="noreferrer noopener" className="block px-4 py-3 text-sm text-gold hover:text-gold/80">Open shared link</a>;
                     })()
                   )}
-                  {isImmersiveMediaPost && (
-                    <>
-                      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-44 bg-gradient-to-t from-black via-black/65 to-transparent sm:hidden" />
-                      <div className="pointer-events-none absolute bottom-0 left-0 right-0 z-10 p-3 sm:hidden">
-                        <div className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-black/55 px-3 py-1 text-[9px] uppercase tracking-[0.2em] text-white/75 animate-pulse">
-                          <span>Swipe</span>
-                          <span className="text-white/45">|</span>
-                          <span>Next Drop</span>
-                        </div>
-                        <div className="mt-3 flex items-center gap-2">
-                          <UserAvatar name={post.authorName} seed={post.authorAvatarSeed} imageUrl={post.authorAvatarUrl} size="sm" />
-                          <div>
-                            <p className="text-[10px] uppercase tracking-[0.22em] text-gold/90">{post.authorName || "Fan"}</p>
-                            <p className="mt-1 text-[11px] text-white/55">{prettyDate(post.createdAt)}</p>
-                          </div>
-                        </div>
-                        {post.cleanBody && (
-                          <p className="mt-2 max-w-[95%] text-sm leading-5 text-white/92">{post.cleanBody}</p>
-                        )}
-                      </div>
-                    </>
-                  )}
                 </div>
               )}
 
-              <div className="absolute right-3 top-[4.2rem] z-20 flex flex-col gap-2 sm:hidden">
-                <button
-                  type="button"
-                  onClick={() => onLike(post.id)}
-                  className={`min-h-11 min-w-11 rounded-full border bg-black/70 px-2 text-[11px] font-medium backdrop-blur-lg ${post.viewerHasLiked ? "border-gold/70 text-gold" : "border-white/30 text-white/85"}`}
-                >
-                  {post.likeCount}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openCommentComposer(post.id)}
-                  className="min-h-11 min-w-11 rounded-full border border-white/30 bg-black/70 px-2 text-[11px] font-medium text-white/85 backdrop-blur-lg"
-                >
-                  {post.comments.length}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onShare(post)}
-                  className="min-h-11 min-w-11 rounded-full border border-white/30 bg-black/70 px-2 text-[10px] uppercase tracking-[0.15em] text-white/85 backdrop-blur-lg"
-                >
-                  Share
-                </button>
-              </div>
-
-              <div className="mt-4 hidden grid-cols-3 gap-2 text-[11px] uppercase tracking-[0.19em] sm:flex sm:flex-wrap sm:items-center sm:text-xs sm:tracking-[0.22em]">
-                <button type="button" onClick={() => onLike(post.id)} className={`min-h-11 rounded-full border px-4 py-2 transition ${post.viewerHasLiked ? "border-gold/60 text-gold" : "border-white/20 text-white/70 hover:border-white/45 hover:text-white"}`}>Like {post.likeCount}</button>
+              <div className="mt-4 flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.19em] sm:text-xs sm:tracking-[0.22em]">
+                <button type="button" onClick={() => onLike(post.id)} className={`min-h-11 rounded-full border px-4 py-2 transition ${post.viewerHasLiked ? "border-gold/60 bg-gold/10 text-gold" : "border-white/20 text-white/70 hover:border-white/45 hover:text-white"}`}>Like {post.likeCount}</button>
                 <button type="button" onClick={() => onShare(post)} className="min-h-11 rounded-full border border-white/20 px-4 py-2 text-white/70 transition hover:border-white/45 hover:text-white">Share {post.shareCount}</button>
                 <button
                   type="button"
@@ -1823,7 +1880,7 @@ export default function FanFeed() {
         {notice && <p className="text-xs text-gold">{notice}</p>}
       </div>
 
-      <aside className="order-3 xl:fixed xl:top-24 xl:right-[max(1rem,calc((100vw-1700px)/2+1rem))] xl:z-30 xl:w-[340px] 2xl:w-[360px] xl:max-h-[calc(100dvh-7.5rem)] xl:overflow-y-auto">
+      <aside className="order-4 hidden sm:block xl:fixed xl:top-24 xl:right-[max(1rem,calc((100vw-1700px)/2+1rem))] xl:z-30 xl:w-[340px] 2xl:w-[360px] xl:max-h-[calc(100dvh-7.5rem)] xl:overflow-y-auto">
         <SignalCommandCenter
         energy={energyMetrics.pct}
         trend={energyMetrics.trend}
@@ -1839,11 +1896,106 @@ export default function FanFeed() {
         />
       </aside>
 
-      {!activeCommentPostId && (
+      {mobileInsightsOpen && (
+        <div className="fixed inset-0 z-50 sm:hidden">
+          <button
+            type="button"
+            aria-label="Close signal deck"
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            onClick={() => setMobileInsightsOpen(false)}
+          />
+          <div className="absolute inset-x-0 bottom-0 max-h-[84dvh] overflow-y-auto rounded-t-[2rem] border border-white/15 bg-[#08080c]/96 px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-5 shadow-[0_-24px_60px_rgba(0,0,0,0.42)]">
+            <div className="mx-auto h-1.5 w-14 rounded-full bg-white/20" />
+            <div className="mt-4 flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.28em] text-gold/85">Signal Deck</p>
+                <h3 className="mt-2 font-display text-3xl text-white">Tonight’s Pulse</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMobileInsightsOpen(false)}
+                className="min-h-10 rounded-full border border-white/20 px-4 py-2 text-[10px] uppercase tracking-[0.2em] text-white/70"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <p className="text-[10px] uppercase tracking-[0.22em] text-white/45">Live Room Pulse</p>
+                <p className="mt-3 text-3xl text-white">{energyMetrics.pct}%</p>
+                <p className="mt-1 text-[11px] uppercase tracking-[0.18em] text-gold/75">{energyMetrics.trend}</p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <p className="text-[10px] uppercase tracking-[0.22em] text-white/45">Your Signal Rank</p>
+                <p className="mt-3 text-lg text-white">{rank.current}</p>
+                <p className="mt-1 text-[11px] text-white/55">{profile.xp} XP · {rank.progress}% to next</p>
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-[1.6rem] border border-gold/20 bg-gold/6 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.22em] text-gold/80">Weekly Prompt</p>
+                  <p className="mt-2 text-sm leading-6 text-white/85">{weeklyPrompt}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileInsightsOpen(false);
+                    onPromptPrefill();
+                  }}
+                  className="min-h-10 whitespace-nowrap rounded-full border border-gold/35 px-4 py-2 text-[10px] uppercase tracking-[0.2em] text-gold"
+                >
+                  Post It
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-[1.6rem] border border-white/10 bg-white/5 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[10px] uppercase tracking-[0.22em] text-white/50">Active Fans</p>
+                <span className="rounded-full border border-emerald-300/30 bg-emerald-400/10 px-2 py-1 text-[9px] uppercase tracking-[0.18em] text-emerald-100">
+                  {activeOnlineCount} live
+                </span>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {activeFans.filter((fan) => fan.online).slice(0, 12).map((fan) => (
+                  <span key={fan.id} className="rounded-full border border-white/15 bg-black/30 px-3 py-2 text-[11px] uppercase tracking-[0.16em] text-white/75">
+                    {fan.name}
+                  </span>
+                ))}
+                {activeOnlineCount === 0 && (
+                  <p className="text-sm text-white/55">No fans are active right now.</p>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-[1.6rem] border border-white/10 bg-white/5 p-4">
+              <p className="text-[10px] uppercase tracking-[0.22em] text-white/50">City Signals</p>
+              <div className="mt-3 space-y-3">
+                {citySignals.map((signal) => (
+                  <div key={signal.city}>
+                    <div className="flex items-center justify-between gap-2 text-[11px] uppercase tracking-[0.18em] text-white/75">
+                      <span>{signal.city}</span>
+                      <span className="text-white/45">{signal.status}</span>
+                    </div>
+                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/10">
+                      <div className="h-full rounded-full bg-gradient-to-r from-gold via-amber-400 to-ember" style={{ width: `${signal.score}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!activeCommentPostId && !mobileComposerExpanded && (
         <button
           type="button"
           onClick={focusComposer}
-          className="fixed bottom-[6.25rem] right-4 z-40 min-h-11 rounded-full border border-gold/40 bg-black/85 px-4 py-2 text-[10px] uppercase tracking-[0.22em] text-gold backdrop-blur-xl sm:hidden"
+          className="fixed bottom-[6.6rem] right-4 z-40 min-h-11 rounded-full border border-gold/40 bg-black/85 px-4 py-2 text-[10px] uppercase tracking-[0.22em] text-gold backdrop-blur-xl sm:hidden"
         >
           Jump to Composer
         </button>
