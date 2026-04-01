@@ -1,5 +1,5 @@
 ---
-const trackModules = import.meta.glob("../../assets/sound-vault/*.m4a", {
+const trackModules = import.meta.glob("../../assets/sound-vault/*.{m4a,mp3,wav,ogg}", {
   eager: true,
   query: "?url",
   import: "default"
@@ -7,7 +7,7 @@ const trackModules = import.meta.glob("../../assets/sound-vault/*.m4a", {
 
 const tracks = Object.entries(trackModules)
   .map(([path, url]) => {
-    const rawTitle = path.split("/").pop()?.replace(/\.m4a$/i, "") || "Untitled Track";
+    const rawTitle = path.split("/").pop()?.replace(/\.(m4a|mp3|wav|ogg)$/i, "") || "Untitled Track";
     return {
       title: rawTitle.replace(/\s+/g, " ").trim(),
       url
@@ -67,9 +67,7 @@ const initialTrack = tracks[0] || null;
           </div>
         </div>
 
-        <audio id="sound-vault-audio" preload="metadata" class="sr-only">
-          <source src={initialTrack.url} type="audio/mp4" />
-        </audio>
+        <audio id="sound-vault-audio" src={initialTrack.url} preload="metadata" class="sr-only" />
 
         <div class="mt-4">
           <input
